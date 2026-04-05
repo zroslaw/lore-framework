@@ -30,6 +30,8 @@ Framework commands are installed into the domain directory's `.claude/commands/`
 | `/lr-reflect` | `docs/process-reflection.md` | Extract session knowledge into reflections |
 | `/lr-merge` | `docs/process-merge.md` | Integrate reflections into lore |
 | `/lr-finalize` | `docs/process-reflection.md`, `docs/process-merge.md` | Reflect + merge in sequence |
+| `/lr-list-agents` | — | List all registered agents with their repo and purpose |
+| `/lr-list-repos` | — | List all registered agent repos with their purpose |
 
 Per-agent commands (`/lr-<name>-agent`) are generated during repo registration. They load an agent's boot context. See `docs/agent-boot.md`.
 
