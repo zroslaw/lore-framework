@@ -26,7 +26,7 @@ For each reflection topic, decide:
 3. **Remove an obsolete topic** — if a reflection makes an existing topic fundamentally wrong (not just partially outdated), delete it. Git preserves history.
 
 When updating or creating topics:
-- Keep topics under 1000 tokens when possible. Split if too large.
+- Keep topics under 5000 tokens when possible. Split if too large.
 - Topics can reference other topics by filename.
 - Summary topics can link to clusters of related topics.
 - Include operational recommendations where relevant.
@@ -49,7 +49,7 @@ Update `lore-context.md` to reflect the new state of the agent's knowledge.
 
 Prioritize recent and frequently relevant knowledge. Older or less critical knowledge should be more summarized or referenced only.
 
-**Size budget**: keep `lore-context.md` under 10,000 tokens. If it exceeds this, compact by:
+**Size budget**: keep `lore-context.md` under 50,000 tokens. If it exceeds this, compact by:
 - Summarizing older entries more aggressively
 - Replacing inline details with references to lore topics
 - Removing information well-covered by lore topics

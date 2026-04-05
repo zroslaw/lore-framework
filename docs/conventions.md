@@ -16,7 +16,7 @@
 └── agents/
     └── <agent-name>/
         ├── role.md              # Identity and responsibilities
-        ├── lore-context.md      # Compacted working knowledge (≤10K tokens)
+        ├── lore-context.md      # Compacted working knowledge (≤50K tokens)
         ├── lore/                # Knowledge graph of atomic topics
         ├── reflections/         # Temporary — exists only during finalization
         └── workdir/             # Persistent workspace for artifacts
@@ -33,7 +33,7 @@
 ## Lore Topics
 
 - **Atomic** — one concept or lesson per file
-- **Compact** — under 1K tokens preferred, flexible when needed
+- **Compact** — under 5K tokens preferred, flexible when needed
 - **Plain markdown** — no frontmatter, no metadata fields
 - **Git tracks metadata** — creation date, update history, authorship all come from git
 - **Obsolete topics are deleted** — git preserves history, no need for status markers
@@ -42,7 +42,7 @@
 
 ## Lore Context
 
-- **Budget**: 10K tokens maximum
+- **Budget**: 50K tokens maximum
 - **Content mix**: inline summarized knowledge + topic summaries with filename references
 - **Prioritization**: recent and frequently relevant knowledge first
 - **Compaction**: when approaching the budget, summarize older entries and replace inline details with topic references

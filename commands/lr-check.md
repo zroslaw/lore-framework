@@ -44,7 +44,7 @@ For every `.md` file in each agent's `lore/` directory, extract any `.md` filena
 
 ## 8. lore-context.md size
 
-For every agent, check the size of `lore-context.md`. Warn if it exceeds 8K tokens (approaching the 10K limit) or flag as a violation if it exceeds 10K tokens.
+For every agent, check the size of `lore-context.md`. Warn if it exceeds 40K tokens (approaching the 50K limit) or flag as a violation if it exceeds 50K tokens.
 
 ## 9. Pending reflections
 

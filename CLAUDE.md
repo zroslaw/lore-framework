@@ -38,8 +38,8 @@ Per-agent commands (`/lr-<name>-agent`) are generated during repo registration. 
 
 ## Key Constraints
 
-- `lore-context.md` budget: 10K tokens max
-- Lore topics: atomic, under 1K tokens preferred, plain markdown, no frontmatter
+- `lore-context.md` budget: 50K tokens max
+- Lore topics: atomic, under 5K tokens preferred, plain markdown, no frontmatter
 - Git tracks all metadata — no timestamps or status fields in files
 - Obsolete topics are deleted, not marked — git preserves history
 
