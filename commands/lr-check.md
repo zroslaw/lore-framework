@@ -1,5 +1,7 @@
 Check the domain, lore framework, and all agent repos for consistency.
 
+**Important:** "`.claude/commands/`" throughout this command refers to the domain directory's `.claude/commands/` folder (sibling to `lore-framework/`), **not** the global `~/.claude/commands/`. Use the domain directory as the root for all relative paths.
+
 Work through the following checks in order. Report each issue found. At the end, print a summary: total issues found, or "All checks passed" if none.
 
 ---
