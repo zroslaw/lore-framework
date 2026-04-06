@@ -44,18 +44,7 @@ for pid in "${pids[@]}"; do
   wait "$pid"
 done
 
-# Table helpers
-C1=28; C2=8; C3=36
-
-_top()  { printf '┌'; printf '─%.0s' $(seq 1 $((C1+2))); printf '┬'; printf '─%.0s' $(seq 1 $((C2+2))); printf '┬'; printf '─%.0s' $(seq 1 $((C3+2))); printf '┐\n'; }
-_mid()  { printf '├'; printf '─%.0s' $(seq 1 $((C1+2))); printf '┼'; printf '─%.0s' $(seq 1 $((C2+2))); printf '┼'; printf '─%.0s' $(seq 1 $((C3+2))); printf '┤\n'; }
-_bot()  { printf '└'; printf '─%.0s' $(seq 1 $((C1+2))); printf '┴'; printf '─%.0s' $(seq 1 $((C2+2))); printf '┴'; printf '─%.0s' $(seq 1 $((C3+2))); printf '┘\n'; }
-_row()  { printf "│ %-${C1}s │ %-${C2}s │ %-${C3}s │\n" "$1" "$2" "$3"; }
-
 echo ""
-_top
-_row "Repo" "Status" "Note"
-_mid
 
 ok=0; fail=0
 
@@ -72,19 +61,15 @@ for name in "${repos[@]}"; do
     note=$(head -1 "$out" 2>/dev/null || echo "")
   fi
 
-  # Truncate note to fit column
-  note="${note:0:$C3}"
-
   if [[ "$code" == "0" ]]; then
-    _row "$name" "✓  ok" "$note"
+    echo -e "  ${C_OK}✓${RESET} ${BOLD}${name}${RESET} — ${note}"
     ((ok++)) || true
   else
-    _row "$name" "✗  fail" "$note"
+    echo -e "  ${C_FAIL}✗${RESET} ${BOLD}${name}${RESET} — ${note}"
     ((fail++)) || true
   fi
 done
 
-_bot
 echo ""
 echo -e "${BOLD}${ok} succeeded, ${fail} failed${RESET}"
 [[ $fail -gt 0 ]] && exit 1 || exit 0
