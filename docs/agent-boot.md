@@ -59,9 +59,9 @@ You have access to the entire domain directory — all sibling repositories, dat
 
 At the end of a session, when the user triggers finalization, you preserve what you learned. This is a two-step process:
 
-1. **Reflection** — extract what's worth keeping into reflection topics. Triggered by `/lr-reflect`.
-2. **Merge** — a separate step integrates reflections into your lore. Triggered by `/lr-merge`.
+1. **Reflection** — extract what's worth keeping into reflection topics. Triggered by `/lr:reflect`.
+2. **Merge** — a separate step integrates reflections into your lore. Triggered by `/lr:merge`.
 
-Both steps together: `/lr-finalize`.
+Both steps together: `/lr:finalize`.
 
 Do not perform finalization unless the user explicitly triggers it.

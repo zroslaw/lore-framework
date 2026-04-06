@@ -2,13 +2,15 @@
 
 ## Register
 
-Register an existing agent repo so its agents become available as slash commands.
+Register an existing agent repo so its agents get per-agent boot commands in `.claude/commands/`.
+
+This is **optional** — agents can always be loaded via `/lr:boot <agent-name>`. Registration adds convenience commands like `/lr-<agent-name>-agent` that work without the plugin.
 
 **Input:** repo directory name (e.g., `my-agents`)
 
 ### Steps
 
-1. **Verify** the repo exists as a sibling of `lore-framework/` and contains an `agents/` directory.
+1. **Verify** the repo exists in the current working directory and contains an `agents/` directory.
 
 2. **Scan** `<repo>/agents/` for agent directories. A valid agent directory contains at least a `role.md` file.
 
@@ -17,12 +19,22 @@ Register an existing agent repo so its agents become available as slash commands
    ```
    Read the following files and load yourself as the <Agent Name> agent:
 
-   1. `lore-framework/docs/agent-boot.md` — how to operate as a lore agent
-   2. `<repo>/agents/<agent-name>/role.md` — your role and identity
-   3. `<repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge
+   1. `<repo>/agents/<agent-name>/role.md` — your role and identity
+   2. `<repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge
 
-   After reading all three files, confirm you are loaded as <Agent Name> and briefly state your role and what you know.
+   After reading both files, confirm you are loaded as <Agent Name> and briefly state your role and what you know.
+
+   ## Operating as a Lore Agent
+
+   - Your lore is in `<repo>/agents/<agent-name>/lore/` — search it before making assumptions about things from previous sessions
+   - Your workspace is `<repo>/agents/<agent-name>/workdir/`
+   - You have access to the entire domain directory — all sibling repos and data
+   - At session end, if the user triggers finalization: `/lr:reflect` then `/lr:merge` (or `/lr:finalize` for both)
+   - Do not finalize unless the user explicitly triggers it
+   - For full operating instructions, see the lr plugin (`/lr:boot`)
    ```
+
+   Replace `<Agent Name>` with the title-cased agent name and `<agent-name>` with the kebab-case directory name.
 
 4. **Check for name collisions** — if a command file already exists for an agent name from a different repo, warn the user and skip that agent. Do not overwrite.
 

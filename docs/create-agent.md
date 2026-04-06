@@ -32,6 +32,6 @@ Add a new agent to an existing agent repo.
    Initial session. No accumulated lore yet.
    ```
 
-7. **Create the slash command** at `.claude/commands/lr-<agent-name>-agent.md` following the template described in `register-repo.md`.
+7. **Create the boot command** at `.claude/commands/lr-<agent-name>-agent.md` following the template described in `register-repo.md`.
 
-8. **Report** what was created. The agent is now loadable via `/lr-<agent-name>-agent`.
+8. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>` and also via `/lr-<agent-name>-agent`.

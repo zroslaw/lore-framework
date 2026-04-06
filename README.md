@@ -9,57 +9,77 @@ Agents accumulate **lore** — domain expertise, operational wisdom, and decisio
 The framework provides:
 - A structured way to define AI agents with persistent memory
 - A reflection/merge process that extracts and integrates session knowledge
-- Slash commands for managing agents and their knowledge lifecycle
+- Skills for managing agents and their knowledge lifecycle
 
 Agents are plain markdown. Knowledge is plain markdown. Git tracks everything. No databases, no config files, no build steps.
 
+## Installation
+
+Install the `lr` plugin in Claude Code:
+
+```bash
+claude plugin add zroslaw/lore-framework
+```
+
+For local development:
+
+```bash
+claude --plugin-dir ./lore-framework
+```
+
 ## Quick Start
 
-1. **Clone this repo** into your working directory (the "domain directory"):
-   ```bash
-   cd my-domain/
-   git clone <this-repo> lore-framework
+1. **Create an agent repo:**
+   ```
+   /lr:create-repo my-agents
    ```
 
-2. **Start Claude Code** in the domain directory and ask it to set up the framework:
+2. **Create an agent:**
    ```
-   Set up the lore framework
-   ```
-   Claude will create the necessary command files in `.claude/commands/`.
-
-3. **Create an agent repo** or register an existing one:
-   ```
-   /lr-create-repo my-agents
-   ```
-   or
-   ```
-   /lr-register-repo my-existing-agents
+   /lr:create-agent
    ```
 
-4. **Create an agent:**
+3. **Load and work with an agent:**
    ```
-   /lr-create-agent
-   ```
-
-5. **Load and work with an agent:**
-   ```
-   /lr-my-agent-name-agent
+   /lr:boot my-agent-name
    ```
 
-6. **Finalize at session end** to preserve what was learned:
+4. **Finalize at session end** to preserve what was learned:
    ```
-   /lr-finalize
+   /lr:finalize
    ```
+
+## Skills
+
+| Skill | Purpose |
+|---|---|
+| `/lr:boot <name>` | Load a lore agent by name |
+| `/lr:reflect` | Extract session knowledge into reflections |
+| `/lr:merge` | Integrate reflections into lore |
+| `/lr:finalize` | Reflect + merge in one step |
+| `/lr:create-repo <name>` | Scaffold a new agent repo |
+| `/lr:create-agent [name]` | Add a new agent to a repo |
+| `/lr:register-repo <name>` | Generate per-agent boot commands |
+| `/lr:unregister-repo <name>` | Remove per-agent boot commands |
+| `/lr:list-agents` | List all agents in the domain |
+| `/lr:list-repos` | List all agent repos in the domain |
+| `/lr:check` | Run consistency checks |
+
+## Optional: Per-Agent Boot Commands
+
+By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register per-agent commands:
+
+```
+/lr:register-repo my-agents
+```
+
+This generates `/lr-<agent-name>-agent` commands in `.claude/commands/` that work even without the plugin installed.
 
 ## Directory Layout
 
 ```
 my-domain/                          # Domain directory
-├── lore-framework/                 # This repo
-│   ├── CLAUDE.md                   # Framework overview (for Claude)
-│   ├── docs/                       # Detailed instructions
-│   └── commands/                   # Command templates
-├── my-agents/                      # An agent repo (yours)
+├── my-agents/                      # An agent repo
 │   └── agents/
 │       ├── researcher/
 │       │   ├── role.md
@@ -72,10 +92,8 @@ my-domain/                          # Domain directory
 │   └── agents/
 │       └── ...
 └── .claude/
-    └── commands/                   # Installed by framework setup
-        ├── lr-register-repo.md
-        ├── lr-create-agent.md
-        ├── lr-researcher-agent.md  # Generated per agent
+    └── commands/                   # Optional registered agent commands
+        ├── lr-researcher-agent.md
         └── ...
 ```
 

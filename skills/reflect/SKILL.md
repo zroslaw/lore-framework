@@ -1,6 +1,10 @@
+---
+description: "Extract session knowledge into reflection topics. Run at end of session."
+---
+
 Begin the reflection process for the current session.
 
-Read `lore-framework/docs/process-reflection.md` for detailed instructions.
+Read `${CLAUDE_PLUGIN_ROOT}/docs/process-reflection.md` for detailed instructions.
 
 Review this session and extract knowledge worth preserving into reflection topics in your agent's `reflections/` directory.
 

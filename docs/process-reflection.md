@@ -52,4 +52,4 @@ for 15 minutes post-deploy.
 
 ## After Reflection
 
-Once you have written all reflection topics, inform the user that reflection is complete. The next step — merging reflections into your lore — is a separate step triggered by `/lr-merge`.
+Once you have written all reflection topics, inform the user that reflection is complete. The next step — merging reflections into your lore — is a separate step triggered by `/lr:merge`.

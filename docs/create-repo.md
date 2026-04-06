@@ -22,8 +22,8 @@ Scaffold a new agent repository in the domain directory.
    **/reflections/
    ```
 
-4. **Write `README.md`** with a brief description explaining this is a lore agents repository and pointing to the framework for documentation.
+4. **Write `README.md`** with a brief description explaining this is a lore agents repository. Mention that agents are managed via the `lr` plugin.
 
 5. **Initialize git** — run `git init` and create an initial commit.
 
-6. **Report** what was created. Remind the user they can now add agents with `/lr-create-agent`.
+6. **Report** what was created. Remind the user they can now add agents with `/lr:create-agent`.

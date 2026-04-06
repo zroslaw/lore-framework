@@ -1,0 +1,10 @@
+{
+  "name": "lr",
+  "description": "Lore — persistent knowledge system for AI agents",
+  "version": "1.0.0",
+  "author": {
+    "name": "Yaroslav Roslaw"
+  },
+  "repository": "https://github.com/zroslaw/lore-framework",
+  "license": "MIT"
+}
