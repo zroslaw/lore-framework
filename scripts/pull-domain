@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# pull-domain — pull all git repos in the domain directory in parallel
+
+set -uo pipefail
+
+DOMAIN_DIR="${1:-.}"
+
+C_NAME='\033[0;34m'
+C_OK='\033[0;32m'
+C_FAIL='\033[0;31m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+repos=()
+for dir in "$DOMAIN_DIR"/*/; do
+  [[ -d "$dir/.git" ]] && repos+=("$(basename "$dir")")
+done
+
+if [[ ${#repos[@]} -eq 0 ]]; then
+  echo "No git repos found in $DOMAIN_DIR"
+  exit 0
+fi
+
+echo -e "${BOLD}Pulling ${#repos[@]} repos in parallel...${RESET}\n"
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+pids=()
+
+for name in "${repos[@]}"; do
+  repo="$DOMAIN_DIR/$name"
+  (
+    { git -C "$repo" pull 2>&1; echo $? > "$tmpdir/$name.exit"; } \
+      | while IFS= read -r line; do
+          printf "${C_NAME}[%-30s]${RESET} %s\n" "$name" "$line"
+        done
+  ) &
+  pids+=($!)
+done
+
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
+
+echo ""
+echo -e "${BOLD}Summary${RESET}"
+echo -e "${BOLD}-------${RESET}"
+
+ok=0
+fail=0
+
+for name in "${repos[@]}"; do
+  exit_file="$tmpdir/$name.exit"
+  if [[ -f "$exit_file" ]]; then
+    code=$(cat "$exit_file")
+    if [[ "$code" -eq 0 ]]; then
+      echo -e "  ${C_OK}✓${RESET} $name"
+      ((ok++)) || true
+    else
+      echo -e "  ${C_FAIL}✗${RESET} $name (exit $code)"
+      ((fail++)) || true
+    fi
+  else
+    echo -e "  ${C_FAIL}?${RESET} $name (no status recorded)"
+    ((fail++)) || true
+  fi
+done
+
+echo ""
+echo -e "${BOLD}${ok} succeeded, ${fail} failed${RESET}"
+[[ $fail -gt 0 ]] && exit 1 || exit 0
