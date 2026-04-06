@@ -1,0 +1,13 @@
+{
+  "name": "lore-framework",
+  "owner": {
+    "name": "Yaroslav Roslaw"
+  },
+  "plugins": [
+    {
+      "name": "lr",
+      "source": ".",
+      "description": "Persistent knowledge system for AI agents"
+    }
+  ]
+}
