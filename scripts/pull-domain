@@ -32,6 +32,7 @@ for name in "${repos[@]}"; do
   repo="$DOMAIN_DIR/$name"
   (
     { git -C "$repo" pull 2>&1; echo $? > "$tmpdir/$name.exit"; } \
+      | tee "$tmpdir/$name.out" \
       | while IFS= read -r line; do
           printf "${C_NAME}[%-30s]${RESET} %s\n" "$name" "$line"
         done
@@ -43,30 +44,47 @@ for pid in "${pids[@]}"; do
   wait "$pid"
 done
 
-echo ""
-echo -e "${BOLD}Summary${RESET}"
-echo -e "${BOLD}-------${RESET}"
+# Table helpers
+C1=28; C2=8; C3=36
 
-ok=0
-fail=0
+_top()  { printf '┌'; printf '─%.0s' $(seq 1 $((C1+2))); printf '┬'; printf '─%.0s' $(seq 1 $((C2+2))); printf '┬'; printf '─%.0s' $(seq 1 $((C3+2))); printf '┐\n'; }
+_mid()  { printf '├'; printf '─%.0s' $(seq 1 $((C1+2))); printf '┼'; printf '─%.0s' $(seq 1 $((C2+2))); printf '┼'; printf '─%.0s' $(seq 1 $((C3+2))); printf '┤\n'; }
+_bot()  { printf '└'; printf '─%.0s' $(seq 1 $((C1+2))); printf '┴'; printf '─%.0s' $(seq 1 $((C2+2))); printf '┴'; printf '─%.0s' $(seq 1 $((C3+2))); printf '┘\n'; }
+_row()  { printf "│ %-${C1}s │ %-${C2}s │ %-${C3}s │\n" "$1" "$2" "$3"; }
+
+echo ""
+_top
+_row "Repo" "Status" "Note"
+_mid
+
+ok=0; fail=0
 
 for name in "${repos[@]}"; do
-  exit_file="$tmpdir/$name.exit"
-  if [[ -f "$exit_file" ]]; then
-    code=$(cat "$exit_file")
-    if [[ "$code" -eq 0 ]]; then
-      echo -e "  ${C_OK}✓${RESET} $name"
-      ((ok++)) || true
-    else
-      echo -e "  ${C_FAIL}✗${RESET} $name (exit $code)"
-      ((fail++)) || true
-    fi
+  code=$(cat "$tmpdir/$name.exit" 2>/dev/null || echo "?")
+  out="$tmpdir/$name.out"
+
+  if grep -q "Already up to date" "$out" 2>/dev/null; then
+    note="Already up to date"
+  elif [[ "$code" == "0" ]]; then
+    note=$(grep -E "[0-9]+ file" "$out" 2>/dev/null | head -1 || echo "Updated")
+    [[ -z "$note" ]] && note="Updated"
   else
-    echo -e "  ${C_FAIL}?${RESET} $name (no status recorded)"
+    note=$(head -1 "$out" 2>/dev/null || echo "")
+  fi
+
+  # Truncate note to fit column
+  note="${note:0:$C3}"
+
+  if [[ "$code" == "0" ]]; then
+    _row "$name" "✓  ok" "$note"
+    ((ok++)) || true
+  else
+    _row "$name" "✗  fail" "$note"
     ((fail++)) || true
   fi
 done
 
+_bot
 echo ""
 echo -e "${BOLD}${ok} succeeded, ${fail} failed${RESET}"
 [[ $fail -gt 0 ]] && exit 1 || exit 0
