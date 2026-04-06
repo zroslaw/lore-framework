@@ -18,7 +18,11 @@ Agents are plain markdown. Knowledge is plain markdown. Git tracks everything. N
 Install the `lr` plugin in Claude Code:
 
 ```bash
-claude plugin add zroslaw/lore-framework
+# Add the lore-framework marketplace
+claude plugin marketplace add zroslaw/lore-framework
+
+# Install the lr plugin
+claude plugin install lr@lore-framework
 ```
 
 For local development:
