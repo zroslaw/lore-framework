@@ -10,7 +10,7 @@ This is **optional** — agents can always be loaded via `/lr:boot <agent-name>`
 
 ### Steps
 
-1. **Verify** the repo exists in the current working directory and contains an `agents/` directory.
+1. **Verify** the repo exists in the current working directory and contains a `lore-repo.md` file at the root (confirming it is a lore agent repo).
 
 2. **Scan** `<repo>/agents/` for agent directories. A valid agent directory contains at least a `role.md` file.
 

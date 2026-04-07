@@ -4,11 +4,11 @@ description: "List all agent repos in this domain with their purpose."
 
 List all lore agent repos in this domain.
 
-Scan all directories in the working directory for agent repos — directories containing an `agents/` subdirectory with at least one agent (a subdirectory containing `role.md`).
+Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root.
 
 For each repo found:
-- Count the agents it contains.
-- Read `README.md` (if present) for a description.
+- Read the `description` and `version` fields from `lore-repo.md` YAML frontmatter.
+- Count the agents it contains (subdirectories under `agents/` with `role.md`).
 - Check whether it's registered (has boot commands in `.claude/commands/`).
 
-Output a table: **Repo**, **Agents**, **Registered**, **Purpose**.
+Output a table: **Repo**, **Agents**, **Version**, **Registered**, **Description**.

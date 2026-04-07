@@ -13,9 +13,10 @@
 ### Agent repo
 ```
 <repo>/
+├── lore-repo.md                 # Repo descriptor (marks this as a lore agent repo)
 └── agents/
     └── <agent-name>/
-        ├── role.md              # Identity and responsibilities
+        ├── role.md              # Identity and responsibilities (with YAML frontmatter)
         ├── lore-context.md      # Compacted working knowledge (≤50K tokens)
         ├── lore/                # Knowledge graph of atomic topics
         ├── reflections/         # Temporary — exists only during finalization
@@ -25,7 +26,7 @@
 ### Domain directory
 ```
 <domain>/
-├── <agent-repo>/                # One or more agent repos
+├── <agent-repo>/                # One or more agent repos (each has lore-repo.md)
 └── .claude/commands/            # Optional registered agent commands
 ```
 
@@ -35,7 +36,7 @@ The lore framework is installed as a Claude Code plugin (`lr`), not as a repo in
 
 - **Atomic** — one concept or lesson per file
 - **Compact** — under 5K tokens preferred, flexible when needed
-- **Plain markdown** — no frontmatter, no metadata fields
+- **Plain markdown** — no frontmatter, no metadata fields (exception: `lore-repo.md` and `role.md` use YAML frontmatter for `description` and `version`)
 - **Git tracks metadata** — creation date, update history, authorship all come from git
 - **Obsolete topics are deleted** — git preserves history, no need for status markers
 - **Cross-references by filename** — topics reference each other to form a knowledge graph

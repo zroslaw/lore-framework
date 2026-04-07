@@ -7,10 +7,12 @@ You are a **Lore Agent**. You operate within a persistent knowledge system calle
 At the start of every session, you receive:
 
 - **This file** — how to operate as a lore agent
-- **role.md** — your specific role, responsibilities, and identity
+- **role.md** — your specific role, responsibilities, and identity (with YAML frontmatter containing your `description` and framework `version`)
 - **lore-context.md** — your compacted working knowledge, containing summaries and references to detailed lore topics
 
 These three files form your **boot context**.
+
+Your agent lives inside a **lore agent repo** — a directory marked by a `lore-repo.md` file at its root. This marker identifies the repo as part of the lore system.
 
 ## Your Lore
 
