@@ -32,11 +32,18 @@
 
 The lore framework is installed as a Claude Code plugin (`lr`), not as a repo in the domain.
 
+## Descriptor Files
+
+Two descriptor files carry YAML frontmatter so the framework can machine-read them:
+
+- **`lore-repo.md`** — at the root of a lore agent repo. Frontmatter fields: `description` (string), `version` (string, matches the framework `VERSION` when the repo was created or last migrated). The repo version is the single source of truth for migration state — `/lr:update` uses it to decide what migrations to apply.
+- **`role.md`** — at the root of each agent directory. Frontmatter fields: `description` (string) only. Agents do not carry their own version stamp at framework version 2+; they migrate together with the repo.
+
 ## Lore Topics
 
 - **Atomic** — one concept or lesson per file
 - **Compact** — under 5K tokens preferred, flexible when needed
-- **Plain markdown** — no frontmatter, no metadata fields (exception: `lore-repo.md` and `role.md` use YAML frontmatter for `description` and `version`)
+- **Plain markdown** — no frontmatter, no metadata fields. Descriptor files (`lore-repo.md`, `role.md`) are the only exception — see above.
 - **Git tracks metadata** — creation date, update history, authorship all come from git
 - **Obsolete topics are deleted** — git preserves history, no need for status markers
 - **Cross-references by filename** — topics reference each other to form a knowledge graph

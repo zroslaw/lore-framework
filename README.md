@@ -77,7 +77,7 @@ By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you 
 /lr:register-repo my-agents
 ```
 
-This generates `/lr-<agent-name>-agent` commands in `.claude/commands/` that work even without the plugin installed.
+This generates `/lr-<agent-name>-agent` commands in `.claude/commands/` — thin wrappers that reference `agent-boot.md`, `role.md`, and `lore-context.md`.
 
 ## Directory Layout
 

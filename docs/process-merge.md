@@ -38,7 +38,7 @@ If any reflection topic has a `role-update-` prefix:
 - Read the current `role.md`
 - Integrate the role update into the body
 - Keep `role.md` focused and concise
-- Preserve the YAML frontmatter (`description`, `version`). Update the `description` field if the role change warrants a different one-line summary. Never remove or change `version` during merge.
+- Preserve the YAML frontmatter. Update the `description` field if the role change warrants a different one-line summary.
 
 ### Step 4: Update Lore Context
 
