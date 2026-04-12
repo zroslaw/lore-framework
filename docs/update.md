@@ -10,9 +10,18 @@ Optional argument: `--dry-run` — print what would change without writing any f
 
 ## Core Concept
 
-A single repo-level version identifier is the source of truth. The framework version lives in `${CLAUDE_PLUGIN_ROOT}/VERSION`. Each lore agent repo stamps this version in its `lore-repo.md` frontmatter. When the framework is ahead of a repo, `/lr:update` applies the migration docs in `${CLAUDE_PLUGIN_ROOT}/migrations/` in sequence to bring the repo to the current version, then stamps the new version — but only after all migrations succeed.
+A single repo-level version identifier is the source of truth. The framework version lives in `${CLAUDE_PLUGIN_ROOT}/VERSION`. Each lore agent repo stamps this version in its `lore-repo.md` frontmatter. When the framework is ahead of a repo, `/lr:update` walks intermediate versions in sequence — applying migrations from `${CLAUDE_PLUGIN_ROOT}/migrations/` and displaying release notes from `${CLAUDE_PLUGIN_ROOT}/release-notes/` — then stamps the new version, but only after all steps succeed.
 
 There is no per-agent version stamp. Agents within a repo migrate together with the repo.
+
+## Migrations vs Release Notes
+
+A version bump may carry one or both of:
+
+- **Migration** (`migrations/<N>.md`) — physical instructions to modify user-side files (frontmatter changes, file regenerations, directory restructures). Consumed and executed by the update process.
+- **Release notes** (`release-notes/<N>.md`) — informational content describing what's new in version `N`. Displayed to the user; no file modifications.
+
+Versions that need both have both files. Versions that introduce features without requiring user-side file changes have only release notes. Versions that quietly fix things may have only a migration. **At least one must exist for any version bump** — otherwise the update process treats it as a packaging bug.
 
 ## Flow
 
@@ -34,35 +43,37 @@ Read the `version` field from `lore-repo.md` frontmatter → repo version `R`.
 - **If `R > F`**: warn `<repo>: stamped as version R, but framework is at F — plugin may be out of date`. Do not migrate this repo.
 - **If `R < F`**: this repo needs migration. Continue to step 4.
 
-### 4. Apply migrations in order
+### 4. Apply migrations and release notes in order
 
 For `v` in `R+1` through `F` inclusive:
 
-1. Read the migration doc at `${CLAUDE_PLUGIN_ROOT}/migrations/<v>.md`. If it does not exist, this is a framework bug — report it and stop migrating this repo.
+1. **Migration**: if `${CLAUDE_PLUGIN_ROOT}/migrations/<v>.md` exists, read it and follow its instructions, scoped to the current repo. The migration doc is plain markdown; interpret its steps and execute them.
 
-2. Follow the instructions in the migration doc, scoped to the current repo. The migration doc is plain markdown; interpret its steps and execute them.
+2. **Release notes**: if `${CLAUDE_PLUGIN_ROOT}/release-notes/<v>.md` exists, read it and display the contents to the user.
 
-3. If any step fails, stop the migration for this repo. Do **not** apply any further migrations to this repo. Do **not** stamp the new version. Report the failure with enough context for the user to investigate.
+3. **At least one** must exist for version `v`. If neither `migrations/<v>.md` nor `release-notes/<v>.md` is present, this is a framework packaging bug — report it and stop the upgrade for this repo.
+
+4. If a migration step fails, stop the upgrade for this repo. Do **not** apply any further versions to this repo. Do **not** stamp the new version. Report the failure with enough context for the user to investigate.
 
 ### 5. Stamp the new version
 
-Only after all migrations in step 4 succeed:
+Only after all upgrade steps in step 4 succeed:
 
 1. Read `lore-repo.md` frontmatter.
 2. Update the `version` field to `F` (quoted string).
 3. Write the file back, preserving the rest of the frontmatter and the body.
 
-If any migration failed in step 4, skip this step — leave the repo at its previous version so the next `/lr:update` run can retry.
+If any upgrade step failed in step 4, skip this step — leave the repo at its previous version so the next `/lr:update` run can retry.
 
 ### 6. Report
 
 For each repo processed, print one line per outcome:
-- `<repo>: migrated from R to F` (success)
+- `<repo>: upgraded from R to F` (success)
 - `<repo>: already at version F` (skipped, current)
 - `<repo>: stamped as R, framework is F — plugin may be out of date` (warning)
-- `<repo>: migration to v failed: <reason>` (error)
+- `<repo>: upgrade to v failed: <reason>` (error)
 
-At the end, print a summary: total repos, migrated, skipped, warned, failed.
+At the end, print a summary: total repos, upgraded, skipped, warned, failed.
 
 ## Dry-Run Mode
 
@@ -121,7 +132,7 @@ It is acceptable to run read-only git commands (`git status`, `git diff`, `git l
 
 ## Ordering Rules
 
-- **Within a repo**, apply migrations in strict version order (`R+1`, `R+2`, …, `F`). Never skip versions.
+- **Within a repo**, apply upgrades in strict version order (`R+1`, `R+2`, …, `F`). Never skip versions.
 - **Between repos**, process independently. A failure in one repo does not affect others.
 - **Within a migration**, follow the steps in the order given by the migration doc.
 
@@ -129,9 +140,9 @@ It is acceptable to run read-only git commands (`git status`, `git diff`, `git l
 
 If the framework version file (`${CLAUDE_PLUGIN_ROOT}/VERSION`) is missing or unreadable, stop with a clear error — the plugin is broken or not installed.
 
-If a migration doc is missing for a version in the range `R+1 ... F`, stop migrating that repo and report the gap — this is a framework packaging bug.
+If neither a migration doc nor a release-notes doc exists for a version in the range `R+1 ... F`, stop upgrading that repo and report the gap — this is a framework packaging bug.
 
-If a migration step throws an error (file not found, permission denied, malformed YAML, etc.), stop migrating that repo and report the specific failure. Other repos continue.
+If a migration step throws an error (file not found, permission denied, malformed YAML, etc.), stop upgrading that repo and report the specific failure. Other repos continue.
 
 ## What `/lr:update` Does NOT Do
 

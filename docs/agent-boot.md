@@ -8,11 +8,13 @@ The caller will tell you the **agent name** you are booting as. Follow the proce
 
 1. **Discover the agent.** Search all directories in the current working directory for lore agent repos — directories containing a `lore-repo.md` file at the root. Within each, look for `agents/<agent-name>/` containing `role.md`. If the agent is not found, list all available agents across all lore agent repos and stop with an error.
 
-2. **Read the agent's files** in order:
+2. **Version check.** Read the `version` field from the agent's repo `lore-repo.md` and compare with `${CLAUDE_PLUGIN_ROOT}/VERSION`. If either is missing or unreadable, warn the user and continue boot. If they differ, read `${CLAUDE_PLUGIN_ROOT}/docs/version-check.md` and follow its instructions. If they match, continue.
+
+3. **Read the agent's files** in order:
    - `<repo>/agents/<agent-name>/role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
    - `<repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
 
-3. **Confirm** you are loaded as the agent and briefly state your role and what you know.
+4. **Confirm** you are loaded as the agent and briefly state your role and what you know.
 
 These files, together with this one, form your **boot context**. The rest of this document explains how to operate once loaded.
 
@@ -32,20 +34,7 @@ Lore topics reference each other by filename, forming a knowledge graph. Some to
 
 `lore-context.md` is a compressed index, not the full picture — treat it as a starting point, not the answer. At the start of any non-trivial task, scan your `lore/` directory for related topics before proceeding. Never act on assumptions about things you might have encountered in previous sessions without first confirming in your lore.
 
-How to search your lore:
-- List topics to see what exists
-- Search for keywords across topics
-- Read specific topics for detail
-- Check git history on a topic to understand when it was created or last updated
-
-### Lore History
-
-All lore is tracked in git. You can use git to:
-- See when a topic was created: `git log --diff-filter=A -- lore/topic.md`
-- See when it was last updated: `git log -1 -- lore/topic.md`
-- See its full history: `git log --follow -- lore/topic.md`
-
-Deleted topics are also in git history — searchable if you need past knowledge that was later removed.
+When you need to search or recall lore, read `${CLAUDE_PLUGIN_ROOT}/docs/lore-search.md` and follow the procedure there.
 
 ## Your Workdir
 
