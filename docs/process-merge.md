@@ -2,7 +2,15 @@
 
 Integrate reflection topics into the agent's existing lore.
 
-## Inputs
+## Single-agent and multi-agent sessions
+
+If the session has only a host (no guests attached via `/lr:attach`), run this process once for the host. That is the default case.
+
+If one or more guests are attached, **run this process once per active agent, sequentially, in host-first order** (host, then each guest in the order they were attached). Each iteration uses that agent's own `reflections/`, `lore/`, `lore-context.md`, and `role.md` only. Commit each agent's merge before moving to the next — scope each commit to that agent's subdirectory so history stays clean per agent.
+
+Host goes first deliberately: the host's merge may capture decisions that guest iterations then reference. Each iteration is independent of the others in its inputs (each agent has its own `reflections/`) but sequential in execution.
+
+## Inputs (per agent iteration)
 
 - The agent's `lore-context.md` — current compacted knowledge
 - The agent's `lore/` directory — existing lore topics
@@ -10,6 +18,8 @@ Integrate reflection topics into the agent's existing lore.
 - The agent's `role.md` — current role description
 
 ## Process
+
+For a single-agent session, run the steps below once. For a multi-agent session, run the steps below once per active agent in host-first order, then announce overall completion.
 
 ### Step 1: Read Everything
 
@@ -57,11 +67,11 @@ Prioritize recent and frequently relevant knowledge. Older or less critical know
 
 ### Step 5: Cleanup
 
-Delete the `reflections/` directory and all its contents.
+Delete the current agent's `reflections/` directory and all its contents.
 
 ### Step 6: Commit
 
-Commit all changes with a descriptive message summarizing what was integrated.
+Commit the changes with a descriptive message summarizing what was integrated. In a multi-agent session, scope the commit to the current agent's subdirectory (e.g., `agents/<agent-name>/`) so history remains clean per agent. Then, if there are more active agents to merge, move to the next one. When all active agents have merged, announce that the full merge step is complete.
 
 ## Guidelines
 
@@ -69,3 +79,4 @@ Commit all changes with a descriptive message summarizing what was integrated.
 - **Maintain the graph** — when creating new topics that relate to existing ones, add cross-references.
 - **Be conservative with deletions** — only delete topics that are fundamentally wrong. Updating is almost always better.
 - **Respect the agent's voice** — lore should read naturally as the agent's own knowledge, not as third-party documentation.
+- **Shared topics** — the same topic may legitimately appear in multiple agents' lore if it matters to each of them. Don't try to consolidate into one agent's lore during merge; each agent owns its own copy for its own scope.

@@ -1,6 +1,6 @@
 # Searching Your Lore
 
-Read this when you need to find or recall topics from your lore. Covers both the agent-initiated case (you decide you need lore) and the user-triggered case (`/lr:recall`).
+Read this when you need to find or recall topics from your lore. Covers both the agent-initiated case (you decide you need lore) and the user-triggered case (`/lr:recall`). Also covers the multi-agent case when guests are attached to the host session.
 
 ## Preferred Mechanism: Subagent Scan
 
@@ -10,6 +10,16 @@ Why a subagent:
 - Reading 10–100 topic files in your main context wastes tokens you need for the user's task
 - The synthesis can be inlined cheaply (a few hundred words)
 - `Explore` is fast and tool-restricted (Read/Grep/Glob, no edit/agent tools) — exactly what's needed for a search
+
+## Active Agents: Fan Out When Guests Are Attached
+
+If guests are attached to the host session (via `/lr:attach`), the search runs across **all active agents' lore directories** — host + every attached guest. Execute this by dispatching **one `Explore` subagent per active agent in parallel** (all subagent calls in a single message), each scoped to one agent's `lore/` directory.
+
+Each subagent receives the same brief but is told which agent's lore to scan. Each returns its own compact synthesis. The host merges the results for the user, grouped by agent so it's clear whose lore each finding came from.
+
+When there are no guests, the fan-out reduces to a single subagent — behavior is identical to the single-agent case. You don't need to branch your procedure; just enumerate the active agents (host plus any attached guests) and dispatch N subagents.
+
+**Why parallel, not serial:** each subagent runs independently and there are no dependencies between them. Single-message parallel dispatch is both faster and the standard pattern for independent subagent work.
 
 ## How to Prepare a Search Brief
 
@@ -72,7 +82,7 @@ Keep the whole brief under ~300 words. The subagent has access to your full `lor
 
 ## What to Do With the Result
 
-1. **Show the synthesis to the user.** Transparency — they should see what got pulled in and judge whether the recall was useful.
+1. **Show the synthesis to the user.** Transparency — they should see what got pulled in and judge whether the recall was useful. If multiple active agents were scanned (fan-out), group results by agent so it's clear whose lore each finding came from.
 2. **Carry it as working context** for the rest of the session.
 3. **Read flagged topics in full yourself** — don't trust synthesis alone for load-bearing details.
 

@@ -46,6 +46,16 @@ You decide the internal structure of `workdir/` — organize it however makes se
 
 You have access to the entire domain directory — all sibling repositories, data, and resources. Your lore is specific to you, but your reach is domain-wide.
 
+## Collaborating with Other Agents
+
+The user may invoke any of three cross-agent mechanisms during the session:
+
+- **`/lr:recall [hint]`** — search lore across the **currently loaded** agents (you, plus any attached guests). Fans out to one subagent per active agent. See `${CLAUDE_PLUGIN_ROOT}/docs/recall.md` and `lore-search.md`.
+- **`/lr:consult <agent> [hint]`** — ask an **unloaded** agent a focused question. A subagent boots the consultant, answers, and exits. You get back a synthesis plus pointers to specific lore topics or workdir tools you can read or use directly. No finalization for the consultant. See `${CLAUDE_PLUGIN_ROOT}/docs/consult.md`.
+- **`/lr:attach <agent>`** — load another agent as a **guest** into this session for sustained co-work. You remain the sole executor (host); the guest's role and lore-context join yours. Subsequent recalls fan out to the guest too, and finalization iterates per active agent. See `${CLAUDE_PLUGIN_ROOT}/docs/attach.md`.
+
+Rough rule: recall is for lore you already have loaded; consult is a one-shot question with file handover; attach is for sustained multi-turn work across domains.
+
 ## Session Finalization
 
 At the end of a session, when the user triggers finalization, you preserve what you learned. This is a two-step process:
@@ -54,5 +64,7 @@ At the end of a session, when the user triggers finalization, you preserve what 
 2. **Merge** — a separate step integrates reflections into your lore. Triggered by `/lr:merge`.
 
 Both steps together: `/lr:finalize`.
+
+If guests are attached to this session (via `/lr:attach`), both reflection and merge iterate per active agent in host-first order — each agent learns what fits its role. See `${CLAUDE_PLUGIN_ROOT}/docs/process-reflection.md` and `process-merge.md` for the iteration mechanics.
 
 Do not perform finalization unless the user explicitly triggers it.
