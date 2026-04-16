@@ -93,7 +93,7 @@ When you know exactly what you're looking for or just need a quick check, the st
 - **Glob / list** — see what topics exist
 - **Grep** — search for a specific keyword across topics
 - **Read** — read a specific topic in full
-- **`git log`** — when a topic was created (`git log --diff-filter=A -- lore/<topic>.md`), last updated (`git log -1 -- lore/<topic>.md`), or full history (`git log --follow -- lore/<topic>.md`)
+- **`git log`** — when a topic was created (`git -C <lore-agent-repo> log --diff-filter=A -- agents/<agent-name>/lore/<topic>.md`), last updated (`git -C <lore-agent-repo> log -1 -- agents/<agent-name>/lore/<topic>.md`), or full history (`git -C <lore-agent-repo> log --follow -- agents/<agent-name>/lore/<topic>.md`). Use `git -C` rather than `cd`ing into the repo — the shell CWD is shared with Glob and Grep.
 - **Deleted topics** remain in git history — searchable if you need past knowledge that was later removed
 
 Rule of thumb: use the subagent when you're searching by **meaning**; use direct tools when you're searching by **name** or **exact term**.

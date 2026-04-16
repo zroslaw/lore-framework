@@ -1,6 +1,6 @@
 ---
-description: "Remove all agent commands for an agent repo. Usage: /lr:unregister-repo <repo-name>"
-argument-hint: "<repo-name>"
+description: "Remove all agent commands for an agent repo. Usage: /lr:unregister-repo <lore-agent-repo>"
+argument-hint: "<lore-agent-repo>"
 ---
 
 Remove all registered agent commands associated with the repo: $ARGUMENTS

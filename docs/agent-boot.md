@@ -11,8 +11,8 @@ The caller will tell you the **agent name** you are booting as. Follow the proce
 2. **Version check.** Read the `version` field from the agent's repo `lore-repo.md` and compare with `${CLAUDE_PLUGIN_ROOT}/VERSION`. If either is missing or unreadable, warn the user and continue boot. If they differ, read `${CLAUDE_PLUGIN_ROOT}/docs/version-check.md` and follow its instructions. If they match, continue.
 
 3. **Read the agent's files** in order:
-   - `<repo>/agents/<agent-name>/role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
-   - `<repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
+   - `<lore-agent-repo>/agents/<agent-name>/role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
+   - `<lore-agent-repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
 
 4. **Confirm** you are loaded as the agent and briefly state your role and what you know.
 

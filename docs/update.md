@@ -39,8 +39,8 @@ If no repos are found, report "no lore agent repos in this domain" and stop.
 
 Read the `version` field from `lore-repo.md` frontmatter → repo version `R`.
 
-- **If `R == F`**: report `<repo>: already at version F`, skip.
-- **If `R > F`**: warn `<repo>: stamped as version R, but framework is at F — plugin may be out of date`. Do not migrate this repo.
+- **If `R == F`**: report `<lore-agent-repo>: already at version F`, skip.
+- **If `R > F`**: warn `<lore-agent-repo>: stamped as version R, but framework is at F — plugin may be out of date`. Do not migrate this repo.
 - **If `R < F`**: this repo needs migration. Continue to step 4.
 
 ### 4. Apply migrations and release notes in order
@@ -68,10 +68,10 @@ If any upgrade step failed in step 4, skip this step — leave the repo at its p
 ### 6. Report
 
 For each repo processed, print one line per outcome:
-- `<repo>: upgraded from R to F` (success)
-- `<repo>: already at version F` (skipped, current)
-- `<repo>: stamped as R, framework is F — plugin may be out of date` (warning)
-- `<repo>: upgrade to v failed: <reason>` (error)
+- `<lore-agent-repo>: upgraded from R to F` (success)
+- `<lore-agent-repo>: already at version F` (skipped, current)
+- `<lore-agent-repo>: stamped as R, framework is F — plugin may be out of date` (warning)
+- `<lore-agent-repo>: upgrade to v failed: <reason>` (error)
 
 At the end, print a summary: total repos, upgraded, skipped, warned, failed.
 
@@ -84,7 +84,7 @@ If `--dry-run` is passed:
   - `would create: <path>`
   - `would modify: <path>` — include a unified diff preview
   - `would delete: <path>`
-- For the version stamp step, print `would stamp <repo>: version R → F`.
+- For the version stamp step, print `would stamp <lore-agent-repo>: version R → F`.
 - For manual-edit detection, report `manual edits detected in: <path>` and describe what a merge would propose, but do NOT prompt the user.
 - At the end, print the same summary format as normal mode, prefixed with `[DRY RUN]`.
 
@@ -128,7 +128,7 @@ In **dry-run mode**, detect divergence and describe the proposed merge, but do n
 
 Do not run git commands that modify state. Leave all changes uncommitted so the user can review with `git diff` and commit themselves. This applies to both the migrated files and the version stamp in `lore-repo.md`.
 
-It is acceptable to run read-only git commands (`git status`, `git diff`, `git log`) during migration if needed for context.
+It is acceptable to run read-only git commands (`git -C <lore-agent-repo> status`, `git -C <lore-agent-repo> diff`, `git -C <lore-agent-repo> log`) during migration if needed for context, where `<lore-agent-repo>` is the path of the repo currently being processed. Always use `git -C` rather than `cd`ing into each repo — `/lr:update` iterates across repos, and a stray `cd` will silently shift the CWD for subsequent Glob/Grep/git calls on the next repo.
 
 ## Ordering Rules
 

@@ -12,7 +12,7 @@ Add a new agent to an existing agent repo.
 
 4. **Create the agent directory structure:**
    ```
-   <repo>/agents/<agent-name>/
+   <lore-agent-repo>/agents/<agent-name>/
    ├── role.md              # Agent identity and responsibilities
    ├── lore-context.md      # Initial working knowledge (starts minimal)
    ├── lore/                # Knowledge topics (starts empty)
@@ -49,4 +49,4 @@ Add a new agent to an existing agent repo.
    Initial session. No accumulated lore yet.
    ```
 
-7. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>`. To also get a dedicated `/lr-<agent-name>-agent` convenience command, run `/lr:register-repo <repo>`.
+7. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>`. To also get a dedicated `/lr-<agent-name>-agent` convenience command, run `/lr:register-repo <lore-agent-repo>`.

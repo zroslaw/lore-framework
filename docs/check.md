@@ -71,11 +71,13 @@ For every agent directory, check if a `reflections/` directory exists and is non
 
 ## 13. Uncommitted changes in lore files
 
-For every agent repo, run `git status` to detect any lore files that are modified but not committed. Flag these: the knowledge exists only on the local filesystem and is not preserved in git history. This is especially critical for `lore-context.md`, `role.md`, and any `lore/` topic files.
+For every lore agent repo in the domain, run `git -C <lore-agent-repo> status` (where `<lore-agent-repo>` is the current iteration's repo path) to detect any lore files that are modified but not committed. Flag these: the knowledge exists only on the local filesystem and is not preserved in git history. This is especially critical for `lore-context.md`, `role.md`, and any `lore/` topic files.
+
+Always use `git -C <lore-agent-repo>` rather than `cd`ing into each repo — the shell CWD is shared with Glob, Grep, and other git calls, and a `cd` here will silently shift subsequent checks' root.
 
 ## 14. lore-context.md staleness (git timestamps)
 
-For every agent, use `git log -1 --format=%ci` to get the last commit date of `lore-context.md` and of each lore topic in `lore/`. If any topic was committed more recently than `lore-context.md`, flag it: the summary may not reflect the latest state of that topic. List the topic name and how far out of date the summary is.
+For every agent, use `git -C <lore-agent-repo> log -1 --format=%ci -- <file>` to get the last commit date of `lore-context.md` and of each lore topic in `lore/`. If any topic was committed more recently than `lore-context.md`, flag it: the summary may not reflect the latest state of that topic. List the topic name and how far out of date the summary is.
 
 ## 15. lore-context.md semantic consistency
 
@@ -84,3 +86,16 @@ For every agent, for each lore topic referenced in `lore-context.md`: read the t
 ## 16. Boot command description vs role.md
 
 For every `lr-*-agent.md` boot command, compare git last commit date of the boot command file against the last commit date of the agent's `role.md`. If `role.md` was updated more recently, flag it: the boot command may not accurately describe the agent's current role. Also do a quick semantic check: verify the agent name in the boot command matches the heading in `role.md`.
+
+## 17. Orphaned pre-plugin skill commands
+
+Scan `<domain>/.claude/commands/` for files matching `lr-*.md` that do **not** match `lr-*-agent.md` AND whose content does **not** contain the phrase `boot as agent`. For each such file, extract `<skill-name>` from the filename (strip the `lr-` prefix and `.md` suffix) and check whether `${CLAUDE_PLUGIN_ROOT}/skills/<skill-name>/SKILL.md` exists.
+
+- If the plugin skill exists, flag the file as an **orphaned pre-plugin skill duplicate** — `/lr:<skill-name>` is now provided by the plugin, so the local command is redundant and typically references stale sibling paths (`lore-framework/docs/...`). Report the file path and the covering plugin skill. Suggest: run `/lr:update` (migration 5 prompts to delete these per file) or delete manually.
+- If no matching plugin skill exists, the file is a user-authored command — do not flag it.
+
+## 18. Legacy sibling-path per-agent boot commands
+
+For every `lr-*-agent.md` in `<domain>/.claude/commands/` whose content contains `boot as agent`, check whether the file references `lore-framework/docs/agent-boot.md` (the pre-plugin sibling-path form) instead of `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` (the plugin-safe form).
+
+Flag any file still using the sibling-path form. These boot commands break on installations where the framework is installed only as a plugin (no local `lore-framework/` clone). Suggest: run `/lr:update` (migration 5 regenerates them automatically) to fix.

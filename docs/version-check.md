@@ -17,7 +17,7 @@ You should not be reading this doc — `agent-boot.md`'s version check skipped t
 
 The repo is stamped at a version newer than the installed framework. The plugin may be out of date.
 
-- Print a warning to the user: `<repo>: stamped as version R, but framework is at F — your plugin may be out of date. Run /plugin update lr or refresh the marketplace.`
+- Print a warning to the user: `<lore-agent-repo>: stamped as version R, but framework is at F — your plugin may be out of date. Run /plugin update lr or refresh the marketplace.`
 - Do NOT modify any files.
 - Continue boot in degraded mode.
 
@@ -29,10 +29,10 @@ The repo is behind. Run the upgrade procedure below.
 
 ### Step 1: Safety check — uncommitted changes
 
-Run `git status --porcelain` in the agent's repo directory.
+Run `git -C <lore-agent-repo> status --porcelain` (where `<lore-agent-repo>` is the booting agent's repo path). Use `git -C` rather than `cd`ing into the repo — the shell CWD is shared with Glob, Grep, and subsequent git calls, so a stray `cd` silently shifts their root away from the domain for the rest of the session.
 
 If there are uncommitted changes:
-- Print a warning: `<repo>: cannot auto-upgrade from R to F — uncommitted changes present. Commit or stash them and run /lr:update manually.`
+- Print a warning: `<lore-agent-repo>: cannot auto-upgrade from R to F — uncommitted changes present. Commit or stash them and run /lr:update manually.`
 - Do NOT modify any files.
 - Continue boot in degraded mode.
 
@@ -61,7 +61,7 @@ Only after all versions in step 2 succeed:
 ### Step 4: Inform the user
 
 Print a brief summary:
-- `<repo>: upgraded from R to F`
+- `<lore-agent-repo>: upgraded from R to F`
 - The changes are uncommitted and ready for `git diff` review
 
 Then return to `agent-boot.md` and continue with reading `role.md` and `lore-context.md`.

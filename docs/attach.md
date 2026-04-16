@@ -44,7 +44,7 @@ Read the target repo's `lore-repo.md` and extract its `version` field. Compare w
 
 Subagent prompt shape:
 
-> Reconcile the lore agent repo at `<absolute-path-to-guest-repo>` to the installed framework version.
+> Reconcile the lore agent repo at `<guest-lore-agent-repo>` to the installed framework version.
 >
 > Read `${CLAUDE_PLUGIN_ROOT}/docs/version-check.md` and execute its procedure, scoped to this repo. The repo's current version is `R=<R>` and the framework version is `F=<F>`.
 >

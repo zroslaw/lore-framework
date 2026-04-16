@@ -12,7 +12,7 @@ Scaffold a new agent repository in the domain directory.
 
 3. **Create the directory structure:**
    ```
-   <repo-name>/
+   <lore-agent-repo>/
    ├── agents/           # Agent definitions go here
    ├── lore-repo.md      # Repo descriptor (marks this as a lore agent repo)
    ├── .gitignore
