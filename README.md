@@ -63,21 +63,21 @@ claude --plugin-dir ./lore-framework
 | `/lr:finalize` | Reflect + merge in one step |
 | `/lr:create-repo <name>` | Scaffold a new agent repo |
 | `/lr:create-agent [name]` | Add a new agent to a repo |
-| `/lr:register-repo <name>` | Generate per-agent boot commands |
-| `/lr:unregister-repo <name>` | Remove per-agent boot commands |
+| `/lr:register-repo <name>` | Generate agent shortcut commands |
+| `/lr:unregister-repo <name>` | Remove agent shortcut commands |
 | `/lr:list-agents` | List all agents in the domain |
 | `/lr:list-repos` | List all agent repos in the domain |
 | `/lr:check` | Run consistency checks |
 
-## Optional: Per-Agent Boot Commands
+## Optional: Agent Shortcut Commands
 
-By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register per-agent commands:
+By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register shortcut commands:
 
 ```
 /lr:register-repo my-agents
 ```
 
-This generates `/lr-<agent-name>-agent` commands in `.claude/commands/` — thin wrappers that reference `agent-boot.md`, `role.md`, and `lore-context.md`.
+This generates `/lr-<agent-name>-agent` shortcut commands in `.claude/commands/` — one-line delegations to `agent-boot.md` with absolute paths to the agent directory for faster boot.
 
 ## Directory Layout
 

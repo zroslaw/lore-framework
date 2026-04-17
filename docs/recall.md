@@ -17,7 +17,7 @@ If no lore agent is loaded in the current session, respond: `No agent loaded. Ru
 
 Recall searches the lore of every **active** agent — the host plus any guests attached via `/lr:attach`. Enumerate them from the session conversation:
 
-- Host: whichever agent was booted via `/lr:boot` or a registered `/lr-<name>-agent` command
+- Host: whichever agent was booted via `/lr:boot` or a `/lr-<name>-agent` shortcut command
 - Guests: each agent confirmed as attached by a prior `/lr:attach` in this session (detach is not supported in v1; once attached, they remain active)
 
 If an active agent has no `lore/` directory or no topic files, skip it silently. If no active agent has any lore to search, respond: `No lore to recall from — active agents have empty lore directories.` and stop.

@@ -9,6 +9,6 @@ Scan all directories in the working directory for lore agent repos — directori
 For each repo found:
 - Read the `description` and `version` fields from `lore-repo.md` YAML frontmatter.
 - Count the agents it contains (subdirectories under `agents/` with `role.md`).
-- Check whether it's registered (has boot commands in `.claude/commands/`).
+- Check whether it's registered (has shortcut commands in `.claude/commands/`).
 
 Output a table: **Repo**, **Agents**, **Version**, **Registered**, **Description**.

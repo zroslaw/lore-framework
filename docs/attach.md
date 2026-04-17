@@ -9,7 +9,7 @@
 
 ## Concepts
 
-- **Host** — the agent originally booted via `/lr:boot` or `/lr-<name>-agent`. Exactly one per session. The host is the sole executor.
+- **Host** — the agent originally booted via `/lr:boot` or a `/lr-<name>-agent` shortcut command. Exactly one per session. The host is the sole executor.
 - **Guest** — an agent attached into the host session. Zero or more per session. Guests are knowledge loads — they extend what the host knows and can do, without becoming separate executors.
 - **Active agents** — host + all currently attached guests. This is the set that `/lr:recall` fans out over and that `/lr:reflect` / `/lr:merge` / `/lr:finalize` iterate over.
 
@@ -19,7 +19,7 @@ The session is single-executor, multi-personality: the host stays in charge, the
 
 If `$ARGUMENTS` is empty:
 
-1. Identify active agents from the conversation. The host is whichever agent was booted via `/lr:boot` or a registered `/lr-<name>-agent` command. Guests are any agents that were confirmed as attached by prior `/lr:attach` commands in this session and have not been removed (detach is not supported in v1, so they all stay).
+1. Identify active agents from the conversation. The host is whichever agent was booted via `/lr:boot` or a `/lr-<name>-agent` shortcut command. Guests are any agents that were confirmed as attached by prior `/lr:attach` commands in this session and have not been removed (detach is not supported in v1, so they all stay).
 2. Print the active-agents state:
    - `Host: <host-name> — <one-line role.md description>`
    - For each guest: `Guest: <guest-name> — <one-line role.md description>`

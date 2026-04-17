@@ -2,9 +2,9 @@
 
 ## Register
 
-Register an existing agent repo so its agents get per-agent boot commands in `.claude/commands/`.
+Register an existing agent repo so its agents get **shortcut commands** in `.claude/commands/`.
 
-This is **optional** — agents can always be loaded via `/lr:boot <agent-name>`. Registration adds convenience commands like `/lr-<agent-name>-agent`.
+This is **optional** — agents can always be loaded via `/lr:boot <agent-name>`. Registration adds shortcut commands like `/lr-<agent-name>-agent` that boot faster by providing absolute paths (skipping agent discovery).
 
 **Input:** repo directory name (e.g., `my-agents`)
 
@@ -14,30 +14,34 @@ This is **optional** — agents can always be loaded via `/lr:boot <agent-name>`
 
 2. **Scan** `<lore-agent-repo>/agents/` for agent directories. A valid agent directory contains at least a `role.md` file.
 
-3. **For each agent found**, create a command file at `.claude/commands/lr-<agent-name>-agent.md` with the following one-line content:
+3. **Resolve absolute paths** for use in the generated shortcut commands:
+   - **`<agent-boot-path>`** — the absolute path to `agent-boot.md` in the same `docs/` directory as this file. Derive it from the path you used to read this file.
+   - **`<agent-dir>`** — the absolute path to `<lore-agent-repo>/agents/<agent-name>/`.
+
+4. **For each agent found**, create a shortcut command file at `.claude/commands/lr-<agent-name>-agent.md` with the following one-line content:
 
    ```
-   Read `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` and boot as agent `<agent-name>`.
+   Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
    ```
 
-   Replace `<agent-name>` with the kebab-case directory name. `${CLAUDE_PLUGIN_ROOT}` is resolved at runtime by Claude Code to the install path of the `lr` plugin — do not hardcode the path.
+   Replace all three placeholders with the resolved values from step 3.
 
-   **Design note:** the generated command is a one-line delegation — just a pointer to `agent-boot.md` and the agent name. All boot logic (discovery, file loading, confirmation) and operating instructions live in `agent-boot.md` (single source of truth). Never inline boot steps or operating guidance into generated commands; update `agent-boot.md` instead.
+   **Design note:** shortcut commands are one-line delegations with absolute paths — a pointer to `agent-boot.md`, the agent name, and the agent directory. The absolute paths let boot skip discovery (faster startup). All boot logic and operating instructions live in `agent-boot.md` (single source of truth). Never inline boot steps or operating guidance into shortcut commands; update `agent-boot.md` instead.
 
-4. **Check for name collisions** — if a command file already exists for an agent name from a different repo, warn the user and skip that agent. Do not overwrite.
+5. **Check for name collisions** — if a command file already exists for an agent name from a different repo, warn the user and skip that agent. Do not overwrite.
 
-5. **Report** what was registered: list agent names and the commands created.
+6. **Report** what was registered: list agent names and the shortcut commands created.
 
 ## Unregister
 
-Remove all agent commands associated with a repo.
+Remove all shortcut commands associated with a repo.
 
 **Input:** repo directory name
 
 ### Steps
 
-1. **Scan** `.claude/commands/` for `lr-*-agent.md` files whose content references the given repo path.
+1. **Scan** `.claude/commands/` for `lr-*-agent.md` files whose content contains `boot as agent`. For each, check if the absolute agent directory path in the command (the `from <agent-dir>` part) falls under the given repo. If there is no `from` clause (legacy format), extract the agent name from the filename and check if that agent exists in the given repo's `agents/` directory.
 
-2. **Delete** those command files.
+2. **Delete** matching shortcut command files.
 
 3. **Report** what was removed.
