@@ -32,8 +32,11 @@ The "lore" prefix on repo placeholders is intentional: it distinguishes lore age
         ├── lore-context.md      # Compacted working knowledge (≤50K tokens)
         ├── lore/                # Knowledge graph of atomic topics
         ├── reflections/         # Temporary — exists only during finalization
+        ├── sessions/            # Session summaries, organized YYYY/MM/ (created on demand)
         └── workdir/             # Persistent workspace for artifacts
 ```
+
+Session summaries live under `sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md` when the agent is the host of a session that ran `/lr:summarize` or `/lr:finalize`. See `summarize.md` for the full layout, frontmatter schema, and process.
 
 ### Domain directory
 ```
