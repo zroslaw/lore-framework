@@ -2,15 +2,24 @@
 
 Integrate reflection topics into the agent's existing lore.
 
-## Single-agent and multi-agent sessions
+## Execution model
 
-If the session has only a host (no guests attached via `/lr:attach`), run this process once for the host. That is the default case.
+Merge always runs in a subagent, one per active agent, with all subagents launched in parallel. This is uniform for single- and multi-agent sessions — a single-agent session just spawns one subagent. Running merge in a subagent keeps session noise out of merge decisions and gives a clean, focused context.
 
-If one or more guests are attached, **run this process once per active agent, sequentially, in host-first order** (host, then each guest in the order they were attached). Each iteration uses that agent's own `reflections/`, `lore/`, `lore-context.md`, and `role.md` only. Commit each agent's merge before moving to the next — scope each commit to that agent's subdirectory so history stays clean per agent.
+**Each subagent boots as the agent it is merging for**, using the standard boot procedure. Booting gives the subagent the agent's role, identity, and lore context naturally — the same pattern `/lr:consult` uses. After booting, the subagent runs the process below scoped to its own agent and returns a short summary to the host.
 
-Host goes first deliberately: the host's merge may capture decisions that guest iterations then reference. Each iteration is independent of the others in its inputs (each agent has its own `reflections/`) but sequential in execution.
+Host responsibilities when merge is invoked:
 
-## Inputs (per agent iteration)
+1. Collect active agents (host + any attached guests).
+2. For each, spawn a **`general-purpose`** subagent (merge needs `Write`/`Edit`/`Bash`; `Explore` does not) with a brief such as: _"Boot as agent `<name>` (repo: `<path>`) per `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md`, then run the merge procedure in `${CLAUDE_PLUGIN_ROOT}/docs/process-merge.md` scoped to yourself. Return a short summary of topics touched, role changes, and any anomalies. Do not commit — finalize handles that."_
+3. In a multi-agent session, spawn all subagents in parallel (single message with multiple Agent tool calls).
+4. Collect summaries and report per-agent success/failure to the user. **Retain each subagent's return** — phase 3 (summarize) uses it to compose guest summaries.
+
+Each subagent's work is independent: separate `reflections/` directory, separate lore subtree. Merge does not commit — all changes are left uncommitted on disk. Committing is handled once, at the end of `/lr:finalize`, or by the user themselves if merge is invoked standalone.
+
+If any subagent fails, the others still proceed.
+
+## Inputs (per subagent)
 
 - The agent's `lore-context.md` — current compacted knowledge
 - The agent's `lore/` directory — existing lore topics
@@ -19,7 +28,7 @@ Host goes first deliberately: the host's merge may capture decisions that guest 
 
 ## Process
 
-For a single-agent session, run the steps below once. For a multi-agent session, run the steps below once per active agent in host-first order, then announce overall completion.
+The steps below are what **each subagent** runs once booted as its target agent. The host does not run these steps inline — it orchestrates subagents per the Execution model above and aggregates their summaries.
 
 ### Step 1: Read Everything
 
@@ -69,9 +78,7 @@ Prioritize recent and frequently relevant knowledge. Older or less critical know
 
 Delete the current agent's `reflections/` directory and all its contents.
 
-### Step 6: Commit
-
-Commit the changes with a descriptive message summarizing what was integrated. In a multi-agent session, scope the commit to the current agent's subdirectory (e.g., `agents/<agent-name>/`) so history remains clean per agent. Then, if there are more active agents to merge, move to the next one. When all active agents have merged, announce that the full merge step is complete.
+Merge does not commit — leave all changes uncommitted on disk. In a multi-agent session, return a short summary of what was integrated (topics touched, role changes, any anomalies) to the host. Committing is handled at the end of `/lr:finalize`, or by the user directly if merge is invoked standalone.
 
 ## Guidelines
 

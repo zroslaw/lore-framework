@@ -4,8 +4,8 @@ description: "Integrate reflection topics into the agent's lore. Run after /lr:r
 
 Begin the merge process to integrate reflection topics into lore.
 
-Read `${CLAUDE_PLUGIN_ROOT}/docs/process-merge.md` for detailed instructions. The doc explains single-agent and multi-agent (attached-guests) iteration — if guests are attached via `/lr:attach`, merge runs per active agent in host-first order, each scoped to its own directory and commit.
+Read `${CLAUDE_PLUGIN_ROOT}/docs/process-merge.md` for detailed instructions. The doc explains the execution model — merge always runs in a subagent, one per active agent, in parallel. Each subagent boots as its target agent before running the merge procedure, giving it that agent's role and lore context naturally. Merge does not commit; committing happens at the end of `/lr:finalize`, or by the user directly if merge is invoked standalone.
 
-Integrate all reflection topics from each active agent's `reflections/` directory into that agent's `lore/`, `lore-context.md`, and `role.md` as appropriate.
+Collect active agents (host + any guests attached via `/lr:attach`), spawn a subagent per agent with a brief to boot as that agent and then run the merge procedure, then aggregate the returned summaries.
 
-When done, confirm what was integrated for each active agent and commit the changes.
+When done, confirm what was integrated for each active agent.

@@ -1,26 +1,34 @@
 # Session Summarization Process
 
-This process is triggered at the end of a session, as the final phase of finalization (after reflect + merge) or directly via `/lr:summarize`. It writes a short, committable markdown record of what happened during the session into the host agent's `sessions/` directory.
+This process is triggered at the end of a session, as the final phase of finalization (after reflect + merge) or directly via `/lr:summarize`. It writes short, committable markdown records of what happened during the session.
 
-Session summaries are **session-wide** (one file per session, regardless of attached guests) and **public artifacts** (committed to the agent repo). They complement lore — lore captures *what was learned*, summaries capture *what happened*.
+The host agent always receives a **full summary** in its own `sessions/` directory. Each attached guest that had lore updates during merge additionally receives a **short guest summary** in its own repo, linking back to the host's canonical record. All summaries for a session share the same UUID. Consulted agents receive nothing — their involvement is recorded in the host summary only.
+
+Summaries are **public artifacts** (committed to each respective agent repo). They complement lore — lore captures *what was learned*, summaries capture *what happened*.
 
 ## Relationship to reflect and merge
 
 - **Reflect and merge** iterate per active agent (host + each attached guest) and update each agent's lore.
-- **Summarize** runs **once, session-wide**, from the host agent's perspective. Participants are recorded in frontmatter.
+- **Summarize** runs **once, session-wide**, composed by the host from its perspective. The host summary is the canonical narrative; short guest summaries link back to it.
 - Summarize is **additive and non-blocking**: if it fails (disk, model, user aborts), reflect and merge stay committed.
-- Summarize runs **after** merge so the narrative can reference the lore changes just made.
+- Summarize runs **after** merge so the host narrative can reference the lore changes just made, and so guest summaries can enumerate those changes.
 
 ## File layout
 
+**Host summary:**
 ```
 <lore-agent-repo>/agents/<host-agent>/sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md
 ```
 
-- `<lore-agent-repo>` — the host agent's repo
-- `<host-agent>` — the host agent's directory name
+**Guest summary (per attached guest with lore updates):**
+```
+<guest-repo>/agents/<guest-agent>/sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md
+```
+
+- `<lore-agent-repo>` / `<guest-repo>` — the respective agent's repo (may be the same repo if host and guest share one)
+- `<host-agent>` / `<guest-agent>` — the respective agent's directory name
 - `<YYYY>/<MM>/` — year and zero-padded month, avoids single-directory bloat over time
-- `<short-uuid>` — first 8 hex characters of the session UUIDv4; full UUID lives in frontmatter
+- `<short-uuid>` — first 8 hex characters of the session UUIDv4; the full UUID lives in frontmatter and is shared across host and guest summaries for the same session
 
 Directories are created on demand by this process. No pre-existing `sessions/` directory or migration is required.
 
@@ -62,6 +70,35 @@ Field notes:
 
 Unknown fields are tolerated by design — the schema is additive.
 
+## Guest frontmatter schema
+
+Guests use a slimmer schema that references the host summary:
+
+```yaml
+---
+uuid: 550e8400-e29b-41d4-a716-446655440000
+date: 2026-04-18
+role: guest
+host_agent: lore-architect
+host_summary_repo: lore-agents
+host_summary_path: agents/lore-architect/sessions/2026/04/2026-04-18-550e8400.md
+lore_changes:
+  - { path: lore/api-retry-behavior.md, kind: created }
+  - { path: lore-context.md, kind: modified }
+---
+```
+
+Field notes (guest schema):
+- **`uuid`** — same UUIDv4 as the host summary. This is the correlation key across host summary, guest summaries, and the private JSONL.
+- **`date`** — session date (same `YYYY-MM-DD` as the host summary).
+- **`role`** — always `guest` in guest summaries.
+- **`host_agent`** — directory name of the agent that hosted this session.
+- **`host_summary_repo`** — repo directory name that owns the host summary (e.g., `lore-agents`). Separate from path so consumers can resolve the repo root in their own checkout.
+- **`host_summary_path`** — path to the host summary **relative to the `host_summary_repo` root**, not domain root. Robust across different checkout layouts.
+- **`lore_changes`** — files the guest's merge subagent touched during this session. Paths are relative to the guest's `agents/<guest-name>/` directory. `kind` is `created`, `modified`, or `deleted`.
+
+Guest summaries deliberately omit `start`/`end`/`artifacts`/`consulted`/`topics`/`username`/`full_name` — those belong to the host's canonical record and are one `host_summary_path` hop away.
+
 ## Body structure
 
 ```markdown
@@ -76,6 +113,24 @@ Unknown fields are tolerated by design — the schema is additive.
 ```
 
 Title style: verb-led or noun-phrase, under ~10 words, specific (e.g., "Designed session summary feature for lore framework", not "Session work").
+
+## Guest body structure
+
+```markdown
+# <title — typically the same as the host summary title>
+
+Participated as a guest in a session hosted by **<host-agent>** (`<host_summary_repo>`).
+Helped with <one-line summary of contribution>.
+
+## Lore updates
+
+- `<path>` — <one-line why this was added/updated>
+- `<path>` — <one-line why this was added/updated>
+
+Full session narrative: `<host_summary_repo>/<host_summary_path>` (same UUID).
+```
+
+Keep guest bodies short: one participation sentence, one contribution sentence, a bulleted list of lore updates with one-line reasons, and the back-reference to the host summary. No plot-twists section, no next-steps section — those belong in the host's canonical record. If a reader wants the full story, the back-reference takes them there.
 
 ## Narrative prompt
 
@@ -153,7 +208,7 @@ When uncertain, cross-check with `git -C <lore-agent-repo> status` and `git -C <
 
 List all agents queried via `/lr:consult` during this session, with their repo. Empty list if none.
 
-### Step 6: Compose the narrative
+### Step 6: Compose the host narrative
 
 Use the narrative prompt above. 3–7 paragraphs, past tense, third person. Title under 10 words.
 
@@ -169,72 +224,93 @@ If any matches exist, read a few to scan their `topics` field. Prefer reuse over
 
 Fresh repos with no prior summaries naturally introduce their own tag vocabulary — that's expected.
 
-### Step 8: Assemble the full document
+### Step 8: Assemble the host document
 
 Combine frontmatter + title + narrative + optional Consultations section.
 
-### Step 9: Show to the user and wait for approval
+### Step 9: Compose guest summaries (if applicable)
 
-Display the complete summary to the user. The user may:
+For each attached guest whose merge subagent reported lore updates (any topic added/modified, or `lore-context.md`/`role.md` modified), compose a short guest summary. A guest that was attached but had no lore updates gets no summary. If no guests were attached at all, skip this step.
 
-- **Approve** — proceed to write
-- **Request edits** — revise based on feedback and show again
-- **Skip persistence** — the user decides not to commit a summary for this session; proceed directly to step 12 without writing, and do not emit a UUID line (nothing to correlate to)
+Derive each guest summary from:
+
+- **The host summary** you just composed — title, overarching framing.
+- **Your session memory** — what this guest specifically contributed during the session.
+- **The merge subagent's return for this guest** — which files changed and why.
+
+Assemble guest frontmatter (see **Guest frontmatter schema** above) and guest body (see **Guest body structure** above). Keep each one short — a participation sentence, a one-line contribution summary, a bulleted list of lore updates with one-line reasons, and the back-reference.
+
+### Step 10: Show to the user and wait for approval
+
+Display the host summary and all guest summaries to the user in one batch. The user may:
+
+- **Approve all** — proceed to write
+- **Request edits** — revise specific summaries based on feedback and show again
+- **Skip the whole session** — no files are written, no UUID is emitted (nothing to correlate to). Proceed directly to step 13.
+- **Skip individual guest summaries** — write the host summary and only the approved guest summaries; drop the rest silently.
 
 This review gate is mandatory. Consistent with the framework's general principle: show before persist.
 
-### Step 10: Write the file
+### Step 11: Write the files
 
-Create directories as needed:
+Write the host summary first, then each approved guest summary. Create directories as needed, e.g.:
 
 ```bash
 mkdir -p <lore-agent-repo>/agents/<host-agent>/sessions/<YYYY>/<MM>
+mkdir -p <guest-repo>/agents/<guest-agent>/sessions/<YYYY>/<MM>
 ```
 
-Write the file atomically. Use the Write tool on the final path; it overwrites if needed.
+Use the Write tool for each file on its final path; it overwrites if needed.
 
-### Step 11: Do not commit
+### Step 12: Do not commit
 
-The user reviews and commits the new summary themselves, typically alongside the merge commit from the same finalization. Stage but do not commit.
+Summarize does not commit. When invoked as part of `/lr:finalize`, the final commit+push step covers the host and guest summaries along with reflect/merge output (each repo's changes go into its own commit). When invoked standalone via `/lr:summarize`, leave the new files uncommitted and let the user commit them themselves.
 
-### Step 12: Emit the UUID in user-visible output
+### Step 13: Emit the UUID in user-visible output
 
-If a file was written, close the summarize step with a line that prints the UUID in a grep-friendly format:
+If the host summary was written, close the summarize step with a block that prints the UUID and paths in a grep-friendly format:
 
 ```
-✓ Session summary written: <relative-path-to-summary>
+✓ Host summary written: <path-to-host-summary>
+✓ Guest summaries written: <count>
+  - <path-to-guest-summary-1>
+  - <path-to-guest-summary-2>
 Session UUID: <full-uuid>
 ```
 
-The UUID line is required discipline — it's the only mechanism by which the public summary can later be correlated to the Claude Code JSONL on the user's machine. The user can later run:
+Omit the guest summaries block if none were written.
+
+The UUID line is required discipline — it's the only mechanism by which the public summaries can later be correlated to the Claude Code JSONL on the user's machine. The user can later run:
 
 ```bash
 grep -rl "<full-uuid>" ~/.claude/projects/
 ```
 
-to find the raw session JSONL if they want to replay or inspect it.
+to find the raw session JSONL if they want to replay or inspect it. The same UUID also finds every host and guest summary for the session in the domain.
 
-If summarize was skipped in step 9, do not emit a UUID line.
+If summarize was skipped in step 10, do not emit a UUID line.
 
 ## Failure modes
 
 | Failure | Response |
 |---|---|
-| Model cannot produce a narrative | Report error, do not write a file, do not roll back reflect or merge |
-| User rejects / asks to skip | No file written, no UUID emitted |
-| Disk write fails | Report error with the composed summary text so the user can copy it manually |
+| Model cannot produce the host narrative | Report error, do not write any files, do not roll back reflect or merge |
+| Model cannot produce a specific guest summary | Write the host summary and other guest summaries; skip the failing one with a note |
+| User rejects / asks to skip the whole session | No files written, no UUID emitted |
+| User rejects an individual guest summary | Drop that guest summary silently; write everything else |
+| Disk write fails for any file | Report the failure with the composed text so the user can copy it manually; other approved files still get written |
 | `id -un` / `id -F` return empty | Omit the affected field, proceed |
-| Directory creation fails | Report error, do not write |
+| Directory creation fails | Report error for that path, do not write there; other paths proceed |
 | Early session hazy due to compaction | Narrative says so plainly; do not fabricate detail |
 
 Summarize failure never rolls back or poisons reflect or merge.
 
 ## Privacy
 
-Session summaries are committed to potentially public repos. Two layers of defence:
+Session summaries are committed to potentially public repos — and with guest summaries, **possibly multiple repos with different visibility settings**. A guest attached from a different repo may land in a repo with broader or narrower visibility than the host's. Two layers of defence:
 
-1. **Narrative guidance** (in the prompt above): public-audience aware, no secrets or sensitive specifics, ask the user if unsure.
-2. **Mandatory review gate** (step 9): nothing is written until the user has seen the composed summary and approved.
+1. **Narrative guidance** (in the prompt above): public-audience aware, no secrets or sensitive specifics, ask the user if unsure. Guest summaries inherit the same constraint — the one-line contribution summary should be as safe to publish as the host narrative.
+2. **Mandatory review gate** (step 10): nothing is written until the user has seen the composed host summary **and** every guest summary and approved the batch. When reviewing guest summaries, consider each one **against its destination repo specifically** — content acceptable in the host's repo may not be acceptable in a differently-visible guest repo. Individual guest summaries can be dropped at review time without blocking the host or other guests.
 
 No automated scrubbing in v1. The framework relies on the agent's judgment plus the user's review.
 
