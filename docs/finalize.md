@@ -35,15 +35,15 @@ Read `${CLAUDE_PLUGIN_ROOT}/docs/summarize.md` and follow it. Writes the canonic
 
 Collect every repo touched by phases 1–3 — each active agent's repo (for its own lore updates), plus the host's repo (for the canonical summary), plus any guest repo that received a short guest summary from phase 3. When host and guests share a repo, their changes go into a single commit for that repo. Then, for each such repo:
 
-1. Run `git -C <repo> status` and show the user the pending changes plus the proposed commit message (default: `Finalize session <short-uuid>`).
-2. Wait for approval.
-3. `git -C <repo> add agents/` — scoped to the agent tree so incidental untracked files elsewhere are not swept in.
-4. `git -C <repo> commit -m "<message>"`.
-5. `git -C <repo> push`.
+1. `git -C <repo> add agents/` — scoped to the agent tree so incidental untracked files elsewhere are not swept in.
+2. `git -C <repo> commit -m "Finalize session <short-uuid>"`.
+3. `git -C <repo> push`.
+
+For each repo, print a one-line confirmation (e.g., `✓ <repo>: committed <sha>, pushed to <branch>`). No approval prompt — phase 4 runs end-to-end without user interaction.
 
 ### Failure handling
 
-- **Summarize skipped or failed** — commit the reflect+merge output alone. Merge output is valuable on its own; don't hold it hostage to the summary.
+- **Summarize failed** — commit the reflect+merge output alone. Merge output is valuable on its own; don't hold it hostage to the summary.
 - **Any merge subagent failed** — do not commit in that repo. Report the failure and let the user resolve before retrying finalize.
 - **Push rejected due to conflicts in an agent subtree** — this happens when another user (or parallel session) finalized the same agent concurrently. Trigger the conflict-resolution procedure: read `${CLAUDE_PLUGIN_ROOT}/docs/resolve-conflicts.md` and follow it. One subagent is spawned per conflicted agent; each boots as its agent, reconciles its own subtree, and retries push up to 3 times against concurrent races.
 - **Push fails for other reasons** (auth, remote unreachable, conflicts outside agent subtrees) — the commit is already made locally. Report the failure and let the user resolve manually.
@@ -59,7 +59,7 @@ Push order across repos is undefined. If one repo's push succeeds and another's 
 ## Invariants
 
 - **One commit per touched repo.** Reflect, merge, and summarize output land in a single commit per repo — not split across phases.
-- **Review gate is mandatory.** The user sees the pending diff and proposed message before any commit is made.
+- **Fully automated.** Finalize runs end-to-end without approval prompts. Phase 3's summary display in `summarize.md` step 12 is the user's view of what was recorded; git history is the post-hoc review channel.
 - **Push is part of finalize.** Standalone reflect/merge/summarize do not push; only `/lr:finalize` does.
 - **No empty commits.** If nothing was produced by phases 1–3 in a given repo, skip committing in that repo.
 
