@@ -68,6 +68,7 @@ claude --plugin-dir ./lore-framework
 | `/lr:list-agents` | List all agents in the domain |
 | `/lr:list-repos` | List all agent repos in the domain |
 | `/lr:check` | Run consistency checks |
+| `/lr:spawn-teammate [<agent>...]` | **BETA** — Spawn lore agents as Agent Teams teammates |
 
 ## Optional: Agent Shortcut Commands
 
