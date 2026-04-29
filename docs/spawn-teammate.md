@@ -98,10 +98,12 @@ If after de-duplication the spawn set is empty, stop with: `No new teammates to 
 For each `(agent-name, repo-path)` in the spawn set:
 
 - **Teammate name**: the kebab-case agent name (matches the agent's directory name under `<lore-agent-repo>/agents/`).
-- **Spawn prompt** (verbatim, including the closing instruction):
+- **Spawn prompt** (verbatim, including the post-boot paragraph):
 
   ```
-  Read ${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>. After boot, await further instructions from the team lead via SendMessage.
+  Read ${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>.
+
+  You were spawned primarily as a parallel session for the user to work with you directly. After boot, wait for the user's instructions in this session and respond to them here — not via SendMessage. Use SendMessage to the team lead or other teammates only when the user explicitly asks you to share or coordinate something.
   ```
 
   Substitute:
@@ -110,7 +112,7 @@ For each `(agent-name, repo-path)` in the spawn set:
 
   `${CLAUDE_PLUGIN_ROOT}` is left **literal** in the spawn prompt — the teammate's session resolves it via Claude Code (teammates load skills from project and user settings, per the Agent Teams documentation).
 
-  The "After boot, await further instructions from the team lead via SendMessage" line tells the teammate to stop after the boot procedure's "Confirm" step rather than invent a task on its own.
+  The post-boot paragraph does two things: it stops the teammate after the boot procedure's "Confirm" step rather than letting it invent a task, and frames the user (in the teammate's own session) as the primary interlocutor. Without it, teammates default to reporting back to the team lead via SendMessage even when the user is working with them directly — the typical usage pattern is the inverse, with the user driving each teammate from its own pane and inter-agent messaging reserved for explicit coordination requests.
 
 ### Step 7 — Invoke Agent Teams
 
