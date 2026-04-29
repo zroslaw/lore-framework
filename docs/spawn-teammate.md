@@ -52,7 +52,7 @@ Examples:
 
 ### Step 2 — Enumerate available agents
 
-Walk the domain. For each subdirectory containing `lore-repo.md` at its root, scan `agents/*/role.md` to enumerate `(repo, agent-name, role-description)` tuples. Build a flat list of available agents.
+Walk the domain. For each subdirectory containing `lore-repo.md` at its root, scan `agents/*/role.md` to enumerate `(repo, agent-name, role-description)` tuples. Build a flat list of available agents. If a repo has `lore-repo.md` but no `agents/` directory or no agent subdirs with `role.md`, skip it silently (it contributes zero agents to the list).
 
 If two repos contain agents with the same name, retain the repo qualifier internally (used in Step 4 for cross-repo collision handling).
 

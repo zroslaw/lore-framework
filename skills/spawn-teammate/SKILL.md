@@ -1,5 +1,5 @@
 ---
-description: "BETA — Spawn lore agents as Claude Code Agent Teams teammates. The current session becomes the team lead. Usage: /lr:spawn-teammate [<agent-name> ...]"
+description: "BETA — Spawn lore agents as Agent Teams teammates. Usage: /lr:spawn-teammate [<agent-name> ...]"
 argument-hint: "[<agent-name> ...]"
 ---
 
