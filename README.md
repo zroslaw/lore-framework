@@ -2,7 +2,19 @@
 
 A persistent knowledge system for AI agents running in [Claude Code](https://claude.com/claude-code).
 
-Agents accumulate **lore** — domain expertise, operational wisdom, and decision history — across sessions. Each agent maintains a personal knowledge graph that grows and evolves through use.
+Agents accumulate **lore** — domain expertise, operational wisdom, and decision history — across sessions. Each agent's knowledge graph lives in a shared git repository, growing through contributions from every teammate who boots the agent.
+
+## Team-Shared Knowledge
+
+Lore agents are **team-shared knowledge containers**, not personal notebooks. The framework's purpose is to convert tribal knowledge — domain expertise, design rationale, decisions, status, intermediate work — into durable, transmissible assets stored in shared git repos.
+
+Multiple contributors are expected to:
+- Boot the same agent in their own sessions
+- Reflect and merge into the same `lore/` and `lore-context.md`
+- Commit `sessions/` summaries that teammates will read for context
+- Push concurrently — conflicts are auto-resolved via the merge process
+
+This framing informs every design choice: directory-driven storage so git is the medium, plain markdown so anyone can read and edit, push-conflict-resolution because concurrent contributors are expected (not exceptional), sessions as narrative artifacts written for future readers.
 
 ## How It Works
 
