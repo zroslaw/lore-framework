@@ -1,12 +1,14 @@
 # Init
 
-Write (or refresh) a framework-managed section in the domain-level `CLAUDE.md` so that any Claude Code session working in the domain automatically loads the framework's conventions.
+Write (or refresh) a framework-managed section in the workspace-level `CLAUDE.md` so that any Claude Code session working in the workspace automatically loads the framework's conventions.
+
+> **When to run.** After `/lr:workspace-sync` (or after cloning your first agent repo into a fresh workspace). Re-run any time the framework is upgraded — the canonical payload occasionally evolves.
 
 ## Purpose
 
 `CLAUDE.md` at the root of a working directory is loaded by default into every Claude Code session that starts there. Parking the framework's conventions inside it is the simplest way to make them visible without relying on agent memory or manual context-setting.
 
-The framework cannot ship the domain `CLAUDE.md` directly — that file belongs to the user's domain, not to the plugin. What the framework can ship is a command that writes its conventions into a delimited section of the user's `CLAUDE.md`, leaving the rest of the file untouched.
+The framework cannot ship the workspace `CLAUDE.md` directly — that file belongs to the user's workspace, not to the plugin. What the framework can ship is a command that writes its conventions into a delimited section of the user's `CLAUDE.md`, leaving the rest of the file untouched.
 
 ## Input
 
@@ -14,9 +16,9 @@ No arguments in this version.
 
 ## Target
 
-`<cwd>/CLAUDE.md` — the file at the current working directory. The user runs `/lr:init` from the domain directory.
+`<cwd>/CLAUDE.md` — the file at the current working directory. The user runs `/lr:init` from the workspace root.
 
-The command does not verify that the cwd is a domain (contains lore agent repos or otherwise). If run from an unintended location, the user can inspect the result and delete the file.
+The command does not verify that the cwd is a workspace (contains lore agent repos or otherwise). If run from an unintended location, the user can inspect the result and delete the file.
 
 ## Marker Protocol
 
@@ -50,9 +52,9 @@ The exact content of the framework-managed section, markers included:
 
 ~~~markdown
 <!-- lr:init:start -->
-## Lore Framework Domain
+## Lore Framework Workspace
 
-This directory is a Lore Framework domain. Conventions for any Claude Code session working here:
+This directory is a Lore Framework workspace. Conventions for any Claude Code session working here:
 
 - **Repos at the top level stay on their default branch.** They represent production state.
 - **For any non-default branch (new features, checking out others' branches), create a git worktree** at `.worktrees/<repo>/<slug>/`. Standard git worktree commands apply.
@@ -71,11 +73,11 @@ The link is the public GitHub URL rather than `${CLAUDE_PLUGIN_ROOT}/docs/worktr
 
 - Does not touch content outside the markers.
 - Does not touch any file other than `<cwd>/CLAUDE.md`.
-- Does not run git commands. The user reviews with `git diff` (if the domain is versioned) or by opening the file, and commits themselves.
-- Does not validate that the cwd is a lore-framework domain.
+- Does not run git commands. The user reviews with `git diff` (if the workspace is versioned) or by opening the file, and commits themselves.
+- Does not validate that the cwd is a lore-framework workspace.
 - Does not scaffold or modify per-agent or per-repo files.
 - Does not three-way-merge. Show-diff-and-confirm is the entire user-edit protocol.
 
 ## Future Extensions
 
-The marker-delineated section is the extension point. Future framework versions may expand the canonical payload with additional content (domain intro, agent registry pointers, invocation tips, etc.), all living inside the same `<!-- lr:init -->` markers. The mechanism does not change; only the payload grows.
+The marker-delineated section is the extension point. Future framework versions may expand the canonical payload with additional content (workspace intro, agent registry pointers, invocation tips, etc.), all living inside the same `<!-- lr:init -->` markers. The mechanism does not change; only the payload grows.

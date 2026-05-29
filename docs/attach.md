@@ -1,6 +1,6 @@
 # Attach
 
-`/lr:attach` loads another lore agent into the currently booted host session so the host can work with the union of both agents' knowledge over many turns. This is the heavyweight option in the cross-agent-collaboration trio (recall / consult / attach); use it when the task genuinely spans two (or more) domains and you'll be thinking in both across many turns.
+`/lr:attach` loads another lore agent into the currently booted host session so the host can work with the union of both agents' knowledge over many turns. This is the heavyweight option in the cross-agent-collaboration trio (recall / consult / attach); use it when the task genuinely spans two (or more) domains (different agent repos) and you'll be thinking in both across many turns.
 
 ## Usage
 
@@ -95,7 +95,7 @@ Subsequent operations become multi-agent-aware automatically:
 
 - **`/lr:recall` fans out** — one parallel subagent per active agent, results synthesized together. See `docs/recall.md` and `docs/lore-search.md`.
 - **`/lr:reflect` / `/lr:merge` / `/lr:finalize` iterate** — sequentially, per active agent, in host-first order. See `docs/process-reflection.md` and `docs/process-merge.md`.
-- **Workdir writes** default to the host's workdir. Guests' workdirs are readable (domain visibility already gives the host this).
+- **Workdir writes** default to the host's workdir. Guests' workdirs are readable (workspace visibility already gives the host this).
 
 No detach in v1. Guests stay attached for the rest of the session and participate in finalization.
 

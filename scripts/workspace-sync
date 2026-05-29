@@ -1,0 +1,576 @@
+#!/usr/bin/env bash
+# workspace-sync — clone declared repos and pull all git repos in the workspace.
+#
+# Walks the workspace (current directory by default), reads every <subdir>/lore-repo.md,
+# merges declared `repos:` lists, clones any missing repos, then pulls all top-level
+# git repos (existing + freshly cloned) in parallel. Conflicts (remote mismatches,
+# target-not-a-repo, dir collisions) are collected and reported at the end for manual
+# resolution.
+#
+# Usage: workspace-sync [WORKSPACE_DIR]
+#
+# Exit codes:
+#   0  success — nothing to do, or every clone/pull succeeded with no conflicts
+#   1  one or more clone/pull failures or conflicts requiring manual resolution
+#   2  invalid invocation (workspace dir missing or not a directory)
+#
+# Compatibility: written for Bash 3.2+ (default on macOS) — no associative arrays.
+
+set -uo pipefail
+
+# Disable interactive credential prompts. Parallel git invocations sharing a
+# single TTY would otherwise garble each other's prompts. Failures surface
+# cleanly in the per-repo report.
+export GIT_TERMINAL_PROMPT=0
+
+# ----------------------------------------------------------------------------
+# Workspace
+# ----------------------------------------------------------------------------
+
+WORKSPACE_INPUT="${1:-.}"
+
+if [[ ! -d "$WORKSPACE_INPUT" ]]; then
+  echo "workspace-sync: not a directory: $WORKSPACE_INPUT" >&2
+  exit 2
+fi
+
+WORKSPACE="$(cd "$WORKSPACE_INPUT" && pwd)"
+
+# ----------------------------------------------------------------------------
+# Colors (only when stdout is a tty)
+# ----------------------------------------------------------------------------
+
+if [[ -t 1 ]]; then
+  C_NAME=$'\033[0;34m'
+  C_OK=$'\033[0;32m'
+  C_FAIL=$'\033[0;31m'
+  C_WARN=$'\033[0;33m'
+  C_DIM=$'\033[2m'
+  BOLD=$'\033[1m'
+  RESET=$'\033[0m'
+else
+  C_NAME=''; C_OK=''; C_FAIL=''; C_WARN=''; C_DIM=''; BOLD=''; RESET=''
+fi
+
+# ----------------------------------------------------------------------------
+# YAML extraction (constrained schema)
+#
+# We accept block-form `repos:` only:
+#
+#     repos:
+#       - <url-1>
+#       - <url-2>
+#
+# Inline forms (`repos: [a, b]`), nested keys, anchors, and merge keys are not
+# supported. Comments and blank lines inside the frontmatter are ignored.
+# ----------------------------------------------------------------------------
+
+parse_repos_field() {
+  local file="$1"
+  awk '
+    BEGIN { fm = 0; repos = 0 }
+
+    {
+      # Strip UTF-8 BOM from the very first line, if present.
+      if (NR == 1) {
+        if (substr($0, 1, 3) == "\357\273\277") $0 = substr($0, 4)
+      }
+      # Strip trailing CR (CRLF line endings).
+      sub(/\r$/, "", $0)
+    }
+
+    # Frontmatter must open on line 1 (after optional BOM). If the first line
+    # is not the opening `---`, this file has no frontmatter — bail.
+    NR == 1 {
+      if ($0 ~ /^---[[:space:]]*$/) {
+        fm = 1
+        next
+      } else {
+        exit
+      }
+    }
+
+    # Closing `---`: stop parsing.
+    /^---[[:space:]]*$/ {
+      if (fm == 1) {
+        fm = 2
+        exit
+      }
+      next
+    }
+
+    # Defensive: only act inside frontmatter (always true once line 1 opened it).
+    fm != 1 { next }
+
+    # Skip blank lines and comment lines anywhere in frontmatter.
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*#/ { next }
+
+    # Inside repos block: capture list items, exit on non-list line.
+    repos == 1 {
+      if ($0 ~ /^[[:space:]]+-/) {
+        line = $0
+        sub(/^[[:space:]]+-[[:space:]]*/, "", line)
+
+        # Quote-aware comment stripping: only strip `#` outside surrounding quotes.
+        # If the value is quoted, leave its content alone; otherwise strip from
+        # the first ` #` onward.
+        first_char = substr(line, 1, 1)
+        if (first_char != "\"" && first_char != "'"'"'") {
+          sub(/[[:space:]]+#.*$/, "", line)
+        }
+        sub(/[[:space:]]+$/, "", line)
+
+        # Strip surrounding quotes if present.
+        if (length(line) > 1 \
+            && substr(line, 1, 1) == "\"" \
+            && substr(line, length(line), 1) == "\"") {
+          line = substr(line, 2, length(line) - 2)
+        } else if (length(line) > 1 \
+            && substr(line, 1, 1) == "'"'"'" \
+            && substr(line, length(line), 1) == "'"'"'") {
+          line = substr(line, 2, length(line) - 2)
+        }
+
+        if (length(line) > 0) print line
+        next
+      }
+      repos = 0
+    }
+
+    # Detect start of repos block (block form only).
+    /^repos:[[:space:]]*$/ { repos = 1; next }
+
+    # End-of-file: warn if frontmatter was opened but never closed (fm==1
+    # means we hit EOF mid-frontmatter; fm==2 means we saw the closing `---`).
+    END {
+      if (fm == 1) {
+        print "workspace-sync: warning: '"'"'" FILENAME "'"'"' has no closing --- after frontmatter; results may be incomplete" > "/dev/stderr"
+      }
+    }
+  ' "$file"
+}
+
+# ----------------------------------------------------------------------------
+# URL helpers
+# ----------------------------------------------------------------------------
+
+# Derive a directory name from a remote URL.
+#
+#   git@github.com:foo/bar.git    -> bar
+#   https://github.com/foo/bar.git -> bar
+#   https://github.com/foo/bar     -> bar
+#   ssh://git@host/foo/bar.git    -> bar
+#
+# Returns the empty string if the derived name is unsafe (path-traversal,
+# starts with `-`, or contains a slash). The caller is responsible for
+# treating an empty result as a conflict.
+url_to_dir() {
+  local url="$1"
+  url="${url%/}"               # strip optional trailing slash
+  local name="${url##*[:/]}"   # everything after the last `:` or `/`
+  name="${name%.git}"          # strip optional `.git` suffix
+
+  # Reject names that would escape the workspace or be parsed as flags.
+  case "$name" in
+    ''|'.'|'..'|-*) printf ''; return 0 ;;
+  esac
+  # Reject any slash (path traversal via crafted URL).
+  if [[ "$name" == */* ]]; then
+    printf ''
+    return 0
+  fi
+
+  printf '%s' "$name"
+}
+
+# Normalize a URL for equality comparison: strip trailing `/` and `.git`.
+normalize_url() {
+  local u="$1"
+  u="${u%/}"
+  u="${u%.git}"
+  printf '%s' "$u"
+}
+
+urls_match() {
+  [[ "$(normalize_url "$1")" == "$(normalize_url "$2")" ]]
+}
+
+# Scrub control characters from a string before displaying it. Defends against
+# ANSI-escape injection via hostile descriptor URLs.
+display_scrub() {
+  printf '%s' "$1" | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'
+}
+
+# ----------------------------------------------------------------------------
+# Discovery
+# ----------------------------------------------------------------------------
+
+# Find every <workspace>/<subdir>/lore-repo.md.
+descriptors=()
+for f in "$WORKSPACE"/*/lore-repo.md; do
+  [[ -f "$f" ]] && descriptors+=("$f")
+done
+
+# Merge declared URLs across all descriptors. Preserve first-seen order; dedupe by URL.
+# Parallel arrays (Bash 3.2 compat — no associative arrays):
+#   declared_urls[i]    — the URL
+#   declared_sources[i] — descriptor file that first declared it
+declared_urls=()
+declared_sources=()
+
+# url_seen: linear search over declared_urls (O(n*m) — fine for dozens of entries).
+already_declared() {
+  local needle="$1"
+  [[ ${#declared_urls[@]} -eq 0 ]] && return 1
+  local u
+  for u in "${declared_urls[@]}"; do
+    [[ "$u" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+source_for_url() {
+  local needle="$1"
+  local i
+  for i in "${!declared_urls[@]}"; do
+    [[ "${declared_urls[$i]}" == "$needle" ]] && { printf '%s' "${declared_sources[$i]}"; return 0; }
+  done
+  return 1
+}
+
+if [[ ${#descriptors[@]} -gt 0 ]]; then
+  for fm_file in "${descriptors[@]}"; do
+    while IFS= read -r url; do
+      [[ -z "$url" ]] && continue
+      if ! already_declared "$url"; then
+        declared_urls+=("$url")
+        declared_sources+=("$fm_file")
+      fi
+    done < <(parse_repos_field "$fm_file")
+  done
+fi
+
+# ----------------------------------------------------------------------------
+# Plan: classify each declared URL into clone / already-present / conflict.
+# Detect target-dir collisions (two distinct URLs claiming the same dir name).
+# ----------------------------------------------------------------------------
+
+# Parallel arrays for dir-claim tracking (Bash 3.2 compat).
+claimed_dirs=()
+claimed_urls=()
+
+claim_for_dir() {
+  local needle="$1"
+  local i
+  for i in "${!claimed_dirs[@]}"; do
+    [[ "${claimed_dirs[$i]}" == "$needle" ]] && { printf '%s' "${claimed_urls[$i]}"; return 0; }
+  done
+  return 1
+}
+
+collisions=()
+
+to_clone_url=()
+to_clone_dir=()
+conflicts=()
+
+# Dirs that should be skipped during the pull phase (remote-mismatch, not-a-repo,
+# missing origin, etc.). We can't trust a `git pull` against an unexpected remote.
+skip_pull_dirs=()
+
+mark_skip_pull() {
+  skip_pull_dirs+=("$1")
+}
+
+is_skip_pull() {
+  local needle="$1"
+  [[ ${#skip_pull_dirs[@]} -eq 0 ]] && return 1
+  local d
+  for d in "${skip_pull_dirs[@]}"; do
+    [[ "$d" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+if [[ ${#declared_urls[@]} -gt 0 ]]; then
+  for url in "${declared_urls[@]}"; do
+    dir="$(url_to_dir "$url")"
+
+    if [[ -z "$dir" ]]; then
+      conflicts+=("(unsafe or unparseable URL — refusing to derive directory name: $(display_scrub "$url"))")
+      continue
+    fi
+
+    # Collision: another distinct URL already claims this dir.
+    existing_claim="$(claim_for_dir "$dir" || true)"
+    if [[ -n "$existing_claim" ]] && ! urls_match "$existing_claim" "$url"; then
+      collisions+=("dir '$dir' claimed by both '$(display_scrub "$existing_claim")' and '$(display_scrub "$url")' → rename one of them in its lore-repo.md")
+      continue
+    fi
+    if [[ -z "$existing_claim" ]]; then
+      claimed_dirs+=("$dir")
+      claimed_urls+=("$url")
+    fi
+
+    target="$WORKSPACE/$dir"
+    src="$(source_for_url "$url" || true)"
+    if [[ -L "$target" ]]; then
+      conflicts+=("$dir: '$target' is a symlink — refusing to touch (declared in $src) → remove the symlink and rerun")
+      mark_skip_pull "$dir"
+    elif [[ ! -e "$target" ]]; then
+      to_clone_url+=("$url")
+      to_clone_dir+=("$dir")
+    elif [[ ! -d "$target" ]]; then
+      conflicts+=("$dir: '$target' exists but is not a directory (declared in $src) → rename or remove the file and rerun")
+      mark_skip_pull "$dir"
+    elif [[ ! -d "$target/.git" && ! -f "$target/.git" ]]; then
+      conflicts+=("$dir: '$target' exists but is not a git repository (declared in $src) → rename or remove the directory and rerun")
+      mark_skip_pull "$dir"
+    else
+      actual_remote="$(git -C "$target" remote get-url origin 2>/dev/null || true)"
+      if [[ -z "$actual_remote" ]]; then
+        conflicts+=("$dir: no 'origin' remote configured (declared as '$(display_scrub "$url")' in $src) → git -C $dir remote add origin <url>")
+        mark_skip_pull "$dir"
+      elif ! urls_match "$actual_remote" "$url"; then
+        conflicts+=("$dir: declared '$(display_scrub "$url")' but local origin is '$(display_scrub "$actual_remote")' (declared in $src) → reconcile the descriptor or run: git -C $dir remote set-url origin <url>")
+        mark_skip_pull "$dir"
+      fi
+      # else: matching remote — will be pulled in Phase 2 alongside other top-level repos.
+    fi
+  done
+fi
+
+# ----------------------------------------------------------------------------
+# Working tmpdir for capturing per-repo output and exit codes
+# ----------------------------------------------------------------------------
+
+tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t 'workspace-sync')"
+
+# Best-effort cleanup. On INT/TERM, kill any backgrounded git children before
+# removing the tmpdir so partial clones don't linger.
+# shellcheck disable=SC2329  # invoked indirectly via trap
+cleanup_tmp() { rm -rf "$tmpdir"; }
+# shellcheck disable=SC2329  # invoked indirectly via trap
+cleanup_signal() {
+  # `kill -- -$$` signals every process in the current process group,
+  # including any in-flight `git clone` children. Suppress errors from
+  # already-exited PIDs.
+  trap - INT TERM
+  kill -- -$$ 2>/dev/null || kill 0 2>/dev/null || true
+  cleanup_tmp
+  exit 130
+}
+trap cleanup_tmp EXIT
+trap cleanup_signal INT TERM
+
+# Build a tmpfile key that is unique per parallel slot. Combines a sanitized
+# form of the dir name (for human-readable diagnostics) with the slot index
+# (for guaranteed uniqueness — prevents collisions like `foo bar` vs `foo_bar`).
+safe_key() {
+  local s="$1"
+  local idx="$2"
+  s="${s//\//_}"
+  s="$(printf '%s' "$s" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_')"
+  printf '%s-%s' "$idx" "$s"
+}
+
+# ----------------------------------------------------------------------------
+# Phase 1: clone missing repos in parallel.
+# Output is captured to files (clone is verbose; interleaved progress is unreadable).
+# ----------------------------------------------------------------------------
+
+clone_ok=0
+clone_fail=0
+clone_failures=()
+
+if [[ ${#to_clone_url[@]} -gt 0 ]]; then
+  echo "${BOLD}Cloning ${#to_clone_url[@]} repo(s) in parallel...${RESET}"
+  echo ""
+
+  pids=()
+  for i in "${!to_clone_url[@]}"; do
+    url="${to_clone_url[$i]}"
+    dir="${to_clone_dir[$i]}"
+    target="$WORKSPACE/$dir"
+    key="$(safe_key "$dir" "$i")"
+    (
+      # `--` terminates option parsing so a hostile URL starting with `-` is
+      # treated as a positional argument (URL), not a git flag.
+      LC_ALL=C git clone -- "$url" "$target" >"$tmpdir/clone-$key.out" 2>&1
+      ec=$?
+      echo $ec >"$tmpdir/clone-$key.exit"
+      # Clean up partial clones so the next run doesn't see them as conflicts.
+      if [[ $ec -ne 0 && -d "$target" ]]; then
+        rm -rf "$target"
+      fi
+    ) &
+    pids+=($!)
+  done
+  for pid in "${pids[@]}"; do wait "$pid" || true; done
+
+  for i in "${!to_clone_url[@]}"; do
+    url="${to_clone_url[$i]}"
+    dir="${to_clone_dir[$i]}"
+    key="$(safe_key "$dir" "$i")"
+    code="$(cat "$tmpdir/clone-$key.exit" 2>/dev/null || echo "?")"
+    if [[ "$code" == "0" ]]; then
+      echo "  ${C_OK}✓${RESET} ${BOLD}${dir}${RESET} ${C_DIM}cloned from $(display_scrub "$url")${RESET}"
+      clone_ok=$((clone_ok + 1))
+    else
+      # Prefer a fatal/error line over the very last line, which is often a
+      # progress percentage or noise.
+      reason="$(grep -E '^(fatal|error):' "$tmpdir/clone-$key.out" 2>/dev/null | tail -1)"
+      [[ -z "$reason" ]] && reason="$(tail -1 "$tmpdir/clone-$key.out" 2>/dev/null)"
+      [[ -z "$reason" ]] && reason="unknown error"
+      reason="$(display_scrub "$reason")"
+      echo "  ${C_FAIL}✗${RESET} ${BOLD}${dir}${RESET} ${C_DIM}failed to clone — ${reason}${RESET}"
+      clone_failures+=("$dir <- $(display_scrub "$url"): $reason")
+      clone_fail=$((clone_fail + 1))
+    fi
+  done
+  echo ""
+fi
+
+# ----------------------------------------------------------------------------
+# Phase 2: pull all top-level git repos (existing + newly cloned).
+# Output is streamed with a [name] prefix in real-time.
+# We use --ff-only so divergent local branches surface as conflicts rather than
+# silent merge commits.
+# ----------------------------------------------------------------------------
+
+top_level_repos=()
+for d in "$WORKSPACE"/*/; do
+  d="${d%/}"
+  # Skip symlinked dirs — we don't want to pull a repo that lives outside the
+  # workspace via a symlink trick.
+  [[ -L "$d" ]] && continue
+  name="$(basename "$d")"
+  if [[ -d "$d/.git" || -f "$d/.git" ]]; then
+    if is_skip_pull "$name"; then
+      continue   # remote-mismatch or other conflict — surfaced in the conflicts report.
+    fi
+    top_level_repos+=("$name")
+  fi
+done
+
+pull_ok=0
+pull_fail=0
+pull_failures=()
+
+if [[ ${#top_level_repos[@]} -gt 0 ]]; then
+  echo "${BOLD}Pulling ${#top_level_repos[@]} repo(s) in parallel...${RESET}"
+  echo ""
+
+  pids=()
+  for i in "${!top_level_repos[@]}"; do
+    name="${top_level_repos[$i]}"
+    repo="$WORKSPACE/$name"
+    key="$(safe_key "$name" "$i")"
+    (
+      { LC_ALL=C git -C "$repo" pull --ff-only 2>&1; echo $? >"$tmpdir/pull-$key.exit"; } \
+        | tee "$tmpdir/pull-$key.out" \
+        | while IFS= read -r line; do
+            printf "%s[%-30s]%s %s\n" "$C_NAME" "$name" "$RESET" "$line"
+          done
+    ) &
+    pids+=($!)
+  done
+  for pid in "${pids[@]}"; do wait "$pid" || true; done
+  echo ""
+
+  for i in "${!top_level_repos[@]}"; do
+    name="${top_level_repos[$i]}"
+    key="$(safe_key "$name" "$i")"
+    code="$(cat "$tmpdir/pull-$key.exit" 2>/dev/null || echo "?")"
+    out="$tmpdir/pull-$key.out"
+
+    if [[ "$code" == "0" ]] && grep -q "Already up to date" "$out" 2>/dev/null; then
+      note="already up to date"
+    elif [[ "$code" == "0" ]]; then
+      note="$(grep -E '[0-9]+ file' "$out" 2>/dev/null | head -1)"
+      [[ -z "$note" ]] && note="updated"
+    else
+      note="$(grep -E '^(fatal|error):' "$out" 2>/dev/null | tail -1)"
+      [[ -z "$note" ]] && note="$(head -1 "$out" 2>/dev/null)"
+      [[ -z "$note" ]] && note="failed"
+    fi
+
+    note="$(display_scrub "$note")"
+
+    if [[ "$code" == "0" ]]; then
+      echo "  ${C_OK}✓${RESET} ${BOLD}${name}${RESET} ${C_DIM}— ${note}${RESET}"
+      pull_ok=$((pull_ok + 1))
+    else
+      echo "  ${C_FAIL}✗${RESET} ${BOLD}${name}${RESET} ${C_DIM}— ${note}${RESET}"
+      pull_failures+=("$name: $note")
+      pull_fail=$((pull_fail + 1))
+    fi
+  done
+  echo ""
+fi
+
+# ----------------------------------------------------------------------------
+# Final report
+# ----------------------------------------------------------------------------
+
+total_conflicts=$(( ${#conflicts[@]} + ${#collisions[@]} ))
+
+echo "${BOLD}Summary${RESET}"
+echo "  workspace:    $WORKSPACE"
+echo "  descriptors:  ${#descriptors[@]} lore-repo.md file(s)"
+echo "  declared:     ${#declared_urls[@]} URL(s)"
+if [[ ${#to_clone_url[@]} -gt 0 ]]; then
+  echo "  cloned:       $clone_ok ok, $clone_fail failed"
+fi
+if [[ ${#top_level_repos[@]} -gt 0 ]]; then
+  echo "  pulled:       $pull_ok ok, $pull_fail failed"
+fi
+if [[ $total_conflicts -gt 0 ]]; then
+  echo "  conflicts:    $total_conflicts (${#conflicts[@]} state, ${#collisions[@]} dir-collision)"
+else
+  echo "  conflicts:    0"
+fi
+echo ""
+
+if [[ ${#descriptors[@]} -eq 0 && ${#top_level_repos[@]} -eq 0 ]]; then
+  echo "${C_WARN}No lore-repo.md files and no git repos found in $WORKSPACE.${RESET}"
+  echo "Are you running from the workspace root?"
+  exit 0
+fi
+
+if [[ ${#conflicts[@]} -gt 0 ]]; then
+  echo "${C_WARN}${BOLD}Conflicts (need manual resolution):${RESET}"
+  for c in "${conflicts[@]}"; do
+    echo "  ${C_WARN}!${RESET} $c"
+  done
+  echo ""
+fi
+
+if [[ ${#collisions[@]} -gt 0 ]]; then
+  echo "${C_WARN}${BOLD}Target-dir collisions (multiple URLs map to the same dir):${RESET}"
+  for c in "${collisions[@]}"; do
+    echo "  ${C_WARN}!${RESET} $c"
+  done
+  echo ""
+fi
+
+if [[ ${#clone_failures[@]} -gt 0 ]]; then
+  echo "${C_FAIL}${BOLD}Clone failures:${RESET}"
+  for f in "${clone_failures[@]}"; do
+    echo "  ${C_FAIL}*${RESET} $f"
+  done
+  echo ""
+fi
+
+if [[ ${#pull_failures[@]} -gt 0 ]]; then
+  echo "${C_FAIL}${BOLD}Pull failures:${RESET}"
+  for f in "${pull_failures[@]}"; do
+    echo "  ${C_FAIL}*${RESET} $f"
+  done
+  echo ""
+fi
+
+total_problems=$(( clone_fail + pull_fail + total_conflicts ))
+[[ $total_problems -gt 0 ]] && exit 1
+exit 0

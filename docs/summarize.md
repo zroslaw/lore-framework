@@ -65,7 +65,7 @@ Field notes:
 - **`participants`** — host + guests. `role` is `host` or `guest`. `repo` may differ across participants when guests come from a different lore agent repo.
 - **`username`** / **`full_name`** — identity of the user running the session. Optional; omit fields that can't be determined.
 - **`topics`** — free-form kebab-case tags for later analysis. Reuse tags already seen in prior summaries rather than inventing synonyms.
-- **`artifacts`** — files created, modified, or deleted during the session. `kind` is `created`, `modified`, or `deleted`. Paths relative to the domain root.
+- **`artifacts`** — files created, modified, or deleted during the session. `kind` is `created`, `modified`, or `deleted`. Paths relative to the workspace root.
 - **`consulted`** — agents queried via `/lr:consult` during this session. List of `{ agent, repo }` entries. Empty array if no consults.
 
 Unknown fields are tolerated by design — the schema is additive.
@@ -94,7 +94,7 @@ Field notes (guest schema):
 - **`role`** — always `guest` in guest summaries.
 - **`host_agent`** — directory name of the agent that hosted this session.
 - **`host_summary_repo`** — repo directory name that owns the host summary (e.g., `lore-agents`). Separate from path so consumers can resolve the repo root in their own checkout.
-- **`host_summary_path`** — path to the host summary **relative to the `host_summary_repo` root**, not domain root. Robust across different checkout layouts.
+- **`host_summary_path`** — path to the host summary **relative to the `host_summary_repo` root**, not workspace root. Robust across different checkout layouts.
 - **`lore_changes`** — files the guest's merge subagent touched during this session. Paths are relative to the guest's `agents/<guest-name>/` directory. `kind` is `created`, `modified`, or `deleted`.
 
 Guest summaries deliberately omit `start`/`end`/`artifacts`/`consulted`/`topics`/`username`/`full_name` — those belong to the host's canonical record and are one `host_summary_path` hop away.
@@ -200,7 +200,7 @@ If the username is empty, omit `username`. If full name is empty, omit `full_nam
 
 ### Step 4: Collect the artifacts list
 
-From the session's in-context memory, list files created, modified, or deleted during the session. For each: `path` (relative to domain root) and `kind` (`created` / `modified` / `deleted`).
+From the session's in-context memory, list files created, modified, or deleted during the session. For each: `path` (relative to workspace root) and `kind` (`created` / `modified` / `deleted`).
 
 When uncertain, cross-check with `git -C <lore-agent-repo> status` and `git -C <lore-agent-repo> diff --name-status <base>..HEAD` in the relevant repos. The artifacts list is a curated record, not an exhaustive git diff — include files that matter to the session's story, skip incidental touch-ups.
 
@@ -278,7 +278,7 @@ The UUID line is required discipline — it's the only mechanism by which the pu
 grep -rl "<full-uuid>" ~/.claude/projects/
 ```
 
-to find the raw session JSONL if they want to replay or inspect it. The same UUID also finds every host and guest summary for the session in the domain.
+to find the raw session JSONL if they want to replay or inspect it. The same UUID also finds every host and guest summary for the session in the workspace.
 
 ## Failure modes
 

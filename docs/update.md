@@ -33,7 +33,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/VERSION`. Trim whitespace. This is the target versio
 
 Scan all directories in the current working directory for directories containing `lore-repo.md` at the root. Each is a lore agent repo.
 
-If no repos are found, report "no lore agent repos in this domain" and stop.
+If no repos are found, report "no lore agent repos in this workspace" and stop.
 
 ### 3. For each repo, determine migration state
 

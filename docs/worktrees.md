@@ -1,23 +1,23 @@
 # Worktrees
 
-The lore framework's convention for working with non-default branches of repos inside a domain.
+The lore framework's convention for working with non-default branches of repos inside a workspace.
 
 ## Invariant
 
-Top-level directories in `<domain>/` that are checkouts of git repos **stay on their default branch**. The default branch is whatever that repo treats as production state — commonly `main`, but `master`, `trunk`, or any other name is equally valid. Git itself tracks the default per-repo; the framework does not maintain its own list.
+Top-level directories in `<workspace>/` that are checkouts of git repos **stay on their default branch**. The default branch is whatever that repo treats as production state — commonly `main`, but `master`, `trunk`, or any other name is equally valid. Git itself tracks the default per-repo; the framework does not maintain its own list.
 
 The invariant matters because:
 
-- The domain is read as a snapshot of current production across all its repos. Switching a top-level checkout to a feature branch breaks that view.
+- The workspace is read as a snapshot of current production across all its repos. Switching a top-level checkout to a feature branch breaks that view.
 - Agent knowledge about "what this repo looks like in prod" assumes the top-level checkout reflects prod. Drift from that assumption quietly corrupts lore.
-- `/lr:pull-domain` refreshes all top-level repos. If one is on a feature branch, that refresh semantics gets confusing.
+- `/lr:workspace-sync` refreshes all top-level repos. If one is on a feature branch, that refresh semantics gets confusing.
 
 ## Rule
 
 Any work that requires a non-default branch — new features, bug fixes, or just checking out someone else's branch to inspect it — happens in a **git worktree** rooted at:
 
 ```
-<domain>/.worktrees/<repo>/<slug>/
+<workspace>/.worktrees/<repo>/<slug>/
 ```
 
 Where:
@@ -30,14 +30,14 @@ Git worktree mechanics are standard; no framework commands wrap them. Typical us
 **New feature work:**
 
 ```bash
-cd <domain>/<repo>
+cd <workspace>/<repo>
 git worktree add ../.worktrees/<repo>/<slug> -b <branch-name>
 ```
 
 **Inspecting someone else's branch:**
 
 ```bash
-cd <domain>/<repo>
+cd <workspace>/<repo>
 git fetch origin
 git worktree add ../.worktrees/<repo>/<slug> origin/<existing-branch>
 ```
@@ -48,7 +48,7 @@ git worktree add ../.worktrees/<repo>/<slug> origin/<existing-branch>
 git worktree remove ../.worktrees/<repo>/<slug>
 ```
 
-A branch-naming suggestion — `<agent-name>/<slug>` — signals which agent owns the work in multi-agent domains. It's a convention, not enforced.
+A branch-naming suggestion — `<agent-name>/<slug>` — signals which agent owns the work in multi-agent workspaces. It's a convention, not enforced.
 
 ## Optional: Tracking Inflight Worktrees
 

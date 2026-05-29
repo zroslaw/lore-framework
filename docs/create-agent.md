@@ -4,7 +4,7 @@ Add a new agent to an existing agent repo.
 
 ## Steps
 
-1. **Determine the target repo.** If the user specified one, use it. If there's only one lore agent repo in the domain (identified by `lore-repo.md` at the root), use that. Otherwise, ask.
+1. **Determine the target repo.** If the user specified one, use it. If there's only one lore agent repo in the workspace (identified by `lore-repo.md` at the root), use that. Otherwise, ask.
 
 2. **Get the agent name.** Kebab-case, descriptive (e.g., `code-reviewer`, `data-analyst`).
 

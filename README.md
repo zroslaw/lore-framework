@@ -25,6 +25,17 @@ The framework provides:
 
 Agents are plain markdown. Knowledge is plain markdown. Git tracks everything. No databases, no config files, no build steps.
 
+## Concepts
+
+A handful of terms appear throughout the docs:
+
+- **Workspace** — the directory you run Claude Code from. Holds one or more agent repos and any other repos they declare.
+- **Agent repo** — a git repo containing one or more lore agents. Marked by a `lore-repo.md` at its root. Conceptually, the **domain** an agent (or set of agents) covers.
+- **Agent** — a directory under `agents/<name>/` inside an agent repo. Has a `role.md` (identity) and `lore-context.md` (working knowledge), plus a `lore/` knowledge graph of markdown topics.
+- **Lore** — the agent's accumulated knowledge: decisions, domain expertise, operational wisdom. Plain markdown, tracked in git, shared across teammates.
+- **Boot** — load an agent's role and lore into your Claude Code session via `/lr:boot <name>`.
+- **Finalize** — at session end, extract what was learned, merge it into the agent's lore, write a session summary, and commit + push. One command: `/lr:finalize`.
+
 ## Installation
 
 Install the `lr` plugin in Claude Code:
@@ -45,42 +56,100 @@ claude --plugin-dir ./lore-framework
 
 ## Quick Start
 
-1. **Create an agent repo:**
+Pick the path that matches your situation.
+
+### Joining a team that already uses Lore Framework
+
+A teammate has set up an agent repo and pointed you at it.
+
+1. **Clone any one of the agent repos** into a workspace directory of your choice.
+2. **Run Claude Code from the workspace** (the parent directory).
+3. **Sync the workspace** — clones any other repos the agent repo declares; pulls everything:
+   ```
+   /lr:workspace-sync
+   ```
+4. **Initialize the workspace** so future Claude Code sessions auto-load the framework's conventions:
+   ```
+   /lr:init
+   ```
+5. **Boot an agent and start working:**
+   ```
+   /lr:boot <agent-name>
+   ```
+   (Run `/lr:list-agents` if you don't yet know what's available.)
+6. **Finalize at session end** to preserve what was learned:
+   ```
+   /lr:finalize
+   ```
+
+### Starting fresh — creating your own agent repo
+
+You're introducing the framework into a new area.
+
+1. **Run Claude Code from a workspace directory.**
+2. **Create an agent repo:**
    ```
    /lr:create-repo my-agents
    ```
-
-2. **Create an agent:**
+3. **Create an agent:**
    ```
    /lr:create-agent
    ```
-
-3. **Load and work with an agent:**
+4. **Initialize the workspace:**
+   ```
+   /lr:init
+   ```
+5. **Boot and work with the agent:**
    ```
    /lr:boot my-agent-name
    ```
-
-4. **Finalize at session end** to preserve what was learned:
+6. **Finalize at session end:**
    ```
    /lr:finalize
    ```
 
 ## Skills
 
+Grouped by purpose:
+
+**Workspace setup**
+| Skill | Purpose |
+|---|---|
+| `/lr:workspace-sync` | Clone declared repos and pull all top-level repos in the workspace |
+| `/lr:init` | Write the framework-managed section into the workspace's `CLAUDE.md` |
+| `/lr:list-agents` | List all agents in the workspace |
+| `/lr:list-repos` | List all agent repos in the workspace |
+
+**Working with agents**
 | Skill | Purpose |
 |---|---|
 | `/lr:boot <name>` | Load a lore agent by name |
+| `/lr:recall [hint]` | Search lore across loaded agents |
+| `/lr:attach <agent>` | Attach another agent as a guest in this session |
+| `/lr:consult <agent> [hint]` | One-shot question to an unloaded agent |
+| `/lr:spawn-teammate [<agent>...]` | **BETA** — Spawn lore agents as Agent Teams teammates |
+
+**Session lifecycle**
+| Skill | Purpose |
+|---|---|
 | `/lr:reflect` | Extract session knowledge into reflections |
 | `/lr:merge` | Integrate reflections into lore |
-| `/lr:finalize` | Reflect + merge in one step |
+| `/lr:summarize` | Write a session summary |
+| `/lr:finalize` | Full session finalization (reflect + merge + summarize + commit + push) |
+
+**Authoring agents and repos**
+| Skill | Purpose |
+|---|---|
 | `/lr:create-repo <name>` | Scaffold a new agent repo |
 | `/lr:create-agent [name]` | Add a new agent to a repo |
 | `/lr:register-repo <name>` | Generate agent shortcut commands |
 | `/lr:unregister-repo <name>` | Remove agent shortcut commands |
-| `/lr:list-agents` | List all agents in the domain |
-| `/lr:list-repos` | List all agent repos in the domain |
+
+**Maintenance**
+| Skill | Purpose |
+|---|---|
+| `/lr:update` | Apply pending framework migrations |
 | `/lr:check` | Run consistency checks |
-| `/lr:spawn-teammate [<agent>...]` | **BETA** — Spawn lore agents as Agent Teams teammates |
 
 ## Optional: Agent Shortcut Commands
 
@@ -95,8 +164,8 @@ This generates `/lr-<agent-name>-agent` shortcut commands in `.claude/commands/`
 ## Directory Layout
 
 ```
-my-domain/                          # Domain directory
-├── my-agents/                      # An agent repo
+my-workspace/                       # Workspace — the directory you run Claude from
+├── my-agents/                      # An agent repo (one "domain" of agents)
 │   └── agents/
 │       ├── researcher/
 │       │   ├── role.md
@@ -105,7 +174,7 @@ my-domain/                          # Domain directory
 │       │   └── workdir/
 │       └── analyst/
 │           └── ...
-├── another-agents-repo/            # Multiple agent repos supported
+├── another-agents-repo/            # Multiple agent repos can coexist
 │   └── agents/
 │       └── ...
 └── .claude/

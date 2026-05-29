@@ -46,13 +46,13 @@ Examples:
    > ```
    > or set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in your shell. Requires Claude Code v2.1.32 or later.
 
-2. **Locate the domain.** The current working directory is the domain. If no direct subdirectory of the cwd contains a `lore-repo.md`, stop with: `No lore agent repos found in <cwd>. Run /lr:spawn-teammate from a lore framework domain directory.`
+2. **Locate the workspace.** The current working directory is the workspace. If no direct subdirectory of the cwd contains a `lore-repo.md`, stop with: `No lore agent repos found in <cwd>. Run /lr:spawn-teammate from a lore framework workspace.`
 
    The skill does not check the running Claude Code version — Agent Teams' own error will surface if the version is older than v2.1.32.
 
 ### Step 2 — Enumerate available agents
 
-Walk the domain. For each subdirectory containing `lore-repo.md` at its root, scan `agents/*/role.md` to enumerate `(repo, agent-name, role-description)` tuples. Build a flat list of available agents. If a repo has `lore-repo.md` but no `agents/` directory or no agent subdirs with `role.md`, skip it silently (it contributes zero agents to the list).
+Walk the workspace. For each subdirectory containing `lore-repo.md` at its root, scan `agents/*/role.md` to enumerate `(repo, agent-name, role-description)` tuples. Build a flat list of available agents. If a repo has `lore-repo.md` but no `agents/` directory or no agent subdirs with `role.md`, skip it silently (it contributes zero agents to the list).
 
 If two repos contain agents with the same name, retain the repo qualifier internally (used in Step 4 for cross-repo collision handling).
 
@@ -103,7 +103,7 @@ For each `(agent-name, repo-path)` in the spawn set:
   ```
   Read ${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>.
 
-  You were spawned primarily as a parallel session for the user to work with you directly. After boot, wait for the user's instructions in this session and respond to them here — not via SendMessage. Use SendMessage to the team lead or other teammates only when the user explicitly asks you to share or coordinate something.
+  You were spawned primarily as a parallel session for the user to work with you directly. After boot, wait for the user's instructions in this session and respond to them here — not via SendMessage. Do NOT ask the team lead for user input, instructions, clarifications, or approvals — the user is in your own pane, talk to them directly there. Use SendMessage to the team lead or other teammates only when the user explicitly asks you to share or coordinate something.
   ```
 
   Substitute:
@@ -113,6 +113,12 @@ For each `(agent-name, repo-path)` in the spawn set:
   `${CLAUDE_PLUGIN_ROOT}` is left **literal** in the spawn prompt — the teammate's session resolves it via Claude Code (teammates load skills from project and user settings, per the Agent Teams documentation).
 
   The post-boot paragraph does two things: it stops the teammate after the boot procedure's "Confirm" step rather than letting it invent a task, and frames the user (in the teammate's own session) as the primary interlocutor. Without it, teammates default to reporting back to the team lead via SendMessage even when the user is working with them directly — the typical usage pattern is the inverse, with the user driving each teammate from its own pane and inter-agent messaging reserved for explicit coordination requests.
+
+### Lead behavior — teammate-to-lead messages
+
+If a spawned teammate sends the lead a message asking for user input, instructions, clarifications, or approvals, the lead **must** respond immediately via SendMessage to redirect them: tell the teammate the user is in their own pane, that they should ask the user there, and that they should only message the lead when the user explicitly asks for cross-agent coordination. Do not paraphrase the user, do not act as a relay, and do not let the request sit unanswered while the teammate idles.
+
+Idle notifications (`{"type":"idle_notification",...}`) are status pings — no response is required and no action is needed.
 
 ### Step 7 — Invoke Agent Teams
 
@@ -168,11 +174,11 @@ If this is the first invocation of the skill in the session, also surface beta c
 
 ## Edge cases
 
-- **Cwd not a domain.** Stop in Step 1 with the message above.
+- **Cwd not a workspace.** Stop in Step 1 with the message above.
 - **Single repo, single agent, host session is the only candidate.** With no args and no contextual signal, the skill asks rather than guessing.
 - **Teammate boot fails inside Agent Teams.** Boot output appears in the teammate's pane (split-pane mode) or via Shift+Down (in-process). The skill has no visibility once the directive is sent — investigation and recovery happen through Agent Teams' own UI.
 - **Agent Teams not installed / version too old.** The activation check passes (env var present) but the natural-language spawn fails. The lead's response surfaces Agent Teams' own error to the user.
-- **Multi-repo domain.** Names from different repos appear in the unified pick list; cross-repo collisions are disambiguated explicitly by repo path.
+- **Multi-domain workspace.** Names from different repos appear in the unified pick list; cross-repo collisions are disambiguated explicitly by repo path.
 - **CWD safety.** Use absolute paths when reading agent files across repos. Never `cd` into a repo for inspection — see the CWD safety section of `${CLAUDE_PLUGIN_ROOT}/docs/conventions.md`.
 
 ## See Also

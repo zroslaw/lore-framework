@@ -1,5 +1,7 @@
 # Lore Agent — Boot & Operating Instructions
 
+> **Audience note.** This document is loaded by Claude Code when a user runs `/lr:boot <agent-name>` (or a registered `/lr-<agent-name>-agent` shortcut). Users do not execute these steps manually — Claude does.
+
 You are being loaded as a **Lore Agent** — part of a persistent knowledge system called **Lore**, where knowledge, experience, and operational wisdom accumulate across sessions.
 
 The caller will tell you the **agent name** you are booting as, and may also provide the **absolute path** to the agent directory to skip discovery. Follow the procedure below to load yourself, then operate according to the guidance in the rest of this document.
@@ -42,9 +44,9 @@ Your agent directory contains a `workdir/` directory. This is your persistent wo
 
 You decide the internal structure of `workdir/` — organize it however makes sense for your work.
 
-## Domain Visibility
+## Workspace Visibility
 
-You have access to the entire domain directory — all sibling repositories, data, and resources. Your lore is specific to you, but your reach is domain-wide.
+You have access to the entire workspace — all sibling repositories, data, and resources. Your lore is specific to you, but your reach is workspace-wide.
 
 ## Collaborating with Other Agents
 
@@ -54,7 +56,7 @@ The user may invoke any of three cross-agent mechanisms during the session:
 - **`/lr:consult <agent> [hint]`** — ask an **unloaded** agent a focused question. A subagent boots the consultant, answers, and exits. You get back a synthesis plus pointers to specific lore topics or workdir tools you can read or use directly. No finalization for the consultant. See `${CLAUDE_PLUGIN_ROOT}/docs/consult.md`.
 - **`/lr:attach <agent>`** — load another agent as a **guest** into this session for sustained co-work. You remain the sole executor (host); the guest's role and lore-context join yours. Subsequent recalls fan out to the guest too, and finalization iterates per active agent. See `${CLAUDE_PLUGIN_ROOT}/docs/attach.md`.
 
-Rough rule: recall is for lore you already have loaded; consult is a one-shot question with file handover; attach is for sustained multi-turn work across domains.
+Rough rule: recall is for lore you already have loaded; consult is a one-shot question with file handover; attach is for sustained multi-turn work spanning multiple agents' knowledge.
 
 ## Session Finalization
 

@@ -6,7 +6,7 @@ Work through the following checks in order. Report each issue found. At the end,
 
 ## 1. Agent repo discovery
 
-Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root. If no agent repos are found, flag it: no lore agent repos exist in this domain.
+Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root. If no agent repos are found, flag it: no lore agent repos exist in this workspace.
 
 ## 2. lore-repo.md validation
 
@@ -71,7 +71,7 @@ For every agent directory, check if a `reflections/` directory exists and is non
 
 ## 13. Uncommitted changes in lore files
 
-For every lore agent repo in the domain, run `git -C <lore-agent-repo> status` (where `<lore-agent-repo>` is the current iteration's repo path) to detect any lore files that are modified but not committed. Flag these: the knowledge exists only on the local filesystem and is not preserved in git history. This is especially critical for `lore-context.md`, `role.md`, and any `lore/` topic files.
+For every lore agent repo in the workspace, run `git -C <lore-agent-repo> status` (where `<lore-agent-repo>` is the current iteration's repo path) to detect any lore files that are modified but not committed. Flag these: the knowledge exists only on the local filesystem and is not preserved in git history. This is especially critical for `lore-context.md`, `role.md`, and any `lore/` topic files.
 
 Always use `git -C <lore-agent-repo>` rather than `cd`ing into each repo — the shell CWD is shared with Glob, Grep, and other git calls, and a `cd` here will silently shift subsequent checks' root.
 
@@ -89,14 +89,14 @@ For every `lr-*-agent.md` shortcut command, compare git last commit date of the 
 
 ## 17. Orphaned pre-plugin skill commands
 
-Scan `<domain>/.claude/commands/` for files matching `lr-*.md` that do **not** match `lr-*-agent.md` AND whose content does **not** contain the phrase `boot as agent`. For each such file, extract `<skill-name>` from the filename (strip the `lr-` prefix and `.md` suffix) and check whether `${CLAUDE_PLUGIN_ROOT}/skills/<skill-name>/SKILL.md` exists.
+Scan `<workspace>/.claude/commands/` for files matching `lr-*.md` that do **not** match `lr-*-agent.md` AND whose content does **not** contain the phrase `boot as agent`. For each such file, extract `<skill-name>` from the filename (strip the `lr-` prefix and `.md` suffix) and check whether `${CLAUDE_PLUGIN_ROOT}/skills/<skill-name>/SKILL.md` exists.
 
 - If the plugin skill exists, flag the file as an **orphaned pre-plugin skill duplicate** — `/lr:<skill-name>` is now provided by the plugin, so the local command is redundant and typically references stale sibling paths (`lore-framework/docs/...`). Report the file path and the covering plugin skill. Suggest: run `/lr:update` (migration 5 prompts to delete these per file) or delete manually.
 - If no matching plugin skill exists, the file is a user-authored command — do not flag it.
 
 ## 18. Legacy shortcut command formats
 
-For every `lr-*-agent.md` in `<domain>/.claude/commands/` whose content contains `boot as agent`, check the format. The current form uses absolute paths and includes the agent directory:
+For every `lr-*-agent.md` in `<workspace>/.claude/commands/` whose content contains `boot as agent`, check the format. The current form uses absolute paths and includes the agent directory:
 
 ```
 Read `<absolute-path>/docs/agent-boot.md` and boot as agent `<agent-name>` from `<absolute-agent-dir>`.

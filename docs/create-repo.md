@@ -1,12 +1,12 @@
 # Create Agent Repo
 
-Scaffold a new agent repository in the domain directory.
+Scaffold a new agent repository in the workspace.
 
 **Input:** repo name (e.g., `my-agents`)
 
 ## Steps
 
-1. **Verify** the name doesn't collide with an existing directory in the domain dir.
+1. **Verify** the name doesn't collide with an existing directory in the workspace.
 
 2. **Read the framework version** from `${CLAUDE_PLUGIN_ROOT}/VERSION`. This will be stamped into the repo descriptor.
 

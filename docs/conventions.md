@@ -10,15 +10,16 @@
 
 ## Placeholder Vocabulary
 
-Framework docs use a small set of angle-bracket placeholders. The surrounding text always establishes which specific value substitutes — placeholders are slots, not identities. A domain with multiple lore agent repos simply iterates, substituting the current value per step.
+Framework docs use a small set of angle-bracket placeholders. The surrounding text always establishes which specific value substitutes — placeholders are slots, not identities. A workspace with multiple lore agent repos simply iterates, substituting the current value per step.
 
-- **`<lore-agent-repo>`** — filesystem path to a lore agent repo (directory that contains `lore-repo.md`). Used for repo-scoped operations (`git -C <lore-agent-repo>`, path references). In iterating flows (`/lr:check`, `/lr:update`), substitutes the current iteration's repo. In single-repo flows (`/lr:boot`, `/lr:reflect`), substitutes that repo.
+- **`<workspace>`** — the parent directory containing one or more lore agent repos (and any other repositories they declare). The user runs Claude from here. Introduced in v11; this is the term to use in new docs.
+- **`<lore-agent-repo>`** — filesystem path to a lore agent repo (directory that contains `lore-repo.md`). Used for repo-scoped operations (`git -C <lore-agent-repo>`, path references). In iterating flows (`/lr:check`, `/lr:update`), substitutes the current iteration's repo. In single-repo flows (`/lr:boot`, `/lr:reflect`), substitutes that repo. Conceptually: a single **domain** of agents.
 - **`<guest-lore-agent-repo>`** — same as `<lore-agent-repo>` but specifically identifies the guest being attached (vs the host repo) in `/lr:attach`.
 - **`<agent-name>`** — the kebab-case name of an agent (matches the directory name under `agents/`).
-- **`<domain>`** — the domain directory (parent of all lore agent repos; where the user runs Claude from).
+- **`<domain>`** — *legacy* placeholder retired in v11; no longer used in framework docs. The parent-dir concept is now `<workspace>`; the conceptual scope of an agent repo is "domain" in prose (no brackets). If you encounter `<domain>` in older release notes or third-party material, read it as `<workspace>`.
 - **`${CLAUDE_PLUGIN_ROOT}`** — the install path of the `lr` plugin. Provided by Claude Code; do not hardcode.
 
-The "lore" prefix on repo placeholders is intentional: it distinguishes lore agent repos from other repos that may live in the same domain (application code, unrelated tools, etc.).
+The "lore" prefix on repo placeholders is intentional: it distinguishes lore agent repos from other repos that may live in the same workspace (application code, unrelated tools, etc.).
 
 ## Directory Structure
 
@@ -38,21 +39,26 @@ The "lore" prefix on repo placeholders is intentional: it distinguishes lore age
 
 Session summaries live under `sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md` when the agent is the host of a session that ran `/lr:summarize` or `/lr:finalize`. See `summarize.md` for the full layout, frontmatter schema, and process.
 
-### Domain directory
+### Workspace
 ```
-<domain>/
+<workspace>/
 ├── <lore-agent-repo>/           # One or more lore agent repos (each has lore-repo.md)
+│   └── ...
+├── <other-repo>/                # Optionally, repos declared via `repos:` in lore-repo.md
 │   └── ...
 └── .claude/commands/            # Optional agent shortcut commands
 ```
 
-The lore framework itself is installed as a Claude Code plugin (`lr`), not as a repo in the domain. Plugin files are accessed via `${CLAUDE_PLUGIN_ROOT}`, never via a sibling path like `lore-framework/`.
+The lore framework itself is installed as a Claude Code plugin (`lr`), not as a repo in the workspace. Plugin files are accessed via `${CLAUDE_PLUGIN_ROOT}`, never via a sibling path like `lore-framework/`.
 
 ## Descriptor Files
 
 Two descriptor files carry YAML frontmatter so the framework can machine-read them:
 
-- **`lore-repo.md`** — at the root of a lore agent repo. Frontmatter fields: `description` (string), `version` (string, matches the framework `VERSION` when the repo was created or last migrated). The repo version is the single source of truth for migration state — `/lr:update` uses it to decide what migrations to apply.
+- **`lore-repo.md`** — at the root of a lore agent repo. Frontmatter fields:
+  - `description` (string, required)
+  - `version` (string, required) — matches the framework `VERSION` when the repo was created or last migrated. The repo version is the single source of truth for migration state; `/lr:update` uses it to decide what migrations to apply.
+  - `repos` (block-form list of strings, optional) — remote URLs of repos this agent repo expects to find as siblings in the workspace. Consumed by `/lr:workspace-sync`. See `docs/workspace-sync.md` for the full schema.
 - **`role.md`** — at the root of each agent directory. Frontmatter fields: `description` (string) only. Agents do not carry their own version stamp at framework version 2+; they migrate together with the repo.
 
 ## Lore Topics
@@ -92,5 +98,5 @@ Two descriptor files carry YAML frontmatter so the framework can machine-read th
 The agent's shell working directory is shared across Bash, Glob, Grep, and subsequent git calls. A `cd` in one command silently shifts the root for every tool invocation that follows — the agent will not notice until a path resolves wrong. Symptoms: Glob returning "No files found" for files that clearly exist, or a repo-scoped git command pointed at the wrong repo.
 
 - **Prefer `git -C <lore-agent-repo> <cmd>`** over `cd <lore-agent-repo> && <cmd>` whenever a command is scoped to a particular repo. All framework docs follow this convention.
-- **Never `cd` away from the domain root** during a flow that iterates over repos (update, check, version-check). If you must, `cd` back before the next tool call.
+- **Never `cd` away from the workspace root** during a flow that iterates over repos (update, check, version-check). If you must, `cd` back before the next tool call.
 - **Pass absolute paths to Glob** via the `path` parameter when you're unsure of the current CWD, rather than relying on pattern-relative resolution.

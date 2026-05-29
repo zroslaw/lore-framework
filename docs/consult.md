@@ -73,7 +73,7 @@ The subagent's own context absorbs the boot, migration output, and lore scan. Th
 The consult creates a *handover* of specific knowledge, not a full loading.
 
 **May:**
-- Read any specific files the consultant pointed to (lore topics, workdir tools, recipes, scripts). Domain visibility makes this free.
+- Read any specific files the consultant pointed to (lore topics, workdir tools, recipes, scripts). Workspace visibility makes this free.
 - Run or adapt workdir tools the consultant recommended.
 - Apply the consultant's advice directly.
 

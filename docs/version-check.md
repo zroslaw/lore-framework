@@ -29,7 +29,7 @@ The repo is behind. Run the upgrade procedure below.
 
 ### Step 1: Safety check — uncommitted changes
 
-Run `git -C <lore-agent-repo> status --porcelain` (where `<lore-agent-repo>` is the booting agent's repo path). Use `git -C` rather than `cd`ing into the repo — the shell CWD is shared with Glob, Grep, and subsequent git calls, so a stray `cd` silently shifts their root away from the domain for the rest of the session.
+Run `git -C <lore-agent-repo> status --porcelain` (where `<lore-agent-repo>` is the booting agent's repo path). Use `git -C` rather than `cd`ing into the repo — the shell CWD is shared with Glob, Grep, and subsequent git calls, so a stray `cd` silently shifts their root away from the workspace for the rest of the session.
 
 If there are uncommitted changes:
 - Print a warning: `<lore-agent-repo>: cannot auto-upgrade from R to F — uncommitted changes present. Commit or stash them and run /lr:update manually.`
@@ -75,4 +75,4 @@ Then return to `agent-boot.md` and continue with reading `role.md` and `lore-con
 
 ## Relationship to `/lr:update`
 
-`/lr:update` is the user-triggered, manual entry point — it processes all repos in the domain and supports `--dry-run`. The boot-time check described here is a per-repo automatic reconciliation that runs only for the booting agent's repo, with no dry-run and no user prompt. Both share the same migration/release-notes data and the same version-stamping logic.
+`/lr:update` is the user-triggered, manual entry point — it processes all repos in the workspace and supports `--dry-run`. The boot-time check described here is a per-repo automatic reconciliation that runs only for the booting agent's repo, with no dry-run and no user prompt. Both share the same migration/release-notes data and the same version-stamping logic.
