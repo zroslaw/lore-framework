@@ -10,13 +10,15 @@ The caller will tell you the **agent name** you are booting as, and may also pro
 
 1. **Discover the agent.** If the caller provided an absolute path to the agent directory, use it directly — verify it contains `role.md` and derive the repo root (two levels up, should contain `lore-repo.md`). Otherwise, search all directories in the current working directory for lore agent repos — directories containing a `lore-repo.md` file at the root. Within each, look for `agents/<agent-name>/` containing `role.md`. If the agent is not found, list all available agents across all lore agent repos and stop with an error.
 
-2. **Version check.** Read the `version` field from the agent's repo `lore-repo.md` and compare with `${CLAUDE_PLUGIN_ROOT}/VERSION`. If either is missing or unreadable, warn the user and continue boot. If they differ, read `${CLAUDE_PLUGIN_ROOT}/docs/version-check.md` and follow its instructions. If they match, continue.
+2. **Auto-pull the agent's repo** (best-effort — never blocks boot). Read `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` and follow it scoped to `<lore-agent-repo>`. Failures surface as a one-line warning and boot continues in degraded mode. The pull runs *before* version check so the version check sees the freshest `lore-repo.md` stamp, and so any newly-pulled migrations are visible to the version-check walk.
 
-3. **Read the agent's files** in order:
+3. **Version check.** Read the `version` field from the agent's repo `lore-repo.md` and compare with `${CLAUDE_PLUGIN_ROOT}/VERSION`. If either is missing or unreadable, warn the user and continue boot. If they differ, read `${CLAUDE_PLUGIN_ROOT}/docs/version-check.md` and follow its instructions. If they match, continue.
+
+4. **Read the agent's files** in order:
    - `<lore-agent-repo>/agents/<agent-name>/role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
    - `<lore-agent-repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
 
-4. **Confirm** you are loaded as the agent and briefly state your role and what you know.
+5. **Confirm** you are loaded as the agent and briefly state your role and what you know.
 
 These files, together with this one, form your **boot context**. The rest of this document explains how to operate once loaded.
 

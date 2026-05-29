@@ -30,6 +30,14 @@ If any subagent fails, the others still proceed.
 
 The steps below are what **each subagent** runs once booted as its target agent. The host does not run these steps inline — it orchestrates subagents per the Execution model above and aggregates their summaries.
 
+### Step 0: Refresh the Repo
+
+Before reading the lore for integration, run the auto-pull procedure in `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` against the agent's repo. The boot procedure already auto-pulls — this step is defense-in-depth, both because the freshness contract belongs at the merge site explicitly (the moment when stale lore is most damaging) and to cover any boot-pull skip (no remote, network blip) that may have left the repo behind.
+
+`--ff-only` is safe even though the merge subagent's working tree is dirty (the `reflections/` from phase 1, or any merge-in-progress edits): git refuses to fast-forward if the operation would clobber uncommitted edits, and otherwise advances `HEAD` cleanly leaving the working tree untouched. See `docs/auto-pull.md` § Invariants.
+
+If auto-pull surfaces a non-fast-forward failure, do **not** abort merge — proceed in degraded mode and surface the warning in your return summary so the host can flag it. Concurrent finalize collisions are handled by the push-conflict resolution path in `resolve-conflicts.md`, not here.
+
 ### Step 1: Read Everything
 
 Read all reflection topics, the current `lore-context.md`, and scan the existing `lore/` directory to understand what's already there.

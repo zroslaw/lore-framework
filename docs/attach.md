@@ -35,11 +35,15 @@ If `$ARGUMENTS` is empty:
 3. **Target must not be the host.** If the requested name equals the host, respond: `<name> is already the host — use /lr:recall to search its lore.` and stop.
 4. **Target must not already be a guest.** If the requested name is already attached, respond: `<name> is already attached.` and stop (idempotent).
 
-### Step 2: Version reconcile in a subagent
+### Step 2: Auto-pull the guest repo
+
+Run the procedure in `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` scoped to `<guest-lore-agent-repo>`. Best-effort — a pull failure never blocks the attach. Pull before version-reconcile so the reconcile sees the freshest `lore-repo.md`.
+
+### Step 3: Version reconcile in a subagent
 
 Read the target repo's `lore-repo.md` and extract its `version` field. Compare with the contents of `${CLAUDE_PLUGIN_ROOT}/VERSION` (trimmed).
 
-- If they match, skip to Step 3.
+- If they match, skip to Step 4.
 - If they differ, dispatch a general-purpose subagent to reconcile. The subagent works in the filesystem — its output stays in its own context; the host only sees the subagent's summary return.
 
 Subagent prompt shape:
@@ -63,7 +67,7 @@ After the subagent returns:
 - **Surface any warnings** — uncommitted-changes defer, version-above-framework warning, or migration failure.
 - **If the upgrade failed or deferred**, continue the attach in degraded mode (version-skew warning visible) — matches boot-time behavior. Do not block the attach on a failed upgrade.
 
-### Step 3: Load guest context
+### Step 4: Load guest context
 
 In the host's main context, read:
 
@@ -72,7 +76,7 @@ In the host's main context, read:
 
 These files now live in the host's working context alongside the host's own role and lore-context.
 
-### Step 4: Confirm
+### Step 5: Confirm
 
 Print a confirmation message. Include:
 
@@ -112,5 +116,7 @@ If a `/lr:consult <agent>` surfaces that you actually need sustained engagement 
 - `${CLAUDE_PLUGIN_ROOT}/docs/consult.md` — the one-shot sibling (subagent boots, answers, exits; no host-side loading)
 - `${CLAUDE_PLUGIN_ROOT}/docs/recall.md` — lore search across active agents
 - `${CLAUDE_PLUGIN_ROOT}/docs/lore-search.md` — search brief structure, fan-out mechanics
-- `${CLAUDE_PLUGIN_ROOT}/docs/version-check.md` — migration procedure used by the Step 2 subagent
+- `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` — the per-repo refresh procedure invoked at Step 2
+- `${CLAUDE_PLUGIN_ROOT}/docs/version-check.md` — migration procedure used by the Step 3 subagent
+- `${CLAUDE_PLUGIN_ROOT}/docs/pull-lore.md` — `/lr:pull-lore` does the same auto-pull mid-session for already-attached agents
 - `${CLAUDE_PLUGIN_ROOT}/docs/process-reflection.md` and `process-merge.md` — per-agent iteration when guests are attached

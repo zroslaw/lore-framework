@@ -80,6 +80,7 @@ Pulls use `--ff-only` so divergent local branches surface as failures rather tha
 
 ## Relationship to Other Skills
 
+- **`/lr:pull-lore`** is the narrower peer: refreshes only the lore agent repos of currently loaded agents (host + attached guests), no clone, no top-level non-lore repo pulls. Use it mid-session when you suspect a teammate pushed lore changes; use `/lr:workspace-sync` for first-time bootstrap or a full-workspace refresh.
 - **`/lr:init`** writes the framework-managed section into the workspace's `CLAUDE.md`. Run it after `/lr:workspace-sync` on a fresh workspace.
 - **`/lr:check`** runs consistency checks across the workspace. It does not pull or clone — it inspects what's already there.
 - **`/lr:create-repo`** scaffolds a new agent repo. The new repo's `lore-repo.md` starts without a `repos:` field; add one when the agent has declared dependencies.
@@ -93,6 +94,8 @@ Pulls use `--ff-only` so divergent local branches surface as failures rather tha
 
 ## See Also
 
+- `docs/pull-lore.md` — narrower per-agent refresh for active sessions (use this mid-session; use workspace-sync for bootstrap or full-workspace refresh).
+- `docs/auto-pull.md` — the per-repo refresh procedure that boot/attach/merge invoke automatically.
 - `docs/init.md` — companion command that distributes the worktree convention into the workspace's `CLAUDE.md`.
 - `docs/worktrees.md` — the convention that keeps top-level repos on their default branch (so `--ff-only` pulls remain safe).
 - `docs/conventions.md` — `lore-repo.md` schema reference.

@@ -59,3 +59,4 @@ When there's only the host and no guests, this reduces to a single subagent disp
 - `${CLAUDE_PLUGIN_ROOT}/docs/lore-search.md` — search brief structure, worked example, fan-out mechanics, and the agent-initiated search pattern (same mechanism, different trigger)
 - `${CLAUDE_PLUGIN_ROOT}/docs/attach.md` — loading another agent so its lore participates in recall
 - `${CLAUDE_PLUGIN_ROOT}/docs/consult.md` — one-shot question to an *unloaded* agent (recall does not cover consulted agents — they are never loaded)
+- `${CLAUDE_PLUGIN_ROOT}/docs/pull-lore.md` — refresh active agents' repos and re-read context first if you suspect lore drift before recalling
