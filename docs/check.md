@@ -2,6 +2,8 @@
 
 Work through the following checks in order. Report each issue found. At the end, print a summary: total issues found, or "All checks passed" if none.
 
+> **Scope note.** `/lr:check` covers content-level static consistency — descriptors, references, structure, drift. Runtime/environmental issues that escape static checks (a skill not appearing despite the current `VERSION`, an old skill lingering after a rename, plugin-cache effects after an upgrade) are not detected here. For those, use `/lr:doctor`.
+
 ---
 
 ## 1. Agent repo discovery

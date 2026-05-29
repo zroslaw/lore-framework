@@ -100,3 +100,34 @@ The agent's shell working directory is shared across Bash, Glob, Grep, and subse
 - **Prefer `git -C <lore-agent-repo> <cmd>`** over `cd <lore-agent-repo> && <cmd>` whenever a command is scoped to a particular repo. All framework docs follow this convention.
 - **Never `cd` away from the workspace root** during a flow that iterates over repos (update, check, version-check). If you must, `cd` back before the next tool call.
 - **Pass absolute paths to Glob** via the `path` parameter when you're unsure of the current CWD, rather than relying on pattern-relative resolution.
+
+## Migration / Release-Note Authoring
+
+Every `migrations/<N>.md` and `release-notes/<N>.md` whose changes touch **plugin-cached state** must include a **Clear Plugin Cache** section near the end (just before "See Also"). The reader has just learned what changed; the cache-clear footer tells them how to make Claude Code actually pick up the change.
+
+Triggers — include the footer if the version added, removed, renamed, or modified any of:
+
+- A skill (`skills/<name>/SKILL.md` or its directory)
+- A `/lr-*` slash command surface
+- Any doc referenced by a SKILL.md whose runtime behavior is changed (the cache holds these too)
+- A bundled script under `scripts/`
+
+Skip the footer only when the version is **purely informational or content-only** (lore-context conventions, doc rephrasing that doesn't change runtime behavior, framing-only release notes).
+
+Canonical wording (adapt as needed but keep the structure — substitute the `<...>` slots before publishing; use `release-notes/12.md` as a worked example):
+
+```markdown
+## Clear Plugin Cache
+
+This release <added/removed/renamed> skills, so the existing plugin cache must be refreshed before Claude Code will see the changes.
+
+After applying the migration:
+
+1. `rm -rf ~/.claude/plugins/cache/lore-framework/` (targeted; preserves other plugins' caches), or `rm -rf ~/.claude/plugins/cache/` (broader fallback), or run the workspace's `./clear_plugin_cache.sh` if present.
+2. Exit your current Claude Code session and start a new one.
+3. Verify the <new/renamed> skill appears in the available-skills list.
+
+If you skip this step, the prior version's skill catalog will continue to load until the cache is refreshed. See `docs/doctor-stale-plugin-cache.md` for diagnosis.
+```
+
+Rationale: the cache-stale failure mode is invisible until the user invokes a missing skill and gets confused. Authoring discipline puts the fix in the migration's own line of sight rather than relying on the user finding `/lr:doctor` after the fact.

@@ -76,3 +76,7 @@ Then return to `agent-boot.md` and continue with reading `role.md` and `lore-con
 ## Relationship to `/lr:update`
 
 `/lr:update` is the user-triggered, manual entry point — it processes all repos in the workspace and supports `--dry-run`. The boot-time check described here is a per-repo automatic reconciliation that runs only for the booting agent's repo, with no dry-run and no user prompt. Both share the same migration/release-notes data and the same version-stamping logic.
+
+## For Framework Authors
+
+When writing a new `migrations/<N>.md` or `release-notes/<N>.md` whose changes touch plugin-cached state (skills, slash commands, scripts, SKILL.md-referenced docs), include the **Clear Plugin Cache** footer per `docs/conventions.md` § Migration / Release-Note Authoring. The cache-stale failure mode is invisible to the user until they invoke a missing skill — the footer makes the fix discoverable from the doc the user is already reading. See also `docs/doctor-stale-plugin-cache.md` for the underlying ailment.
