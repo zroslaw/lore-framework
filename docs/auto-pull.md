@@ -29,10 +29,16 @@ These are not failures — they're legitimate states (e.g., a brand-new local-on
 
 ### Step 2: Pull
 
-Run `GIT_TERMINAL_PROMPT=0 git -C <lore-agent-repo> pull --ff-only` with a short timeout (60 seconds is reasonable).
+Run `GIT_TERMINAL_PROMPT=0 git -C <lore-agent-repo> pull --ff-only`, bounded to roughly 60 seconds.
 
-- `GIT_TERMINAL_PROMPT=0` prevents an HTTPS auth prompt from hanging the boot flow indefinitely.
-- `--ff-only` ensures divergent local branches surface as failures rather than producing silent merge commits.
+**Apply the timeout via your Bash tool's own timeout parameter — do *not* wrap the command in a `timeout`/`gtimeout` binary.** Those are GNU coreutils tools, absent by default on macOS/BSD (the primary dev platform); `timeout 60 git …` fails with `command not found` (exit 127), which aborts the pull and drops boot into degraded mode for an entirely spurious reason — silently disabling auto-pull on every macOS boot. See `conventions.md` § Tooling: Portable Shell.
+
+The **Bash-tool timeout is the transport-agnostic backstop** — it kills any stall (SSH, HTTPS, or a future remote type) so boot can never hang indefinitely, however the remote authenticates. The env vars below are per-transport *fast-fail* niceties layered on top, so a stall errors out in seconds rather than waiting out the full timeout:
+
+- **`GIT_TERMINAL_PROMPT=0`** — stops Git prompting on the terminal for **HTTP(S)** credentials, so an HTTPS pull without cached credentials fails fast (~0.5s) instead of blocking on a username prompt. It governs only Git's *own* terminal prompt — a separate GUI credential helper (e.g. Git Credential Manager) or the `ssh` binary is unaffected and falls to the backstop.
+- **`GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=10'`** (**SSH** only) — `BatchMode=yes` turns an unknown host key or passphrase prompt into an immediate failure; `ConnectTimeout` bounds the TCP connect. No effect on HTTPS remotes.
+- *(optional, **HTTPS**)* add `-c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15` **before the `pull` subcommand** (e.g. `git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15 -C <lore-agent-repo> pull --ff-only`) — aborts a connected-but-stalled transfer after ~15s under ~1 KB/s, the rough analog of SSH's `ConnectTimeout`. The backstop already covers this case; add it only if you want a faster, cleaner abort.
+- **`--ff-only`** ensures divergent local branches surface as failures rather than producing silent merge commits.
 
 **Why we don't gate on a dirty working tree:** `git pull --ff-only` is non-writing in spirit — it advances `HEAD`, but it refuses cleanly if the fast-forward would clobber any uncommitted edits in the working tree. So uncommitted edits are either preserved through the pull or the pull fails with a clear error. Either outcome is safe. Gating on dirty would defeat the most useful invocation site (pre-merge auto-pull, where `reflections/` from phase 1 is intentionally uncommitted).
 

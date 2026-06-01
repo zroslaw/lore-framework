@@ -101,9 +101,19 @@ The agent's shell working directory is shared across Bash, Glob, Grep, and subse
 - **Never `cd` away from the workspace root** during a flow that iterates over repos (update, check, version-check). If you must, `cd` back before the next tool call.
 - **Pass absolute paths to Glob** via the `path` parameter when you're unsure of the current CWD, rather than relying on pattern-relative resolution.
 
+## Tooling: Portable Shell
+
+Framework-authored shell commands run in whatever environment the agent booted in — and the primary dev platform is macOS (BSD userland), not GNU/Linux. Commands that silently assume GNU coreutils break there, and the failure is often invisible: a `command not found` (exit 127) inside a best-effort flow reads as the underlying operation failing, not as a portability bug.
+
+- **No GNU-only binaries.** Most notably `timeout` / `gtimeout` — absent on a stock macOS. To bound a command's runtime, use your Bash tool's own timeout parameter, not a `timeout` wrapper. (This exact trap silently disabled v13 auto-pull on macOS; see `auto-pull.md` § Step 2.) Inside a **standalone script** there is no Bash-tool timeout and no portable one-liner for a hard wall-clock cap — prevent hangs at the source with fail-fast env vars (`GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with `BatchMode`/`ConnectTimeout`), or implement a bash watchdog (background the job, then `sleep`+`kill`). `scripts/workspace-sync` takes the fail-fast-env-vars route.
+- **Watch BSD-vs-GNU flag differences** on tools present in both userlands: `sed -i` (BSD needs `-i ''`), `date -d` (GNU-only), `readlink -f` / `realpath` (not always present), `grep -P`, `xargs -r`. Prefer a portable invocation or a short Bash/`git` equivalent.
+- **Prefer git's own knobs over external wrappers** for git operations: `GIT_TERMINAL_PROMPT=0` (suppress HTTP(S) auth prompts), `GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=<n>'` (fail-fast SSH), `git -C <repo>` (see § Tooling: CWD Safety above).
+
+Same shape as CWD Safety: a portability landmine hidden inside an emitted shell command. When authoring or reviewing any framework doc or script that emits shell, assume BSD/macOS and check every command against this list.
+
 ## Migration / Release-Note Authoring
 
-Every `migrations/<N>.md` and `release-notes/<N>.md` whose changes touch **plugin-cached state** must include a **Clear Plugin Cache** section near the end (just before "See Also"). The reader has just learned what changed; the cache-clear footer tells them how to make Claude Code actually pick up the change.
+Every `migrations/<N>.md` and `release-notes/<N>.md` whose changes touch **plugin-cached state** must include a **Clear Plugin Cache** section near the top — right after the Summary, before the detailed "What's New" / "What Changed" body. The reader has just learned *that* something changed; the cache-clear is the single mandatory action and must not be buried at the bottom of a long doc where it is easy to miss. (`release-notes/12.md` and `13.md` are worked examples — footer hoisted directly under the Summary.)
 
 Triggers — include the footer if the version added, removed, renamed, or modified any of:
 
@@ -131,3 +141,11 @@ If you skip this step, the prior version's skill catalog will continue to load u
 ```
 
 Rationale: the cache-stale failure mode is invisible until the user invokes a missing skill and gets confused. Authoring discipline puts the fix in the migration's own line of sight rather than relying on the user finding `/lr:doctor` after the fact.
+
+## Plugin Manifest Versioning
+
+Every `VERSION` bump must also bump the plugin manifest version in **both** `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. Use the mechanical mapping **`"version": "1.<VERSION>.0"`** (framework `VERSION` 14 → manifest `1.14.0`) — derived from `VERSION` so it can't be forgotten, strictly increasing, and valid semver. `/lr:check` enforces this (check #19): it flags any manifest whose version isn't `1.<VERSION>.0`.
+
+Why it matters: Claude Code identifies a plugin release by the manifest version. If the manifest stays frozen (it sat at `1.0.0` from v1 through v13), the plugin layer never sees a new version and never refreshes its cache on its own — the root cause of the recurring "stale skill catalog after an upgrade" pain that the manual **Clear Plugin Cache** footer exists to work around.
+
+Relationship to the cache-clear footer: bumping the manifest is what lets the platform *detect* a release; keep the Clear Plugin Cache footer (above) as belt-and-suspenders until it's confirmed that a manifest bump alone makes Claude Code auto-invalidate the cache. The two are complementary. See `doctor-stale-plugin-cache.md`.

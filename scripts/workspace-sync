@@ -22,6 +22,11 @@ set -uo pipefail
 # single TTY would otherwise garble each other's prompts. Failures surface
 # cleanly in the per-repo report.
 export GIT_TERMINAL_PROMPT=0
+# GIT_TERMINAL_PROMPT=0 covers only Git's own HTTP(S) prompt, not SSH. For SSH
+# remotes, append BatchMode (an unknown host key or passphrase prompt becomes an
+# immediate failure — parallel jobs can't answer prompts anyway) and
+# ConnectTimeout (bounds the connect), preserving any GIT_SSH_COMMAND the user set.
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes -o ConnectTimeout=10"
 
 # ----------------------------------------------------------------------------
 # Workspace

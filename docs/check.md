@@ -110,3 +110,14 @@ Flag any file that instead uses:
 - Any form lacking the `from <agent-dir>` suffix
 
 These legacy formats cause slower or broken boots. Suggest: run `/lr:update` (migration 6 regenerates them) or re-register with `/lr:register-repo`.
+
+## 19. Plugin manifest version
+
+Read the framework version `N` from `${CLAUDE_PLUGIN_ROOT}/VERSION`. Read the `version` field from both `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and the `lr` plugin entry in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/marketplace.json`.
+
+Both must equal **`1.<N>.0`** (e.g. `VERSION` 14 → `1.14.0`), per `conventions.md` § Plugin Manifest Versioning. Report:
+
+- Either manifest version ≠ `1.<N>.0` → **error**. The usual cause is a `VERSION` bump whose author forgot the manifest — which is exactly what stops Claude Code from detecting the release and refreshing its plugin cache. Fix: set both manifests to `1.<N>.0`. (For an *end user* rather than a framework developer, a mismatch more likely signals a stale plugin cache — see `/lr:doctor`.)
+- `plugin.json` and `marketplace.json` disagree with each other → **error**: reconcile both to the same `1.<N>.0`.
+
+This check has teeth mainly when the plugin source is the loaded plugin (e.g. `claude --plugin-dir ./lore-framework` during framework development); for a marketplace install it confirms the shipped manifest is internally consistent.
