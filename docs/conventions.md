@@ -142,6 +142,122 @@ If you skip this step, the prior version's skill catalog will continue to load u
 
 Rationale: the cache-stale failure mode is invisible until the user invokes a missing skill and gets confused. Authoring discipline puts the fix in the migration's own line of sight rather than relying on the user finding `/lr:doctor` after the fact.
 
+## Teammate Discipline
+
+`/lr:spawn-teammate` creates teammates **for the express purpose of giving the user a parallel pane to work with that agent directly**. The framework codifies this as an asymmetric two-sided discipline; this section is a maintainer's index, not a restatement.
+
+- **Teammate-side rules** — canonical source: `docs/teammate-conventions.md`. Loaded by `agent-boot.md` Step 5 on detected teammate spawns and adopted as standing rules for the session.
+- **Lead-side redirect protocol** — canonical source: `docs/spawn-teammate.md` § *Lead behavior — teammate-to-lead messages*. When a teammate sends the lead a request that should have gone to the user, the lead redirects via SendMessage rather than relaying or acting on it.
+
+The asymmetry is intentional: spawning is one-directional (lead spawns teammate, never the inverse), so the rules differ. Both sides need explicit framework-level guidance because the natural Agent Teams default biases everyone toward team-lead-as-hub, which is the opposite of what spawn-teammate is trying to achieve.
+
+**Single source of truth, three loading sites.** The teammate-side rules are stated **once** in `teammate-conventions.md`. They reach the teammate's working memory via three sites, none of which restate the rules in full:
+
+1. `agent-boot.md` Step 5 — Reads the canonical doc and instructs the teammate to adopt it as standing rules.
+2. `spawn-teammate.md` Step 6's spawn prompt — points to the boot-time load and includes a one-sentence recap as a fallback for the case where Step 5's load fails.
+3. This § Teammate Discipline — pointers only.
+
+Drift hazard is bounded: only `teammate-conventions.md` carries the full RULE text, and the other sites only need updating if the *number* or *referencing* of rules changes, not their content.
+
+A maintainer reviewing or evolving any framework piece that touches the teammate boundary (`spawn-teammate.md`, `agent-boot.md` Step 5, `teammate-conventions.md`) should treat both sides as load-bearing and changes to one side as requiring a check on the other.
+
+## Migration Write Paths
+
+Every `migrations/<N>.md` must declare the set of repo-relative paths it may write under a `## Write Paths` section. The boot-time auto-upgrade gate (`docs/version-check.md` Step 1) intersects this set with the repo's dirty tracked files to decide whether to defer — uncommitted changes in files outside the write-set never block the upgrade.
+
+**Format.** Place a single fenced code block (` ``` … ``` `) immediately after the `## Write Paths` heading. The fenced block's content is the section's machine-readable body; everything outside the fence (prose paragraphs after the closing fence) is human commentary and is not parsed. Inside the fence:
+
+- One repo-relative glob per line. Use `**` for arbitrary depth, `*` for a single path segment.
+- Comments after a `#` on the same line are allowed for clarity; lines starting with `#` are full-line comments.
+- For migrations that genuinely write nothing, use the `(none)` sentinel as the body — see *Empty write-sets* below.
+
+Example:
+
+```markdown
+## Write Paths
+
+```
+agents/*/role.md                         # frontmatter rewrite
+.claude/commands/lr-*-agent.md           # boot-command regeneration
+```
+
+(Optional human commentary after the closing fence is fine and is ignored by the parser.)
+```
+
+Rules:
+
+- **Declare every path the migration may touch**, even paths that the migration only conditionally writes — the gate is conservative on declared collisions, not on actual ones.
+- **Paths are repo-relative** to `<lore-agent-repo>` (the booting repo). The collision gate runs `git -C <lore-agent-repo> status --porcelain` and matches its output against the write-set globs, so paths must resolve inside the booting repo.
+- **Do not include `lore-repo.md`** — the gate always adds it (the version stamp is universal).
+- **Release-notes-only versions** have no migration file and no write-set; they contribute nothing to the gate.
+- **Delete-only steps** (e.g. orphaned-file removal) do not require declaration. Write Paths is about *writes* — paths the migration may overwrite. A delete that the user has already confirmed cannot collide with itself, and declaring a delete-glob bloats the gate's collision surface (any dirty file matching the delete-glob would defer the upgrade even though no overwrite is at risk).
+
+### Known gap: workspace-root paths
+
+Some migrations write files at the **workspace root**, not inside any single lore-agent repo — most notably `.claude/commands/lr-*-agent.md` (the per-agent shortcut commands). Because the gate is per-repo and the workspace itself is typically not a git repo, **dirty edits to workspace-root files cannot enter the collision intersection** and the gate cannot protect against them.
+
+This is a known gap, not a fix-by-misdeclaration: declaring `.claude/commands/...` in a migration's Write Paths does not make the gate see those files; it just bloats the write-set with paths that will never match. Migrations 5 and 6 historically write to `.claude/commands/`; they explicitly do not declare that path in their Write Paths because the declaration would be decorative.
+
+The mitigation lives in the migrations themselves, not the gate: migrations 2/5/6 detect manual edits via known-template matching and present a three-way merge (see `update.md` § *Handling Manual Edits to Generated Files*). The gate doesn't replace that mechanism — it complements it for repo-local files. A future workspace-aware gate would close the hole; until then, treat workspace-root paths as protected by the in-migration three-way merge alone.
+
+If a migration ships without a `## Write Paths` section, the gate falls back to the conservative blanket-dirty rule for any version range that includes that migration. This is a real friction cost for users — every dirty file (including unrelated `workdir/*` runtime state) blocks the auto-upgrade. **Treat the section as mandatory** when authoring a new migration. `/lr:check` #20 enforces this automatically; reviewers should treat a check #20 failure as a blocker.
+
+### Glob token grammar
+
+Inside the fenced body, lines that aren't blank, comments, or the `(none)` sentinel are **glob tokens**. The canonical grammar (referenced verbatim by `version-check.md` Step 1b's parser and `check.md` #20.3's validator):
+
+- A glob token is a **single contiguous run of path-segment characters** with no internal whitespace. Accepted characters: `A-Z`, `a-z`, `0-9`, `.`, `_`, `-`, `/`, `*`, `?`, `[`, `]`, `!`, `\`.
+- Use `**` for arbitrary path depth, `*` for a single path segment, `?` for any single character, `[...]` for a character class, `!` to negate a class, `\` to escape a literal special character.
+- Optionally followed by whitespace and a `# <comment>` to end of line. The trailing comment is stripped; the token is what's left.
+- A line containing **internal whitespace before any `#`** is prose, not a glob — the parser treats it as malformed (see `version-check.md` Step 1b on the parser's behavior; `check.md` #20.3 flags it as an error).
+
+Examples:
+
+```
+agents/*/role.md                         # frontmatter rewrite (valid: single token + comment)
+agents/**/*.md                           # arbitrary depth (valid)
+.claude/commands/lr-[a-z]*-agent.md      # character class (valid)
+agents/[!l]*/role.md                     # negated character class (valid)
+```
+
+Non-examples (would be flagged):
+
+```
+This migration writes role.md files     # internal whitespace, no path-token shape — prose
+agents/*/role.md and lore-context.md     # two tokens on one line — split into two
+```
+
+### Empty write-sets — sentinel forms
+
+If a migration genuinely writes nothing on disk (purely informational, all output is stdout), still include the `## Write Paths` section. The body must declare empty explicitly via one of these accepted forms (this is the canonical grammar — `version-check.md` Step 1b's parser and `check.md` #20.3's validator both reference this section):
+
+- **Bare sentinel:** a line containing only the literal token `(none)`.
+- **Sentinel + prose:** a line starting with `(none)` followed by a space and any free-text comment. The separator can be a bare space, an ASCII hyphen `-`, or an em-dash `—` — all three are accepted.
+- **Empty fenced block:** the fenced body contains zero lines after stripping blanks and `#`-comments.
+
+All three are equivalent: parser contributes nothing to the write-set; gate proceeds without deferral.
+
+Two example forms; pick whichever reads clearer:
+
+```markdown
+## Write Paths
+
+```
+(none) — this migration writes no files; all output is informational.
+```
+```
+
+or just an empty fenced block:
+
+```markdown
+## Write Paths
+
+```
+```
+```
+
+Both declare an explicit empty write-set: the gate parses the body, finds no globs, contributes nothing to the intersection, and proceeds without deferral. This is **not** the same as omitting the `## Write Paths` heading entirely — an absent heading triggers the conservative blanket-dirty fallback (the gate cannot tell whether the author meant "writes nothing" or forgot to declare).
+
 ## Plugin Manifest Versioning
 
 Every `VERSION` bump must also bump the plugin manifest version in **both** `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. Use the mechanical mapping **`"version": "1.<VERSION>.0"`** (framework `VERSION` 14 → manifest `1.14.0`) — derived from `VERSION` so it can't be forgotten, strictly increasing, and valid semver. `/lr:check` enforces this (check #19): it flags any manifest whose version isn't `1.<VERSION>.0`.

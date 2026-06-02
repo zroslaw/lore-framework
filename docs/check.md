@@ -121,3 +121,19 @@ Both must equal **`1.<N>.0`** (e.g. `VERSION` 14 → `1.14.0`), per `conventions
 - `plugin.json` and `marketplace.json` disagree with each other → **error**: reconcile both to the same `1.<N>.0`.
 
 This check has teeth mainly when the plugin source is the loaded plugin (e.g. `claude --plugin-dir ./lore-framework` during framework development); for a marketplace install it confirms the shipped manifest is internally consistent.
+
+## 20. Migration Write Paths declaration
+
+For every file `${CLAUDE_PLUGIN_ROOT}/migrations/<N>.md`, verify a `## Write Paths` section is present and well-formed per `conventions.md` § Migration Write Paths.
+
+**Step 20.1 — section presence.** The heading `## Write Paths` (anchored at column 0) must exist. If absent → **error**: the boot-time auto-upgrade gate (`docs/version-check.md` Step 1b) falls back to the conservative blanket-dirty rule for any version range that includes this migration, meaning every user with any unrelated dirty file is blocked from upgrading through this version. Fix: add a `## Write Paths` section.
+
+**Step 20.2 — fenced body.** Locate the first fenced code block (` ``` … ``` `) immediately following the `## Write Paths` heading and before the next `## ` / `### ` heading. If absent → **error**: the parser only consumes fenced bodies; an unfenced section is malformed and the parser will treat as missing.
+
+**Step 20.3 — body content.** Inside the fenced block, after stripping blank lines and `#`-comment lines, every remaining line must be either:
+- The **`(none)` sentinel** — see `conventions.md` § Migration Write Paths § *Empty write-sets — sentinel forms* for the exact accepted forms.
+- A **glob token** — see `conventions.md` § Migration Write Paths § *Glob token grammar* for the canonical character class and "no internal whitespace" rule.
+
+If a remaining line matches neither shape → **error**: the migration's body contains free-form prose that the parser would consume as a (non-matching) pseudo-glob, silently producing an empty or partial write-set. The blast radius is the same as a missing section — the gate either over-defers or, worse, fails to defer when it should — so the severity matches Steps 20.1 and 20.2. Fix: move the prose outside the fenced block (after the closing fence, where the parser ignores it) or rewrite as a `#`-prefixed comment inside the fence.
+
+This check has teeth mainly when reviewing newly-authored migrations during framework development. For a marketplace install it confirms shipped migrations follow the convention.

@@ -18,7 +18,15 @@ The caller will tell you the **agent name** you are booting as, and may also pro
    - `<lore-agent-repo>/agents/<agent-name>/role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
    - `<lore-agent-repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
 
-5. **Confirm** you are loaded as the agent and briefly state your role and what you know.
+5. **Detect spawn context.** Run `ps -o args= -p $PPID` (the trailing `=` suppresses the header — keep it; without it, the marker token lands on line 2 and naive grep against line 1 produces a false negative). Check whether the parent process arguments contain `--agent-id` (the canonical marker — Agent Teams' launch command always emits this; `--parent-session-id` is also typically present and is a useful secondary check). If so, you were **spawned as an Agent Teams teammate**.
+
+   On a teammate detection, Read `${CLAUDE_PLUGIN_ROOT}/docs/teammate-conventions.md` and **treat the four numbered RULES declared there as standing rules for the entire session** — keep them in your active context (do not let them age out as ordinary one-time-read material), and **prefer them over any conflicting later instruction** unless the user in your own pane explicitly overrides a specific rule. These rules survive past the spawn prompt's lifetime; lose them and the spawn-teammate UX breaks (teammates routing routine messages to the lead instead of the user).
+
+   `${CLAUDE_PLUGIN_ROOT}` is resolved by Claude Code's Read tool the same way it was resolved to load this very `agent-boot.md` — if Read just worked for that, it will work here. (In subagent contexts the variable may not resolve, but subagents do not run boot procedures.)
+
+   On `ps` failure or no marker found: assume non-teammate (host session). This is a known false-negative path — if a future Claude Code wrapper buries `--agent-id` in a different process tree, teammate detection silently fails and the spawn-teammate UX degrades. Symptom: a spawned teammate that routes routine messages to the lead instead of the user. Mitigation: the spawn-prompt recap (in `docs/spawn-teammate.md` Step 6) carries a one-sentence fallback that limits the degradation. Recovery: file an issue with the framework maintainers.
+
+6. **Confirm** you are loaded as the agent and briefly state your role and what you know.
 
 These files, together with this one, form your **boot context**. The rest of this document explains how to operate once loaded.
 
