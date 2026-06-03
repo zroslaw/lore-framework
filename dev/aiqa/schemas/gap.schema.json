@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ULA gap.yaml — gap analysis for one unit",
+  "type": "object",
+  "required": ["unit", "signature", "summary", "considered-tests", "not-implemented", "ula-missed"],
+  "additionalProperties": false,
+  "properties": {
+    "unit": { "type": "string", "description": "Unit slug (= unit directory name)." },
+    "signature": { "type": "string", "description": "Full unit signature." },
+    "summary": {
+      "type": "object",
+      "required": ["totalUlaScenarios", "totalImplementedTests", "ulaNotImplemented", "ulaMissed"],
+      "additionalProperties": false,
+      "properties": {
+        "totalUlaScenarios": { "type": "integer", "description": "Count of scenarios in scenarios.yaml." },
+        "totalImplementedTests": { "type": "integer", "description": "Count of existing implemented tests targeting this unit." },
+        "ulaNotImplemented": { "type": "integer", "description": "ULA scenarios with NO matching existing test. MUST equal len(not-implemented)." },
+        "ulaMissed": { "type": "integer", "description": "Existing tests no ULA scenario anticipated. MUST equal len(ula-missed)." }
+      }
+    },
+    "considered-tests": {
+      "type": "array",
+      "description": "Test source file paths actually scanned for this analysis. Empty if none found.",
+      "items": { "type": "string" }
+    },
+    "not-implemented": {
+      "type": "array",
+      "description": "ULA scenarios with no matching existing test (the gaps to fill).",
+      "items": {
+        "type": "object",
+        "required": ["scenario", "note"],
+        "additionalProperties": false,
+        "properties": {
+          "scenario": { "type": "string", "description": "A scenario id that exists in scenarios.yaml." },
+          "note": { "type": "string", "description": "One line: what behavior is left uncovered." }
+        }
+      }
+    },
+    "ula-missed": {
+      "type": "array",
+      "description": "Existing tests whose behavior no ULA scenario describes (where ULA was weak).",
+      "items": {
+        "type": "object",
+        "required": ["test", "file", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "test": { "type": "string", "description": "Existing test name (function/case) as written in source." },
+          "file": { "type": "string", "description": "Path to the file containing it. Must appear in considered-tests." },
+          "description": { "type": "string", "description": "What behavior it covers that no ULA scenario describes." }
+        }
+      }
+    }
+  }
+}

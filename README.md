@@ -151,6 +151,12 @@ Grouped by purpose:
 | `/lr:update` | Apply pending framework migrations |
 | `/lr:check` | Run consistency checks |
 
+**Development (BETA)**
+| Skill | Purpose |
+|---|---|
+| `/lr:dev-aiqa-repo-init [<repo>]` | **BETA** — Create the AIQA sibling repo (`<repo>-aiqa`) for a source repo |
+| `/lr:dev-ula-file <file>` | **BETA** — Run a ULA (unit-level analysis) pass on one file |
+
 ## Optional: Agent Shortcut Commands
 
 By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register shortcut commands:

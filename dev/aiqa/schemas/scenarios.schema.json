@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ULA scenarios.yaml — clean-room test scenarios for one unit",
+  "type": "object",
+  "required": ["unit", "signature", "scenarios"],
+  "additionalProperties": false,
+  "properties": {
+    "unit": { "type": "string", "description": "Unit slug (= unit directory name)." },
+    "signature": { "type": "string", "description": "Full unit signature." },
+    "scenarios": {
+      "type": "array",
+      "description": "Test-case scenarios, generated clean-room (without reading existing tests), excluding behavior tied to a bug in bugs.yaml.",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "description", "coverage-intent"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "Slug from the scenario's essence, unique within the unit."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short: what is being tested."
+          },
+          "description": {
+            "type": "string",
+            "description": "Implementation-agnostic: precondition/input -> expected outcome, what to stub/assert. Enough for another agent to write the unit test."
+          },
+          "coverage-intent": {
+            "type": "array",
+            "description": "The specific code paths/branches/conditions/statements this scenario is meant to exercise. The prompt requires at least one entry; an empty list is structurally tolerated so a single unmapped scenario cannot fail the whole unit's result.",
+            "items": {
+              "type": "object",
+              "required": ["kind", "target"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["statement", "branch", "condition", "path"],
+                  "description": "Coverage type. Closed set."
+                },
+                "target": {
+                  "type": "string",
+                  "description": "Semantic description of the specific thing covered. No line numbers."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

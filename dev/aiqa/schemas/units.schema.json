@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ULA Unit Inventory (split output)",
+  "type": "object",
+  "required": ["units"],
+  "additionalProperties": false,
+  "properties": {
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "signature"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "Stable slug, unique within the file. Fixed at split time. Becomes the unit directory name."
+          },
+          "signature": {
+            "type": "string",
+            "description": "Full signature that uniquely identifies the unit in the file (e.g. a method/procedure signature)."
+          }
+        }
+      }
+    }
+  }
+}
