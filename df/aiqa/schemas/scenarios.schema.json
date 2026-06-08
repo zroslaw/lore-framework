@@ -5,7 +5,7 @@
   "required": ["unit", "signature", "scenarios"],
   "additionalProperties": false,
   "properties": {
-    "unit": { "type": "string", "description": "Unit slug (= unit directory name)." },
+    "unit": { "type": "string", "description": "Unit slug (the unit this block covers)." },
     "signature": { "type": "string", "description": "Full unit signature." },
     "scenarios": {
       "type": "array",

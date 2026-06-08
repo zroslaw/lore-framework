@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'aiqa-ula-file-pass',
+  name: 'df-ula-file-pass',
   description: 'ULA single-file pass. Split a file into units, then per unit (in parallel) run one agent through three ordered steps: A find bugs -> B generate clean-room scenarios -> C gap-analyze against existing tests. Returns schema-validated {bugs, scenarios, gap} per unit; the calling skill persists the YAML.',
   phases: [
     { title: 'Split',     detail: 'splitter agent breaks the file into testable units (id + signature)' },
@@ -7,38 +7,41 @@ export const meta = {
   ],
 }
 
-// args:
+// args (kept small — the file is NOT passed in; agents read it themselves off disk):
 //   filePath: string                      — repo-relative path of the target file
-//   fileContents: string                  — full source of the target file
 //   language: string                      — e.g. "swift"
-//   sourceRepoPath: string                — absolute path; agents read neighbours/tests from here
-//   prompts: { split, preamble, stepA, stepB, stepC }   — md text, injected by the skill
+//   sourceRepoPath: string                — absolute path; agents read the file + neighbours/tests from here
+//   prompts: { split, preamble, stepA, stepB, stepC, stepD, stepE }   — md text, injected by the skill
 //   schemas: { units, bugs, scenarios, gap }            — parsed JSON Schema, injected by the skill
 const {
   filePath,
-  fileContents,
   language,
   sourceRepoPath,
   prompts,
   schemas,
-} = args ?? {}
+} = (typeof args === 'string' ? JSON.parse(args) : args) ?? {}
 
-if (!filePath || !fileContents || !language || !sourceRepoPath || !prompts || !schemas) {
-  throw new Error('args must include { filePath, fileContents, language, sourceRepoPath, prompts, schemas }')
+if (!filePath || !language || !sourceRepoPath || !prompts || !schemas) {
+  throw new Error('args must include { filePath, language, sourceRepoPath, prompts, schemas }')
 }
 
 // Fail loud if any expected prompt/schema key is missing — otherwise the literal
 // "undefined" gets embedded into an agent prompt (#1) or a malformed agent schema
 // is built from an undefined sub-schema (#5).
-const REQUIRED_PROMPTS = ['split', 'preamble', 'stepA', 'stepB', 'stepC']
+// Strip the $schema meta-URL (draft-2020-12) before handing a schema to agent():
+// the runtime's validator is draft-07-era and can't resolve that meta ref. Our schemas
+// use only draft-07-compatible keywords, so they validate fine without it. ($schema
+// stays in the .json files for editor tooling — we strip only at the agent() boundary.)
+const noMeta = (s) => { const { $schema, ...rest } = s; return rest }
+
+const REQUIRED_PROMPTS = ['split', 'preamble', 'stepA', 'stepB', 'stepC', 'stepD', 'stepE']
 const REQUIRED_SCHEMAS = ['units', 'bugs', 'scenarios', 'gap']
 const missingPrompts = REQUIRED_PROMPTS.filter(k => !prompts[k])
 const missingSchemas = REQUIRED_SCHEMAS.filter(k => !schemas[k])
 if (missingPrompts.length || missingSchemas.length) {
-  throw new Error(`Missing injected inputs — prompts:[${missingPrompts}] schemas:[${missingSchemas}]. The skill must map prompt files and schema files to these exact keys (see dev/aiqa/ula-file.md step 3).`)
+  throw new Error(`Missing injected inputs — prompts:[${missingPrompts}] schemas:[${missingSchemas}]. The skill must map prompt files and schema files to these exact keys (see df/aiqa/ula-file.md step 3).`)
 }
 
-const FILE_BLOCK = `File: ${filePath}\n\`\`\`${language}\n${fileContents}\n\`\`\``
 const REPO_NOTE = `The source repository is at: ${sourceRepoPath}\nYou may read other files in it for context (callers, callees, types). Use your own judgement about how much context you need.`
 
 // ─── Phase 1: Split ──────────────────────────────────────────────────────────
@@ -50,8 +53,8 @@ const split = await agent(
 
 ${REPO_NOTE}
 
-${FILE_BLOCK}`,
-  { label: 'split', phase: 'Split', schema: schemas.units }
+The file to split is \`${filePath}\` (relative to the source repo above). **Read it yourself** — the full file is intentionally not pasted here.`,
+  { label: 'split', phase: 'Split', schema: noMeta(schemas.units) }
 )
 
 const units = split.units ?? []
@@ -69,9 +72,9 @@ const unitResultSchema = {
   required: ['bugs', 'scenarios', 'gap'],
   additionalProperties: false,
   properties: {
-    bugs: schemas.bugs,
-    scenarios: schemas.scenarios,
-    gap: schemas.gap,
+    bugs: noMeta(schemas.bugs),
+    scenarios: noMeta(schemas.scenarios),
+    gap: noMeta(schemas.gap),
   },
 }
 
@@ -100,6 +103,16 @@ ${prompts.stepB}
 STEP C — GAP ANALYSIS
 ═══════════════════════════════════════════════════════════════
 ${prompts.stepC}
+
+═══════════════════════════════════════════════════════════════
+STEP D — VERIFY BUGS
+═══════════════════════════════════════════════════════════════
+${prompts.stepD}
+
+═══════════════════════════════════════════════════════════════
+STEP E — VERIFICATION GUARDRAIL
+═══════════════════════════════════════════════════════════════
+${prompts.stepE}
 
 ═══════════════════════════════════════════════════════════════
 Return one object: { "bugs": <bugs.yaml>, "scenarios": <scenarios.yaml>, "gap": <gap.yaml> }.
@@ -133,5 +146,5 @@ return {
   language,
   units: units.length,
   dropped,                 // unit slugs that produced no usable result — surface to the user
-  results: cleanResults,   // [{ bugs, scenarios, gap }] — each carries its own unit/signature header; the skill persists keyed by the artifact's own `unit` slug
+  results: cleanResults,   // [{ bugs, scenarios, gap }] — each carries its own unit/signature header; the skill aggregates these into per-file artifacts (provenance header + units[])
 }

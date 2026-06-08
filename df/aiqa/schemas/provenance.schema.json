@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DF Provenance Header — self-describing metadata atop each generated artifact",
+  "description": "A header mixin composed into each persisted artifact (it sits beside the artifact body, e.g. `units`). Conceptually DF-core: every aspect's artifacts carry it. Not standalone-strict — additionalProperties is intentionally open so the body can be added alongside.",
+  "type": "object",
+  "required": ["source-sha", "config"],
+  "properties": {
+    "source-sha": {
+      "type": "string",
+      "description": "git blob SHA (content hash) of the analyzed source file, whole-file. Obtain via `git hash-object <path>` — hashes the working-tree bytes actually analyzed (not `rev-parse HEAD:<path>`, which would record the committed version). The content half of the (source-sha x config-id) dedupe key."
+    },
+    "config": {
+      "type": "object",
+      "description": "Extensible run-parameter bag. `id` is the short dedupe handle; other keys (model, approach, ...) are open-ended.",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Short config handle; the config half of the dedupe key."
+        }
+      }
+    }
+  }
+}

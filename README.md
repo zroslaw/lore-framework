@@ -154,8 +154,8 @@ Grouped by purpose:
 **Development (BETA)**
 | Skill | Purpose |
 |---|---|
-| `/lr:dev-aiqa-repo-init [<repo>]` | **BETA** — Create the AIQA sibling repo (`<repo>-aiqa`) for a source repo |
-| `/lr:dev-ula-file <file>` | **BETA** — Run a ULA (unit-level analysis) pass on one file |
+| `/lr:df-repo-init [<repo>]` | **BETA** — Create the DF backbone repo (`<repo>-df`) for a source repo |
+| `/lr:df-ula-file <file>` | **BETA** — Run a ULA (unit-level analysis) pass on one file |
 
 ## Optional: Agent Shortcut Commands
 

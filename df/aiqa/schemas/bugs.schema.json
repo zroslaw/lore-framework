@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ULA bugs.yaml — potential issues found during one unit's pass",
+  "type": "object",
+  "required": ["unit", "signature", "bugs", "crossUnit", "dismissed"],
+  "additionalProperties": false,
+  "properties": {
+    "unit": { "type": "string", "description": "Unit slug (the unit this block covers)." },
+    "signature": { "type": "string", "description": "Full unit signature." },
+    "bugs": {
+      "type": "array",
+      "description": "Potential issues whose defect is IN this unit, AFTER Step D verification — kept because they are real (harmless-but-real ones carry severity 'negligible'). May be empty.",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "impact-summary", "description", "nature", "severity", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Slug from the bug's essence, unique within this unit." },
+          "title": { "type": "string", "description": "Short: what the bug is and how it impacts us." },
+          "impact-summary": { "type": "string", "description": "Plain-language summary of the bug's essence and impact, understandable by ANY engineer regardless of the technical stack — use general engineering terms, not stack-specific jargon. (The deep technical detail goes in 'description'.)" },
+          "description": { "type": "string", "description": "Deep technical detail: how to trigger/reproduce, the precondition it rests on, components involved. Step D may append its verification reasoning here." },
+          "nature": { "type": "string", "enum": ["product", "technical"], "description": "product: affects the product / user experience — wrong, inconsistent, or unexpected behaviour a user can encounter. technical: affects system internals — memory growth, leaks, inefficiency, excessive CPU, technical crashes, etc. Classify by the bug's dominant nature." },
+          "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "negligible"], "description": "Real impact after Step D (not how sure it is). critical: data loss/corruption, security, or crash/wrong-result on a normal path. high: serious but bounded (edge-triggered/recoverable/workaround). medium: limited blast radius. low: minor/robustness/hardening. negligible: real but harmless — no real effect as the system actually runs." },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"], "description": "How sure this IS a bug. high: solid reasoning. medium: rests on unverified assumptions (callers/inputs/environment). low: speculative lead." },
+          "category": { "type": "string", "enum": ["logic-correctness", "input-validation", "error-handling", "concurrency", "resource-lifecycle", "api-contract", "security", "data-handling", "other"], "description": "Optional. Bug TYPE — not importance (that is 'severity'), not product-vs-technical (that is 'nature')." },
+          "tags": { "type": "array", "items": { "type": "string" }, "description": "Optional free-form tags for nuance the category cannot capture." }
+        }
+      }
+    },
+    "crossUnit": {
+      "type": "array",
+      "description": "Potential bugs found WHILE analyzing this unit but whose defect does NOT belong to it — located in another unit/file (kind=external), or emergent from several units' interaction (kind=interaction). Recorded here, attributed to this pass, rather than dropped. A later aggregation step dedups, routes, and promotes them; do not attempt that here. May be empty.",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "impact-summary", "description", "nature", "targets", "kind", "severity", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Slug from the finding's essence, unique within this unit (across bugs, crossUnit, and dismissed)." },
+          "title": { "type": "string", "description": "Short: what the bug is and how it impacts us." },
+          "impact-summary": { "type": "string", "description": "Plain-language summary of the bug's essence and impact, understandable by ANY engineer regardless of the technical stack — general engineering terms, not stack-specific jargon. (Deep technical detail goes in 'description'.)" },
+          "description": { "type": "string", "description": "Deep technical detail: how to trigger/reproduce and which components are involved. For kind=interaction, spell out which units/files combine, the interaction, and why the combination fails." },
+          "nature": { "type": "string", "enum": ["product", "technical"], "description": "product: affects the product / user experience. technical: affects system internals (memory, leaks, inefficiency, CPU, crashes). Classify by the dominant nature." },
+          "targets": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "The unit(s)/file(s)/symbol(s) this finding concerns — free-form names; aggregation normalizes later. One for external; two or more for interaction." },
+          "kind": { "type": "string", "enum": ["external", "interaction"], "description": "external: the defect lives in one other unit. interaction: emergent — each unit may be correct alone, the combination is the bug." },
+          "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "negligible"], "description": "Impact IF real. Same scale as bugs[].severity." },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"], "description": "How sure this IS a bug. Same scale as bugs[].confidence." },
+          "category": { "type": "string", "enum": ["logic-correctness", "input-validation", "error-handling", "concurrency", "resource-lifecycle", "api-contract", "security", "data-handling", "other"], "description": "Optional. Bug TYPE — not importance." },
+          "tags": { "type": "array", "items": { "type": "string" }, "description": "Optional free-form tags." }
+        }
+      }
+    },
+    "dismissed": {
+      "type": "array",
+      "description": "Findings judged NOT to be real bugs (false positives), at either stage — the per-unit Step D or the aggregation-level re-verification (see 'dismissed-by'). Preserved here — NOT deleted — with their ORIGINAL Step A fields intact, so the history of what the finder proposed stays available for false-positive analysis (and in case a dismissal was itself wrong). May be empty.",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "impact-summary", "description", "nature", "severity", "confidence", "dismissal-reason", "dismissed-by"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "The bug's ORIGINAL Step A slug, preserved verbatim." },
+          "title": { "type": "string", "description": "ORIGINAL Step A title, preserved verbatim — do not rewrite it." },
+          "impact-summary": { "type": "string", "description": "ORIGINAL Step A impact-summary, preserved verbatim." },
+          "description": { "type": "string", "description": "ORIGINAL Step A description, preserved verbatim — do not rewrite it. This is the historical record of what the finder proposed." },
+          "nature": { "type": "string", "enum": ["product", "technical"], "description": "ORIGINAL Step A nature, preserved." },
+          "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "negligible"], "description": "The finder's ORIGINAL Step A severity, preserved as-found (not revised) — part of the historical record." },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"], "description": "The finder's ORIGINAL Step A confidence, preserved as-found." },
+          "category": { "type": "string", "enum": ["logic-correctness", "input-validation", "error-handling", "concurrency", "resource-lifecycle", "api-contract", "security", "data-handling", "other"], "description": "Optional. ORIGINAL Step A category, preserved." },
+          "tags": { "type": "array", "items": { "type": "string" }, "description": "Optional. ORIGINAL Step A tags, preserved." },
+          "dismissal-reason": { "type": "string", "description": "Why this was judged not a real bug (unreachable, already guarded, misread the code, …)." },
+          "dismissed-by": { "type": "string", "enum": ["unit", "aggregator"], "description": "Which stage dismissed it: 'unit' = the per-unit Step D; 'aggregator' = the aggregation-level cross-unit re-verification run by the skill. Everything other than 'dismissal-reason' and 'dismissed-by' is the preserved original." }
+        }
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 **HARD CONSTRAINT — clean room.** You must **not** read, open, search, or otherwise look at any existing test files during this step. Generate scenarios purely from the unit's code and behavior. (A later step compares your scenarios against the existing tests; that comparison is only meaningful if you did not peek.)
 
-**Inputs you may use:** the unit's code and its context (as in Step A), and the **`bugs` artifact from Step A** — only to know what to exclude.
+**Inputs you may use:** the unit's code and its context (as in Step A), and the **`bugs` artifact from Step A** — specifically its `bugs[]` list, only to know what to exclude. (Ignore the artifact's `crossUnit` field here: those findings concern other units or cross-unit interactions — out of scope for *this* unit's scenarios.)
 
 **Exclude bug behavior.** Do **not** create any scenario whose purpose is to test a behavior tied to a bug you reported in Step A. Bugs go down a separate track: if a bug is later confirmed, it gets a fix plus its own coverage tests; if rejected, scenarios for that behavior are generated then. So here, simply leave bug-related behavior out.
 

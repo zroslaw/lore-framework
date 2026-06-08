@@ -15,7 +15,7 @@
           "id": {
             "type": "string",
             "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-            "description": "Stable slug, unique within the file. Fixed at split time. Becomes the unit directory name."
+            "description": "Stable slug, unique within the file. Fixed at split time."
           },
           "signature": {
             "type": "string",
