@@ -73,10 +73,15 @@ Two descriptor files carry YAML frontmatter so the framework can machine-read th
 
 ## Lore Context
 
-- **Budget**: 50K tokens maximum
-- **Content mix**: inline summarized knowledge + topic summaries with filename references
-- **Prioritization**: recent and frequently relevant knowledge first
-- **Compaction**: when approaching the budget, summarize older entries and replace inline details with topic references
+`lore-context.md` is the agent's every-session working knowledge **and** the entry point to the lore graph — not an index of all topics. The graph (summary topics → detail topics) carries whatever isn't needed in most sessions.
+
+- **Content**: compacted, present-tense working knowledge + references to the most important / **summary** topics — not enumerations of detail topics
+- **Entry point, not catalog**: reference a theme's summary topic and let it fan out; if a significant theme lacks one, create it rather than inlining the cluster
+- **No version-history narrative**: present-tense only — "vN did X" annotations belong in git / release notes / the topic itself
+- **Budget**: 50K tokens maximum — but shape is the primary discipline; nearing the budget is a drift signal to restructure, not just to summarize older entries
+- **Prioritization**: knowledge relevant across most sessions first; one-off knowledge lives in a topic reachable via a referenced summary topic
+
+See `process-merge.md` § Step 4 for the procedure that maintains this shape at finalization.
 
 ## What Belongs in Lore
 

@@ -71,16 +71,15 @@ If any reflection topic has a `role-update-` prefix:
 
 Update `lore-context.md` to reflect the new state of the agent's knowledge.
 
-`lore-context.md` should contain:
-- **Inline summarized knowledge** — general context, key facts the agent needs readily available
-- **Topic summaries with references** — brief summary of a topic area + reference to the lore file by name
+**`lore-context.md` is the agent's every-session working knowledge and the entry point to the lore graph — not an index of all topics.** Carry the compacted knowledge needed in essentially every session, plus references to the most important / **summary** topics, and let the graph (summary topics → detail topics) carry the rest. Shape it accordingly:
 
-Prioritize recent and frequently relevant knowledge. Older or less critical knowledge should be more summarized or referenced only.
+- **Compacted working knowledge** — facts, decisions, and context the agent draws on across most sessions, stated tightly and in the **present tense**.
+- **Reference summary topics; don't enumerate detail topics** — point at a theme's summary topic and let *it* fan out to the details. Do not list every file in `lore/`. If a significant theme has no summary topic to point at, **create one** (strengthening the graph's mid-tier) rather than inlining the whole cluster here.
+- **No version-history narrative** — `lore-context.md` is present-tense. Changelog-style "vN did X" annotations and dated step-by-step history belong in git, release notes, or the relevant topic.
 
-**Size budget**: keep `lore-context.md` under 50,000 tokens. If it exceeds this, compact by:
-- Summarizing older entries more aggressively
-- Replacing inline details with references to lore topics
-- Removing information well-covered by lore topics
+**Preserve graph navigability.** When you remove something from `lore-context.md`, ensure it still lives in a topic **and** is reachable from a summary topic that `lore-context.md` references — existence somewhere isn't enough; the entry point must still lead there.
+
+**Size budget**: keep `lore-context.md` under 50,000 tokens — but shape is the primary discipline, not the ceiling. A well-shaped context sits comfortably under budget; nearing 50K is a drift signal that it has grown toward an index or accumulated history, so **restructure** (lift detail into topics, lean on summary topics, strip narrative) rather than merely summarizing older entries.
 
 ### Step 5: Cleanup
 
