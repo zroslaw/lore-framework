@@ -191,4 +191,4 @@ my-workspace/                       # Workspace — the directory you run Claude
 
 ## License
 
-MIT
+[MIT](LICENSE)

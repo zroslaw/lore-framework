@@ -49,7 +49,7 @@ participants:
     repo: lore-agents
     role: guest
 username: yaroslav
-full_name: Yaroslav Roslaw
+full_name: Yaroslav Panasyuk
 topics: [session-summaries, finalization]
 artifacts:
   - { path: lore-framework/docs/summarize.md, kind: created }
