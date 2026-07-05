@@ -9,6 +9,7 @@
 - A SKILL.md or doc edit made in the marketplace install at `~/.claude/plugins/marketplaces/lore-framework/`, or via a normal plugin update, doesn't seem to have taken effect — the prior content keeps loading.
 - A registered `/lr-<agent-name>-agent` shortcut points at a path or behavior that no longer matches the framework — typically right after upgrading.
 - A `/plugin update` or marketplace refresh appears to succeed but Claude Code's behavior reflects the prior version.
+- An expected **MCP server's tools do not appear** after an upgrade (e.g. `lr-wait`'s `wait_for_event` / `sleep` are missing) — the cache holds the prior plugin tree without the new `.mcp.json` / server. (If instead the server is present but failing to launch, that is not a cache issue — check its runtime is installed, e.g. `python3` on `PATH` for `lr-wait`.)
 
 ## Diagnosis
 

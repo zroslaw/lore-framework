@@ -116,6 +116,10 @@ Framework-authored shell commands run in whatever environment the agent booted i
 
 Same shape as CWD Safety: a portability landmine hidden inside an emitted shell command. When authoring or reviewing any framework doc or script that emits shell, assume BSD/macOS and check every command against this list.
 
+## Tooling: Non-Shell Runtimes (python3)
+
+Directly-runnable shipped scripts default to Bash-on-BSD (§ Tooling: Portable Shell). The exception is a **server component that must speak a protocol** where bash is impractical — most notably an **MCP stdio server** (newline-delimited JSON-RPC). Those may be written in **`python3`, standard library only** (no `pip install`), so they need no dependency install and run anywhere `python3` is present — any Linux, and any macOS with the Xcode Command Line Tools (a bare macOS may prompt to install them). `scripts/wait-server.py` is the first instance; it parallels the Node ULA module (`df/aiqa/workflows/ula-file-pass.js`) as a language-specific module the framework ships and drives, not a portable one-liner. Keep companion tooling in Bash where practical (e.g. `scripts/lr-emit`). Don't reach for `python3` for work a portable shell script can do.
+
 ## Migration / Release-Note Authoring
 
 Every `migrations/<N>.md` and `release-notes/<N>.md` whose changes touch **plugin-cached state** must include a **Clear Plugin Cache** section near the top — right after the Summary, before the detailed "What's New" / "What Changed" body. The reader has just learned *that* something changed; the cache-clear is the single mandatory action and must not be buried at the bottom of a long doc where it is easy to miss. (`release-notes/12.md` and `13.md` are worked examples — footer hoisted directly under the Summary.)
@@ -126,6 +130,7 @@ Triggers — include the footer if the version added, removed, renamed, or modif
 - A `/lr-*` slash command surface
 - Any doc referenced by a SKILL.md whose runtime behavior is changed (the cache holds these too)
 - A bundled script under `scripts/`
+- A bundled MCP server (a root `.mcp.json` or an inline `mcpServers` block in `plugin.json`)
 
 Skip the footer only when the version is **purely informational or content-only** (lore-context conventions, doc rephrasing that doesn't change runtime behavior, framing-only release notes).
 
@@ -270,3 +275,11 @@ Every `VERSION` bump must also bump the plugin manifest version in **both** `.cl
 Why it matters: Claude Code identifies a plugin release by the manifest version. If the manifest stays frozen (it sat at `1.0.0` from v1 through v13), the plugin layer never sees a new version and never refreshes its cache on its own — the root cause of the recurring "stale skill catalog after an upgrade" pain that the manual **Clear Plugin Cache** footer exists to work around.
 
 Relationship to the cache-clear footer: bumping the manifest is what lets the platform *detect* a release; keep the Clear Plugin Cache footer (above) as belt-and-suspenders until it's confirmed that a manifest bump alone makes Claude Code auto-invalidate the cache. The two are complementary. See `doctor-stale-plugin-cache.md`.
+
+## Plugin MCP Servers
+
+The plugin can bundle MCP servers that Claude Code (the MCP host) launches automatically when the plugin is enabled, exposing their tools to the agent. Declare them in a **`.mcp.json` at the plugin root** (keeps `plugin.json` minimal; an inline `mcpServers` block in `plugin.json` is the equivalent alternative). `${CLAUDE_PLUGIN_ROOT}` expands inside `command`/`args`/`env`/`cwd`, so reference bundled files as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>`. `scripts/wait-server.py` (server `lr-wait`, see `wait.md`) is the first instance. Two ship-ceremony consequences: adding, renaming, or removing a server is **cache-affecting** (carry the Clear Plugin Cache footer, as for a skill), and the server's runtime language follows § Tooling: Non-Shell Runtimes.
+
+## Dev-Only Artifacts
+
+Tests, benchmarks, and other development-only artifacts do **not** ship in the plugin repo — it is the distributed marketplace artifact and stays slim. They live in the framework-dev repo (`lore-framework-dev/`, e.g. `tests/`) and reference the plugin as a workspace sibling (default `../lore-framework`, override `$LR_FRAMEWORK_DIR`). This extends the `plugin-vs-agent-repo-separation` principle: plugin repo = what's distributed; dev repo = how it's built and verified.

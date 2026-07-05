@@ -129,6 +129,11 @@ Grouped by purpose:
 | `/lr:consult <agent> [hint]` | One-shot question to an unloaded agent |
 | `/lr:spawn-teammate [<agent>...]` | **BETA** — Spawn lore agents as Agent Teams teammates |
 
+**Background / headless**
+| Skill | Purpose |
+|---|---|
+| `/lr:wait` | Pause until an external event arrives, or sleep — for background / `claude -p` agents |
+
 **Session lifecycle**
 | Skill | Purpose |
 |---|---|

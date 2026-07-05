@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# lr-emit — drop an event into an lr-wait inbox so a waiting agent wakes up.
+#
+# Part of the lore-framework plugin (lr). Pure Bash (3.2+, macOS default) with
+# only BSD/macOS-stock utilities. Writes the event ATOMICALLY (a dotfile temp in
+# the inbox, then mv) so the wait-server never reads a half-written file.
+#
+# The event body is arbitrary text — plain text by default; JSON works too, the
+# agent receives it verbatim. --name sets the event TYPE; the wait-server matches
+# events by filename prefix "<name>.".
+set -uo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: lr-emit [--name NAME] [--inbox DIR] [--file PATH]
+
+  --name NAME    Event type (default: event). Must not contain '.' or '/'.
+  --inbox DIR    Inbox directory (default: $LR_WAIT_INBOX, else ./.lr-wait/inbox).
+  --file PATH    Read the event body from PATH (default: read from stdin).
+
+Examples:
+  echo "the deploy finished, investigate the logs" | lr-emit --name deploy
+  lr-emit --name ci --file ./result.json
+  printf 'go\n' | lr-emit                      # untyped event (name "event")
+EOF
+}
+
+name="event"
+inbox="${LR_WAIT_INBOX:-$PWD/.lr-wait/inbox}"
+file=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --name)  [ $# -ge 2 ] || { echo "lr-emit: --name needs a value" >&2; exit 2; };  name="$2";  shift 2 ;;
+    --inbox) [ $# -ge 2 ] || { echo "lr-emit: --inbox needs a value" >&2; exit 2; }; inbox="$2"; shift 2 ;;
+    --file)  [ $# -ge 2 ] || { echo "lr-emit: --file needs a value" >&2; exit 2; };  file="$2";  shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "lr-emit: unknown argument: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+if [ -z "$name" ]; then
+  echo "lr-emit: --name must not be empty" >&2; exit 2
+fi
+case "$name" in
+  *.* | */*) echo "lr-emit: --name must not contain '.' or '/': $name" >&2; exit 2 ;;
+esac
+
+inbox_existed=1
+[ -d "$inbox" ] || inbox_existed=0
+if ! mkdir -p "$inbox"; then
+  echo "lr-emit: cannot create inbox: $inbox" >&2; exit 1
+fi
+if [ "$inbox_existed" -eq 0 ]; then
+  echo "lr-emit: note: created new inbox $inbox — make sure the agent is waiting on THIS path (set \$LR_WAIT_INBOX on both sides for headless runs)" >&2
+fi
+
+# Unique dotfile temp via mktemp (skipped by the server's dotfile filter); reuse
+# its unique token in the final name so two same-second emits can't collide.
+tmp="$(mktemp "${inbox}/.tmp-XXXXXXXXXX")" || {
+  echo "lr-emit: cannot create temp file in $inbox" >&2; exit 1
+}
+token="${tmp##*/.tmp-}"
+ts="$(date -u +%Y%m%dT%H%M%SZ)"
+final="${inbox}/${name}.${ts}.${token}"
+
+if [ -n "$file" ]; then
+  if ! cat -- "$file" >"$tmp"; then
+    echo "lr-emit: cannot read file: $file" >&2; rm -f "$tmp"; exit 1
+  fi
+else
+  if ! cat >"$tmp"; then
+    echo "lr-emit: cannot read stdin" >&2; rm -f "$tmp"; exit 1
+  fi
+fi
+
+if ! mv -- "$tmp" "$final"; then
+  echo "lr-emit: cannot place event: $final" >&2; rm -f "$tmp"; exit 1
+fi
+
+echo "$final"

@@ -1,0 +1,6 @@
+# Transient lr-wait event inboxes (see docs/wait.md)
+.lr-wait/
+
+# Python bytecode from bundled scripts
+__pycache__/
+*.pyc
