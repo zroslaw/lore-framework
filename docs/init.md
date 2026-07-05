@@ -2,7 +2,7 @@
 
 Write (or refresh) a framework-managed section in the workspace-level `CLAUDE.md` so that any Claude Code session working in the workspace automatically loads the framework's conventions.
 
-> **Engine note — which memory file.** This procedure writes the workspace **memory file**, whose name comes from your engine profile's **memory-file** binding (`<framework-root>/docs/engines/<engine>.md`, selected at boot): **`CLAUDE.md` on Claude Code, `AGENTS.md` on Codex**. Everywhere below says `CLAUDE.md`; substitute your engine's memory-file name. Both are auto-loaded by their engine from the working directory, so the effect is the same.
+> **Engine note — which memory file.** This procedure writes the workspace **memory file**, whose name comes from your engine profile's **memory-file** binding (`<framework-root>/docs/engines/<engine>.md`, selected at boot): **`CLAUDE.md` on Claude Code, `AGENTS.md` on Codex and Cursor**. Everywhere below says `CLAUDE.md`; substitute your engine's memory-file name. Both are auto-loaded by their engine from the working directory, so the effect is the same.
 
 > **When to run.** After `/lr:workspace-sync` (or after cloning your first agent repo into a fresh workspace). Re-run any time the framework is upgraded — the canonical payload occasionally evolves.
 

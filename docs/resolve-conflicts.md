@@ -16,6 +16,11 @@ Conflicts in other paths (`sessions/`, `lore-repo.md`, framework files, or anyth
 
 ## Execution model
 
+> **Engine note.** The spawn mechanics below describe Claude Code. If your engine profile
+> (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, follow it
+> instead — e.g. on Cursor, resolve each conflicted agent subtree **serially in the host
+> context**, one agent at a time, while keeping the same retry cap and scope limits.
+
 Spawn one **`general-purpose`** subagent per conflicted agent, in parallel (conflict resolution needs `Write`/`Edit`/`Bash`; `Explore` does not). Each subagent boots as its conflicted agent and resolves conflicts scoped to its own subtree. The host aggregates results.
 
 Subagent brief (per conflicted agent):

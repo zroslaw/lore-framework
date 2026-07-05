@@ -14,7 +14,9 @@ Do this first, before the numbered steps.
 
 2. **Select the engine profile.** Infer the engine, strongest signal first:
    - If `${CLAUDE_PLUGIN_ROOT}` resolves to a **non-empty** path → **claude** (only Claude Code sets it).
+   - Else if `ps -o args= -p $PPID` succeeds and the parent args contain `cursor-agent` → **cursor**.
    - Else if `<framework-root>` lives under `~/.codex/…`, or a `~/.codex/` directory exists → **codex**.
+   - Else if `<framework-root>` lives under `~/.cursor/…` → **cursor**.
    - Else if `<framework-root>` is under a Claude plugin dir (`~/.claude/plugins/…`) or was loaded via `--plugin-dir` → **claude**.
    - Otherwise → default to **claude** and note the assumption.
 

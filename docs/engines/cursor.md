@@ -1,0 +1,91 @@
+# Engine Profile — Cursor Agent CLI
+
+Selected by boot (`agent-boot.md` Step 0) when the parent process arguments contain
+`cursor-agent`, or when `<framework-root>` lives under a Cursor-managed directory. Fills the same
+five bindings as `claude.md` (the reference profile). **Where a value here conflicts with a shared
+procedure doc, this profile wins for that step.**
+
+Empirical basis: local Cursor Agent CLI trials on `cursor-agent 2026.07.01-41b2de7`, 2026-07-05,
+using `--plugin-dir` against a local framework copy. Verified facts so far:
+
+- `--plugin-dir` works for local plugin loading.
+- User-facing slash invocation works (`/lr:boot lore-architect`).
+- `${CLAUDE_PLUGIN_ROOT}` is empty in this engine path.
+- `ps -o args= -p $PPID` is permitted and exposes `cursor-agent` in the parent args.
+- Boot and recall work on real Cursor, but the framework otherwise falls back to the Claude
+  profile until this engine profile is present.
+
+## Binding values
+
+| Binding | Value on Cursor |
+|---|---|
+| **framework-root** | `${CLAUDE_PLUGIN_ROOT}` is empty here — never rely on it. Use the absolute path self-located in Step 0. Reuse that resolved path everywhere `<framework-root>` appears. |
+| **invocation-syntax** | User-invoked lore skills work as slash commands (`/lr:<skill>`, `/lr-<agent>-agent`) when the framework is loaded through `--plugin-dir`. Mid-task, either invoke the skill by name or read `<framework-root>/docs/<skill>.md` directly if a tighter, file-driven execution path is clearer. |
+| **subagent-spawn** | **Conservative v1 override:** no verified Cursor-native in-session subagent mechanism is relied on by the framework. For procedures that describe Claude `Agent` fan-out, execute the work **host-side, serially, one target agent at a time**. Read-only search work uses direct Read/Grep/Glob on each target lore directory; write work (merge, version reconcile, conflict resolution) is performed inline by the host, scoped to one agent/repo at a time. Do not claim parallel fan-out on Cursor until it is validated on the real engine. |
+| **memory-file** | `AGENTS.md`. |
+| **runtime-bounding** | No verified Claude-style Bash-tool `timeout` parameter is assumed here. Rely on Cursor's own job/approval controls plus the fast-fail git env vars in the shared docs. Ignore prose that specifically says to set a Bash-tool timeout parameter. |
+
+## Capability gates
+
+- **engine-detection** — `ps -o args= -p $PPID` works here and exposes the parent `cursor-agent`
+  command line. Use it as the strongest runtime signal for Cursor CLI sessions.
+- **teammate-detection** — the `ps` probe itself works, but Claude Agent-Teams semantics do not
+  apply. Treat Cursor as a normal host session for lore purposes; `spawn-teammate` remains
+  Claude-only.
+- **git / network approvals** — Cursor CLI exposes `--force`, `--trust`, and sandbox controls at
+  launch. In ordinary sessions, auto-pull / push may still be approval-gated or denied. Lore
+  procedures must degrade cleanly on denial rather than treating it as a framework failure.
+- **parallel worktrees** — Cursor has its own worktree support (`--worktree`, and broader
+  parallel-agent features in the product), but the framework has **not yet validated** how that
+  interacts with Lore's workspace invariant. Until proven, keep Lore's multi-agent file work
+  serial and host-driven on Cursor.
+
+## Host-Side Override Rules
+
+Apply these substitutions anywhere a shared doc expects Claude `Agent` fan-out.
+
+### Read-only search work (`lore-search.md`, `recall.md`)
+
+1. Enumerate the target agents (host only, or host + guests).
+2. For each target agent, search its `lore/` directory **serially** in the host context using
+   Read/Grep/Glob.
+3. Produce one synthesis per target agent and group the final output by agent.
+4. When only the host is active, this reduces to a single direct lore search.
+
+### Consult (`consult.md`)
+
+1. Do **not** spawn a consultant subagent.
+2. Discover the consultant repo/agent normally.
+3. Run any needed version reconcile **inline** (same repo-scoped `version-check.md` procedure, but
+   in the host context).
+4. Read the consultant's `role.md`, `lore-context.md`, and targeted lore topics directly.
+5. Return the consult synthesis and file pointers in the same output shape the shared doc expects.
+
+### Attach (`attach.md`)
+
+If attach needs a version reconcile, run it **inline** rather than via a general-purpose
+subagent. The rest of attach already loads the guest in the host context and does not need a
+Cursor-specific change.
+
+### Merge (`process-merge.md`)
+
+1. Collect active agents in host-first order.
+2. For each agent, run the merge procedure **serially in the host context**, scoped to that
+   agent's files only.
+3. Before each agent's merge, refresh that agent's role, lore-context, and reflections from disk.
+4. Return a short per-agent summary in the same shape summarize expects (`topics touched`,
+   `role changes`, `anomalies`).
+5. In a single-agent session this is one inline merge pass; in a multi-agent session it is a
+   serial host-driven loop, not parallel fan-out.
+
+### Conflict resolution (`resolve-conflicts.md`)
+
+If finalize hits a push conflict, resolve conflicted agents **serially** in the host context,
+one agent subtree at a time. Keep the 3-attempt cap and all existing scope limits.
+
+## Notes
+
+- This profile is intentionally conservative. It favors a verified host-side path over unverified
+  claims about Cursor-native subagents.
+- Once a real Cursor-native subagent mechanism is validated end-to-end against Lore's procedures,
+  this profile can be upgraded from serial host execution to true fan-out.

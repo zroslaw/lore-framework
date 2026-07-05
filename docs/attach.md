@@ -41,6 +41,11 @@ Run the procedure in `<framework-root>/docs/auto-pull.md` scoped to `<guest-lore
 
 ### Step 3: Version reconcile in a subagent
 
+> **Engine note.** The subagent path below describes Claude Code. If your engine profile
+> (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use it here
+> too — e.g. on Cursor, run the version reconcile **inline in the host context**, scoped to the
+> guest repo, rather than dispatching a general-purpose subagent.
+
 Read the target repo's `lore-repo.md` and extract its `version` field. Compare with the contents of `<framework-root>/VERSION` (trimmed).
 
 - If they match, skip to Step 4.
