@@ -31,6 +31,8 @@ These are not failures — they're legitimate states (e.g., a brand-new local-on
 
 Run `GIT_TERMINAL_PROMPT=0 git -C <lore-agent-repo> pull --ff-only`, bounded to roughly 60 seconds.
 
+> **Engine note.** The bounding mechanism below is Claude Code's Bash-tool timeout. On other engines, follow your profile's **runtime-bounding** binding (`docs/engines/<engine>.md`) — e.g. on Codex there is no Bash-tool timeout flag; the sandbox / `job_max_runtime_seconds` bounds it, and the "set the Bash-tool timeout" prose is ignored.
+
 **Apply the timeout via your Bash tool's own timeout parameter — do *not* wrap the command in a `timeout`/`gtimeout` binary.** Those are GNU coreutils tools, absent by default on macOS/BSD (the primary dev platform); `timeout 60 git …` fails with `command not found` (exit 127), which aborts the pull and drops boot into degraded mode for an entirely spurious reason — silently disabling auto-pull on every macOS boot. See `conventions.md` § Tooling: Portable Shell.
 
 The **Bash-tool timeout is the transport-agnostic backstop** — it kills any stall (SSH, HTTPS, or a future remote type) so boot can never hang indefinitely, however the remote authenticates. The env vars below are per-transport *fast-fail* niceties layered on top, so a stall errors out in seconds rather than waiting out the full timeout:

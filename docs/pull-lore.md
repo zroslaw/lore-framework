@@ -13,7 +13,7 @@ Use this when you suspect another contributor (or a parallel session, or your ow
 ## What It Does
 
 1. **Enumerates active agents** — host (whichever agent was booted) plus any guests attached via `/lr:attach`.
-2. **Auto-pulls each agent's repo** — runs the procedure in `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` per repo. When two active agents share a repo, that repo is pulled once.
+2. **Auto-pulls each agent's repo** — runs the procedure in `<framework-root>/docs/auto-pull.md` per repo. When two active agents share a repo, that repo is pulled once.
 3. **Re-reads each active agent's `role.md` and `lore-context.md`** — so any changes pulled in actually take effect in working memory. Without this step, the pulled files are on disk but the host is still operating from the pre-pull context.
 4. **Reports a one-line summary per repo** — pulled / already up to date / failed / skipped (no origin), so the user can see what changed.
 
@@ -52,7 +52,7 @@ Resolve each active agent's `<lore-agent-repo>` path. Deduplicate repos: if host
 
 ### Step 3: Auto-pull each repo
 
-For each unique repo, follow `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` scoped to that repo. Print verbose output (one-line per repo, even on `already up to date`) — `/lr:pull-lore` is user-invoked, so it's the place to be communicative about what happened.
+For each unique repo, follow `<framework-root>/docs/auto-pull.md` scoped to that repo. Print verbose output (one-line per repo, even on `already up to date`) — `/lr:pull-lore` is user-invoked, so it's the place to be communicative about what happened.
 
 When pulling multiple repos, dispatch them in parallel — auto-pull is independent per repo. A single message with multiple Bash invocations is sufficient; a subagent fan-out is overkill for what is mostly `git pull`.
 
@@ -94,9 +94,9 @@ If the re-read of `role.md` or `lore-context.md` fails (e.g., file missing after
 
 ## See Also
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` — the per-repo procedure this skill iterates.
-- `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` — the boot-time auto-pull, which makes `/lr:pull-lore` rarely necessary.
-- `${CLAUDE_PLUGIN_ROOT}/docs/process-merge.md` — the pre-merge auto-pull (defense-in-depth).
-- `${CLAUDE_PLUGIN_ROOT}/docs/workspace-sync.md` — workspace-wide companion (different scope).
-- `${CLAUDE_PLUGIN_ROOT}/docs/attach.md` — `/lr:attach` also auto-pulls the guest repo on attach.
-- `${CLAUDE_PLUGIN_ROOT}/docs/recall.md` — pair with `/lr:pull-lore` when freshly pulled lore-context wants to be re-explored.
+- `<framework-root>/docs/auto-pull.md` — the per-repo procedure this skill iterates.
+- `<framework-root>/docs/agent-boot.md` — the boot-time auto-pull, which makes `/lr:pull-lore` rarely necessary.
+- `<framework-root>/docs/process-merge.md` — the pre-merge auto-pull (defense-in-depth).
+- `<framework-root>/docs/workspace-sync.md` — workspace-wide companion (different scope).
+- `<framework-root>/docs/attach.md` — `/lr:attach` also auto-pulls the guest repo on attach.
+- `<framework-root>/docs/recall.md` — pair with `/lr:pull-lore` when freshly pulled lore-context wants to be re-explored.

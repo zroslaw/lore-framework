@@ -20,7 +20,7 @@ Spawn one **`general-purpose`** subagent per conflicted agent, in parallel (conf
 
 Subagent brief (per conflicted agent):
 
-_"Boot as agent `<name>` (repo: `<path>`) per `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md`, then resolve push conflicts for yourself per `${CLAUDE_PLUGIN_ROOT}/docs/resolve-conflicts.md`. Up to 3 total resolve+push attempts before giving up. Return the final commit SHA, or a failure reason if attempts are exhausted."_
+_"Boot as agent `<name>` (repo: `<path>`) per `<framework-root>/docs/agent-boot.md`, then resolve push conflicts for yourself per `<framework-root>/docs/resolve-conflicts.md`. Up to 3 total resolve+push attempts before giving up. Return the final commit SHA, or a failure reason if attempts are exhausted."_
 
 ## Procedure (per subagent)
 

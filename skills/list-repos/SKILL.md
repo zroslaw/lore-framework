@@ -2,6 +2,8 @@
 description: "List all agent repos in this domain with their purpose."
 ---
 
+`<framework-root>` is the framework root — the directory that contains the `VERSION` file, two levels up from this `skills/list-repos/SKILL.md`. Resolve it to an absolute path before using it below.
+
 List all lore agent repos in this domain.
 
 Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root.

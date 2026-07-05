@@ -24,7 +24,7 @@ If an active agent has no `lore/` directory or no topic files, skip it silently.
 
 ### 3. Prepare a search brief
 
-Follow the four-part brief structure described in `${CLAUDE_PLUGIN_ROOT}/docs/lore-search.md`:
+Follow the four-part brief structure described in `<framework-root>/docs/lore-search.md`:
 
 1. **The task** — what you're actively working on this session
 2. **Session context** — decisions made, constraints, paths being touched, open questions
@@ -34,6 +34,8 @@ Follow the four-part brief structure described in `${CLAUDE_PLUGIN_ROOT}/docs/lo
 Keep the brief under ~300 words. The same brief is used for every active agent — each subagent is just told which `lore/` directory is theirs.
 
 ### 4. Dispatch subagents in parallel — one per active agent
+
+> **Engine note.** The mechanism below is Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use it instead — e.g. on Codex use `spawn_agent` (role `explorer`, read-only) and gather with `wait_agent`.
 
 Dispatch **one `Explore` subagent per active agent, all in a single message** (parallel execution — there are no dependencies between them). Each subagent receives:
 
@@ -56,7 +58,7 @@ When there's only the host and no guests, this reduces to a single subagent disp
 
 ## See Also
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/lore-search.md` — search brief structure, worked example, fan-out mechanics, and the agent-initiated search pattern (same mechanism, different trigger)
-- `${CLAUDE_PLUGIN_ROOT}/docs/attach.md` — loading another agent so its lore participates in recall
-- `${CLAUDE_PLUGIN_ROOT}/docs/consult.md` — one-shot question to an *unloaded* agent (recall does not cover consulted agents — they are never loaded)
-- `${CLAUDE_PLUGIN_ROOT}/docs/pull-lore.md` — refresh active agents' repos and re-read context first if you suspect lore drift before recalling
+- `<framework-root>/docs/lore-search.md` — search brief structure, worked example, fan-out mechanics, and the agent-initiated search pattern (same mechanism, different trigger)
+- `<framework-root>/docs/attach.md` — loading another agent so its lore participates in recall
+- `<framework-root>/docs/consult.md` — one-shot question to an *unloaded* agent (recall does not cover consulted agents — they are never loaded)
+- `<framework-root>/docs/pull-lore.md` — refresh active agents' repos and re-read context first if you suspect lore drift before recalling

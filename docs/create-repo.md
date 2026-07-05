@@ -8,7 +8,7 @@ Scaffold a new agent repository in the workspace.
 
 1. **Verify** the name doesn't collide with an existing directory in the workspace.
 
-2. **Read the framework version** from `${CLAUDE_PLUGIN_ROOT}/VERSION`. This will be stamped into the repo descriptor.
+2. **Read the framework version** from `<framework-root>/VERSION`. This will be stamped into the repo descriptor.
 
 3. **Create the directory structure:**
    ```

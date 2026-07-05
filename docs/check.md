@@ -20,7 +20,7 @@ Report any repos with missing or malformed frontmatter fields.
 
 ## 3. Framework version consistency (repo level)
 
-Read the framework version from `${CLAUDE_PLUGIN_ROOT}/VERSION`. For each repo, compare the `version` field in `lore-repo.md` frontmatter against the framework version. Report any mismatches as **warnings** — the repo may need migration.
+Read the framework version from `<framework-root>/VERSION`. For each repo, compare the `version` field in `lore-repo.md` frontmatter against the framework version. Report any mismatches as **warnings** — the repo may need migration.
 
 ## 4. Agent discovery
 
@@ -91,7 +91,7 @@ For every `lr-*-agent.md` shortcut command, compare git last commit date of the 
 
 ## 17. Orphaned pre-plugin skill commands
 
-Scan `<workspace>/.claude/commands/` for files matching `lr-*.md` that do **not** match `lr-*-agent.md` AND whose content does **not** contain the phrase `boot as agent`. For each such file, extract `<skill-name>` from the filename (strip the `lr-` prefix and `.md` suffix) and check whether `${CLAUDE_PLUGIN_ROOT}/skills/<skill-name>/SKILL.md` exists.
+Scan `<workspace>/.claude/commands/` for files matching `lr-*.md` that do **not** match `lr-*-agent.md` AND whose content does **not** contain the phrase `boot as agent`. For each such file, extract `<skill-name>` from the filename (strip the `lr-` prefix and `.md` suffix) and check whether `<framework-root>/skills/<skill-name>/SKILL.md` exists.
 
 - If the plugin skill exists, flag the file as an **orphaned pre-plugin skill duplicate** — `/lr:<skill-name>` is now provided by the plugin, so the local command is redundant and typically references stale sibling paths (`lore-framework/docs/...`). Report the file path and the covering plugin skill. Suggest: run `/lr:update` (migration 5 prompts to delete these per file) or delete manually.
 - If no matching plugin skill exists, the file is a user-authored command — do not flag it.
@@ -106,14 +106,14 @@ Read `<absolute-path>/docs/agent-boot.md` and boot as agent `<agent-name>` from 
 
 Flag any file that instead uses:
 - `lore-framework/docs/agent-boot.md` (pre-v5 sibling-path form)
-- `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` (v5 form — unresolved in `.claude/commands/`)
+- `<framework-root>/docs/agent-boot.md` (v5 form — unresolved in `.claude/commands/`)
 - Any form lacking the `from <agent-dir>` suffix
 
 These legacy formats cause slower or broken boots. Suggest: run `/lr:update` (migration 6 regenerates them) or re-register with `/lr:register-repo`.
 
 ## 19. Plugin manifest version
 
-Read the framework version `N` from `${CLAUDE_PLUGIN_ROOT}/VERSION`. Read the `version` field from both `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and the `lr` plugin entry in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/marketplace.json`.
+Read the framework version `N` from `<framework-root>/VERSION`. Read the `version` field from both `<framework-root>/.claude-plugin/plugin.json` and the `lr` plugin entry in `<framework-root>/.claude-plugin/marketplace.json`.
 
 Both must equal **`1.<N>.0`** (e.g. `VERSION` 14 → `1.14.0`), per `conventions.md` § Plugin Manifest Versioning. Report:
 
@@ -124,7 +124,7 @@ This check has teeth mainly when the plugin source is the loaded plugin (e.g. `c
 
 ## 20. Migration Write Paths declaration
 
-For every file `${CLAUDE_PLUGIN_ROOT}/migrations/<N>.md`, verify a `## Write Paths` section is present and well-formed per `conventions.md` § Migration Write Paths.
+For every file `<framework-root>/migrations/<N>.md`, verify a `## Write Paths` section is present and well-formed per `conventions.md` § Migration Write Paths.
 
 **Step 20.1 — section presence.** The heading `## Write Paths` (anchored at column 0) must exist. If absent → **error**: the boot-time auto-upgrade gate (`docs/version-check.md` Step 1b) falls back to the conservative blanket-dirty rule for any version range that includes this migration, meaning every user with any unrelated dirty file is blocked from upgrading through this version. Fix: add a `## Write Paths` section.
 

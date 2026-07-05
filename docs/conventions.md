@@ -17,7 +17,7 @@ Framework docs use a small set of angle-bracket placeholders. The surrounding te
 - **`<guest-lore-agent-repo>`** — same as `<lore-agent-repo>` but specifically identifies the guest being attached (vs the host repo) in `/lr:attach`.
 - **`<agent-name>`** — the kebab-case name of an agent (matches the directory name under `agents/`).
 - **`<domain>`** — *legacy* placeholder retired in v11; no longer used in framework docs. The parent-dir concept is now `<workspace>`; the conceptual scope of an agent repo is "domain" in prose (no brackets). If you encounter `<domain>` in older release notes or third-party material, read it as `<workspace>`.
-- **`${CLAUDE_PLUGIN_ROOT}`** — the install path of the `lr` plugin. Provided by Claude Code; do not hardcode.
+- **`<framework-root>`** — the install path of the `lr` plugin. Provided by Claude Code; do not hardcode.
 
 The "lore" prefix on repo placeholders is intentional: it distinguishes lore agent repos from other repos that may live in the same workspace (application code, unrelated tools, etc.).
 
@@ -49,7 +49,7 @@ Session summaries live under `sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md`
 └── .claude/commands/            # Optional agent shortcut commands
 ```
 
-The lore framework itself is installed as a Claude Code plugin (`lr`), not as a repo in the workspace. Plugin files are accessed via `${CLAUDE_PLUGIN_ROOT}`, never via a sibling path like `lore-framework/`.
+The lore framework itself is installed as a Claude Code plugin (`lr`), not as a repo in the workspace. Plugin files are accessed via `<framework-root>`, never via a sibling path like `lore-framework/`.
 
 ## Descriptor Files
 
@@ -278,7 +278,7 @@ Relationship to the cache-clear footer: bumping the manifest is what lets the pl
 
 ## Plugin MCP Servers
 
-The plugin can bundle MCP servers that Claude Code (the MCP host) launches automatically when the plugin is enabled, exposing their tools to the agent. Declare them in a **`.mcp.json` at the plugin root** (keeps `plugin.json` minimal; an inline `mcpServers` block in `plugin.json` is the equivalent alternative). `${CLAUDE_PLUGIN_ROOT}` expands inside `command`/`args`/`env`/`cwd`, so reference bundled files as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>`. `scripts/wait-server.py` (server `lr-wait`, see `wait.md`) is the first instance. Two ship-ceremony consequences: adding, renaming, or removing a server is **cache-affecting** (carry the Clear Plugin Cache footer, as for a skill), and the server's runtime language follows § Tooling: Non-Shell Runtimes.
+The plugin can bundle MCP servers that Claude Code (the MCP host) launches automatically when the plugin is enabled, exposing their tools to the agent. Declare them in a **`.mcp.json` at the plugin root** (keeps `plugin.json` minimal; an inline `mcpServers` block in `plugin.json` is the equivalent alternative). `<framework-root>` expands inside `command`/`args`/`env`/`cwd`, so reference bundled files as `<framework-root>/scripts/<name>`. `scripts/wait-server.py` (server `lr-wait`, see `wait.md`) is the first instance. Two ship-ceremony consequences: adding, renaming, or removing a server is **cache-affecting** (carry the Clear Plugin Cache footer, as for a skill), and the server's runtime language follows § Tooling: Non-Shell Runtimes.
 
 ## Dev-Only Artifacts
 

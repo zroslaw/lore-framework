@@ -6,6 +6,8 @@ Read this when you need to find or recall topics from your lore. Covers both the
 
 For any non-trivial search, **dispatch an `Explore` subagent** with a structured search brief. The subagent reads relevant lore topics directly, synthesizes findings, and returns a compact result. This keeps your main context clean and uses the LLM's own semantic understanding — stronger than keyword matching for finding topics by *meaning* rather than by *exact term*.
 
+> **Engine note.** "`Explore` subagent" and "single-message parallel dispatch" describe Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use its read-only spawn instead — e.g. on Codex, `spawn_agent` with role `explorer`, gathered via `wait_agent`.
+
 Why a subagent:
 - Reading 10–100 topic files in your main context wastes tokens you need for the user's task
 - The synthesis can be inlined cheaply (a few hundred words)
@@ -74,7 +76,7 @@ Keep the whole brief under ~300 words. The subagent has access to your full `lor
 
 > **User-invocable skill conventions** (`slash-command-system.md`): all user-invocable skills use the `/lr:` prefix; generated artifacts use `/lr-`. Skill files are thin pointers; logic lives in `docs/`.
 >
-> **Skill/doc separation** (`skill-doc-pattern.md`): every skill is one line pointing at `${CLAUDE_PLUGIN_ROOT}/docs/<name>.md`. Recall should follow this exactly.
+> **Skill/doc separation** (`skill-doc-pattern.md`): every skill is one line pointing at `<framework-root>/docs/<name>.md`. Recall should follow this exactly.
 >
 > **No prior recall pattern** — no existing topic discusses user-triggered context enrichment. New ground.
 >

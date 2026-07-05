@@ -3,4 +3,6 @@ description: "Remove all agent shortcut commands for an agent repo. Usage: /lr:u
 argument-hint: "<lore-agent-repo>"
 ---
 
-Read `${CLAUDE_PLUGIN_ROOT}/docs/register-repo.md` for the Unregister instructions, then unregister the repo: $ARGUMENTS
+`<framework-root>` is the framework root — the directory that contains the `VERSION` file, two levels up from this `skills/unregister-repo/SKILL.md`. Resolve it to an absolute path before using it below.
+
+Read `<framework-root>/docs/register-repo.md` for the Unregister instructions, then unregister the repo: $ARGUMENTS

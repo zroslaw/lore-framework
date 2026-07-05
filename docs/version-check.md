@@ -5,7 +5,7 @@ Invoked from `agent-boot.md` when the agent's repo `version` differs from the fr
 ## Inputs
 
 - `R` — `version` field from the booting agent's repo `lore-repo.md`
-- `F` — contents of `${CLAUDE_PLUGIN_ROOT}/VERSION` (trimmed)
+- `F` — contents of `<framework-root>/VERSION` (trimmed)
 
 ## Cases
 
@@ -56,7 +56,7 @@ The marker scan must use **precise anchors** to avoid false-positives on legitim
 If any unmerged-state file (any of `UU`/`AA`/`DD`/`AU`/`UA`/`UD`/`DU`) **or** any modified file matching the all-three-markers test is found:
 
 - Print: `<lore-agent-repo>: cannot auto-upgrade from R to F — unresolved merge-conflict markers in <file(s)>. Resolve the conflict and commit before booting again.`
-- Do NOT modify any files. Continue boot in degraded mode.
+- Do NOT modify any files. Continue boot in degraded mode. **This deferral is NOT a boot failure** — return to `agent-boot.md` and finish loading the agent; do not emit any boot-failed signal or stop the boot.
 
 This is the only **always-defer** condition. A conflict-marker file is structurally broken regardless of upgrade scope.
 
@@ -66,7 +66,7 @@ Build the set of repo-relative paths the upgrade is about to write:
 
 1. Always include `lore-repo.md` (the final version stamp in Step 3).
 2. For each `v` in `R+1 .. F`:
-   - If `${CLAUDE_PLUGIN_ROOT}/migrations/<v>.md` exists, look for a `## Write Paths` section (see `conventions.md` § Migration Write Paths). The section content is **only** what lies inside the first fenced code block (` ``` … ``` `) immediately following the `## Write Paths` heading. Any prose paragraphs after the closing fence belong to the next subsection, not to the write-set — they are commentary for human readers and the parser MUST NOT consume them. If no fenced block is present between the `## Write Paths` heading and the next `## ` (or `### `) heading, the section is malformed — treat as missing (fall back to blanket-dirty, see below) and warn the user.
+   - If `<framework-root>/migrations/<v>.md` exists, look for a `## Write Paths` section (see `conventions.md` § Migration Write Paths). The section content is **only** what lies inside the first fenced code block (` ``` … ``` `) immediately following the `## Write Paths` heading. Any prose paragraphs after the closing fence belong to the next subsection, not to the write-set — they are commentary for human readers and the parser MUST NOT consume them. If no fenced block is present between the `## Write Paths` heading and the next `## ` (or `### `) heading, the section is malformed — treat as missing (fall back to blanket-dirty, see below) and warn the user.
 
      Inside the fenced block, parse the lines using these rules **in order**:
      1. **Strip blank lines and comment lines** (lines starting with `#`, or having `# comment` after a path — strip the trailing comment).
@@ -96,6 +96,8 @@ Match each dirty tracked file's repo-relative path against the write-set globs.
   Then boot again or run /lr:update.
   ```
 
+  **This deferral is NOT a boot failure.** Print the message above, then return to `agent-boot.md` and finish loading the agent in degraded mode — do not emit any boot-failed signal or stop the boot.
+
 - **Addendum — previously-deferred stamp.** Independently of how many other files collide, if `lore-repo.md` is in the colliding set AND parsing its `version` field yields a value `<X>` numerically in `(R, F]` (i.e. ahead of the committed `R` but not past `F`), append a tailored hint specifically about `lore-repo.md`. The version field may use any of the YAML quoting variants (`version: 14`, `version: "14"`, `version: '14'`, with or without trailing comments) — strip quotes/whitespace/comments and parse as integer for the comparison.
 
   ```
@@ -109,15 +111,15 @@ Match each dirty tracked file's repo-relative path against the write-set globs.
 
   Caveat: this heuristic assumes the dirty change is to the `version` field. If the user dirtied `description:` or `repos:` (other fields), the version-field parse still yields the committed `R`, the `(R, F]` test fails, and the addendum correctly does not fire — the generic message handles it. If the user happens to have *also* manually bumped the version while editing other fields, the addendum will fire alongside changes that aren't actually a deferred stamp; the suggested commands are still valid but the diagnostic prose may be slightly off. This is acceptable: the recovery commands are the load-bearing part.
 
-In both deferred cases: do NOT modify any files; continue boot in degraded mode.
+In both deferred cases: do NOT modify any files; continue boot in degraded mode. **A deferred upgrade is not a boot failure** — return to `agent-boot.md` step 3 and proceed to step 4; the agent still loads.
 
 ### Step 2: Walk versions from R+1 to F
 
 For each version `v` in `R+1` through `F` inclusive, in order:
 
-1. **Apply migration** if `${CLAUDE_PLUGIN_ROOT}/migrations/<v>.md` exists. Read the doc and follow its instructions, scoped to the booting agent's repo. Migrations are idempotent and may modify files.
+1. **Apply migration** if `<framework-root>/migrations/<v>.md` exists. Read the doc and follow its instructions, scoped to the booting agent's repo. Migrations are idempotent and may modify files.
 
-2. **Display release notes** if `${CLAUDE_PLUGIN_ROOT}/release-notes/<v>.md` exists. Print the contents to the user so they see what's new in this version.
+2. **Display release notes** if `<framework-root>/release-notes/<v>.md` exists. Print the contents to the user so they see what's new in this version.
 
 3. **At least one** must exist for version `v`. If neither `migrations/<v>.md` nor `release-notes/<v>.md` is present, this is a framework packaging bug — print an error, stop the upgrade for this repo, do NOT stamp the new version, continue boot in degraded mode.
 

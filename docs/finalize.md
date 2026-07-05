@@ -17,11 +17,11 @@ When a phase is invoked standalone, the user is responsible for committing whate
 
 ## Phase 1 — Reflect
 
-Read `${CLAUDE_PLUGIN_ROOT}/docs/process-reflection.md` and follow it. Writes reflection topics into each active agent's `reflections/` directory. Reflect runs **inline**, host-first, per active agent — it needs session context (which a fresh-booted subagent wouldn't have), so the iteration stays in the host session. This is intentionally different from phase 2.
+Read `<framework-root>/docs/process-reflection.md` and follow it. Writes reflection topics into each active agent's `reflections/` directory. Reflect runs **inline**, host-first, per active agent — it needs session context (which a fresh-booted subagent wouldn't have), so the iteration stays in the host session. This is intentionally different from phase 2.
 
 ## Phase 2 — Merge
 
-Read `${CLAUDE_PLUGIN_ROOT}/docs/process-merge.md` and follow it. Merge runs in a **subagent per active agent, in parallel**; each subagent boots as its target agent and then integrates that agent's reflections into its `lore/`, `lore-context.md`, and `role.md`. Cleans up `reflections/`. **Does not commit** — phase 4 covers it.
+Read `<framework-root>/docs/process-merge.md` and follow it. Merge runs in a **subagent per active agent, in parallel**; each subagent boots as its target agent and then integrates that agent's reflections into its `lore/`, `lore-context.md`, and `role.md`. Cleans up `reflections/`. **Does not commit** — phase 4 covers it.
 
 Merge is parallelizable precisely because it is file-driven (`reflections/` + `lore/`) and doesn't need session context — the contrast with phase 1.
 
@@ -29,7 +29,7 @@ Merge is parallelizable precisely because it is file-driven (`reflections/` + `l
 
 ## Phase 3 — Summarize
 
-Read `${CLAUDE_PLUGIN_ROOT}/docs/summarize.md` and follow it. Writes the canonical summary into the host agent's `sessions/YYYY/MM/` directory and — for every attached guest that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All summaries share the session UUID for JSONL correlation. Summarize is additive — its failure does not roll back reflect or merge.
+Read `<framework-root>/docs/summarize.md` and follow it. Writes the canonical summary into the host agent's `sessions/YYYY/MM/` directory and — for every attached guest that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All summaries share the session UUID for JSONL correlation. Summarize is additive — its failure does not roll back reflect or merge.
 
 ## Phase 4 — Commit and Push
 
@@ -45,7 +45,7 @@ For each repo, print a one-line confirmation (e.g., `✓ <repo>: committed <sha>
 
 - **Summarize failed** — commit the reflect+merge output alone. Merge output is valuable on its own; don't hold it hostage to the summary.
 - **Any merge subagent failed** — do not commit in that repo. Report the failure and let the user resolve before retrying finalize.
-- **Push rejected due to conflicts in an agent subtree** — this happens when another user (or parallel session) finalized the same agent concurrently. Trigger the conflict-resolution procedure: read `${CLAUDE_PLUGIN_ROOT}/docs/resolve-conflicts.md` and follow it. One subagent is spawned per conflicted agent; each boots as its agent, reconciles its own subtree, and retries push up to 3 times against concurrent races.
+- **Push rejected due to conflicts in an agent subtree** — this happens when another user (or parallel session) finalized the same agent concurrently. Trigger the conflict-resolution procedure: read `<framework-root>/docs/resolve-conflicts.md` and follow it. One subagent is spawned per conflicted agent; each boots as its agent, reconciles its own subtree, and retries push up to 3 times against concurrent races.
 - **Push fails for other reasons** (auth, remote unreachable, conflicts outside agent subtrees) — the commit is already made locally. Report the failure and let the user resolve manually.
 
 ### Cross-repo guests

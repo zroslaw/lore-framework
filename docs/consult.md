@@ -43,11 +43,13 @@ Keep the brief itself concise. The subagent will boot and read the consultant's 
 
 ### Step 3: Dispatch the subagent
 
+> **Engine note.** If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use it instead of the Claude `general-purpose` subagent — e.g. on Codex, `spawn_agent` (role `worker`), with the resolved `<framework-root>` absolute path inlined into the prompt.
+
 Use a general-purpose subagent. Prompt shape:
 
 > You are being invoked as a short consult. Another lore agent is the host of the current session; they need your help with a focused question.
 >
-> **Step A — Boot as `<consultant-name>`.** Read `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` and follow the boot procedure to load yourself as agent `<consultant-name>`. This includes the standard version reconcile — do that normally; return any release notes text in your final response so the host can surface them to the user.
+> **Step A — Boot as `<consultant-name>`.** Read `<framework-root>/docs/agent-boot.md` and follow the boot procedure to load yourself as agent `<consultant-name>`. This includes the standard version reconcile — do that normally; return any release notes text in your final response so the host can surface them to the user.
 >
 > **Step B — Answer the consult.** Here is the brief:
 >
@@ -55,7 +57,7 @@ Use a general-purpose subagent. Prompt shape:
 > <4-part brief from Step 2>
 > ```
 >
-> Search your lore using the subagent-scan pattern described in `${CLAUDE_PLUGIN_ROOT}/docs/lore-search.md` (nested Explore dispatch is fine) or direct tools where a targeted lookup is better. Synthesize a response in the requested output shape.
+> Search your lore using the subagent-scan pattern described in `<framework-root>/docs/lore-search.md` (nested Explore dispatch is fine) or direct tools where a targeted lookup is better. Synthesize a response in the requested output shape.
 >
 > **Step C — Return.** Send back the synthesis with file pointers. Do not reflect. Do not merge. Do not write anything. Your role ends with this response.
 
@@ -89,7 +91,7 @@ The consultant does not reflect or merge because of this consult. From the consu
 
 ## See also
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/attach.md` — the heavyweight sibling (sustained loading, finalization participation)
-- `${CLAUDE_PLUGIN_ROOT}/docs/recall.md` — search lore of already-loaded agents
-- `${CLAUDE_PLUGIN_ROOT}/docs/lore-search.md` — search brief structure and mechanics
-- `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` — the boot procedure the subagent follows in Step A
+- `<framework-root>/docs/attach.md` — the heavyweight sibling (sustained loading, finalization participation)
+- `<framework-root>/docs/recall.md` — search lore of already-loaded agents
+- `<framework-root>/docs/lore-search.md` — search brief structure and mechanics
+- `<framework-root>/docs/agent-boot.md` — the boot procedure the subagent follows in Step A

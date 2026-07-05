@@ -3,4 +3,6 @@ description: "Update domain artifacts to match the installed framework version. 
 argument-hint: "[--dry-run]"
 ---
 
-Read `${CLAUDE_PLUGIN_ROOT}/docs/update.md` and execute the update process. Arguments: $ARGUMENTS
+`<framework-root>` is the framework root — the directory that contains the `VERSION` file, two levels up from this `skills/update/SKILL.md`. Resolve it to an absolute path before using it below.
+
+Read `<framework-root>/docs/update.md` and execute the update process. Arguments: $ARGUMENTS

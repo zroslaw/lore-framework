@@ -3,4 +3,6 @@ description: "Register an agent repo — generate agent shortcut commands. Usage
 argument-hint: "<lore-agent-repo>"
 ---
 
-Read `${CLAUDE_PLUGIN_ROOT}/docs/register-repo.md` for detailed instructions, then register the repo: $ARGUMENTS
+`<framework-root>` is the framework root — the directory that contains the `VERSION` file, two levels up from this `skills/register-repo/SKILL.md`. Resolve it to an absolute path before using it below.
+
+Read `<framework-root>/docs/register-repo.md` for detailed instructions, then register the repo: $ARGUMENTS

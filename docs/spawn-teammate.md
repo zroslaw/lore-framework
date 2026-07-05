@@ -101,9 +101,9 @@ For each `(agent-name, repo-path)` in the spawn set:
 - **Spawn prompt** (verbatim — the teammate boots with this as its first input):
 
   ```
-  Read ${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>.
+  Read <framework-root>/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>.
 
-  Step 5 of the boot procedure will detect that you were spawned as a teammate and load ${CLAUDE_PLUGIN_ROOT}/docs/teammate-conventions.md — the four RULES declared there are standing rules for this entire session. Recap, in case the boot-time load fails: the user in YOUR own pane is your interlocutor. Talk to them there; SendMessage to the team lead is reserved for explicit user-requested coordination only.
+  Step 5 of the boot procedure will detect that you were spawned as a teammate and load <framework-root>/docs/teammate-conventions.md — the four RULES declared there are standing rules for this entire session. Recap, in case the boot-time load fails: the user in YOUR own pane is your interlocutor. Talk to them there; SendMessage to the team lead is reserved for explicit user-requested coordination only.
 
   After boot's Confirm step, stop and wait for the user's instructions in YOUR pane.
   ```
@@ -112,9 +112,9 @@ For each `(agent-name, repo-path)` in the spawn set:
   - `<agent-name>` — the resolved kebab-case name
   - `<abs-path-to-agent-dir>` — the absolute path to the agent's directory (`<lore-agent-repo>/agents/<agent-name>/`)
 
-  `${CLAUDE_PLUGIN_ROOT}` is left **literal** in the spawn prompt — the teammate's session resolves it via Claude Code (teammates load skills from project and user settings, per the Agent Teams documentation).
+  `<framework-root>` is left **literal** in the spawn prompt — the teammate's session resolves it via Claude Code (teammates load skills from project and user settings, per the Agent Teams documentation).
 
-  **Single source of truth.** The four RULES live in `teammate-conventions.md`. The spawn prompt above intentionally does NOT restate them in full — that would create three-way drift between the spawn prompt, the conventions doc, and the conventions.md summary. Instead, the prompt points the teammate at the boot-time load (which is the durable mechanism) and includes only a one-sentence recap as a fallback for the case where the boot-time load fails (e.g. `${CLAUDE_PLUGIN_ROOT}` doesn't resolve in the spawned environment). The boot-time load via `agent-boot.md` Step 5 is what actually anchors the rules; the spawn-prompt recap is a safety net, not a parallel statement.
+  **Single source of truth.** The four RULES live in `teammate-conventions.md`. The spawn prompt above intentionally does NOT restate them in full — that would create three-way drift between the spawn prompt, the conventions doc, and the conventions.md summary. Instead, the prompt points the teammate at the boot-time load (which is the durable mechanism) and includes only a one-sentence recap as a fallback for the case where the boot-time load fails (e.g. `<framework-root>` doesn't resolve in the spawned environment). The boot-time load via `agent-boot.md` Step 5 is what actually anchors the rules; the spawn-prompt recap is a safety net, not a parallel statement.
 
 ### Lead behavior — teammate-to-lead messages
 
@@ -153,7 +153,7 @@ Agent({
 
 Important:
 
-- **`prompt` is the verbatim spawn prompt from Step 6** — the one starting `Read ${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>...`. **Do not** pass the natural-language "Create an agent team..." directive that earlier versions of this doc described — that directive was a relic intended for a separate lead session and never made sense as an `Agent`-tool prompt.
+- **`prompt` is the verbatim spawn prompt from Step 6** — the one starting `Read <framework-root>/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>...`. **Do not** pass the natural-language "Create an agent team..." directive that earlier versions of this doc described — that directive was a relic intended for a separate lead session and never made sense as an `Agent`-tool prompt.
 - **Do not delegate this call to a subagent** (e.g. via a wrapping `Agent` call whose prompt says "now spawn a teammate"). Subagents do not have the `Agent` tool in scope; they cannot create teammates. The whole point of being in the lead's pane is to make the call directly.
 - Multiple teammates: send the `Agent` calls in a single message in parallel — they are independent.
 
@@ -290,12 +290,12 @@ The user's `pt a` keystrokes prefixed `cd`, the shell rejected `pt`, the `&&` sh
 - **Teammate boot fails inside Agent Teams.** Boot output appears in the teammate's pane (split-pane mode) or via Shift+Down (in-process). The skill has no visibility once the `Agent` calls return — investigation and recovery happen through Agent Teams' own UI.
 - **Agent Teams not installed / version too old.** The activation check passes (env var present) but the `Agent` call fails or the spawned teammate cannot bootstrap. The error surfaces in the spawn pane or in the `Agent` tool result.
 - **Multi-domain workspace.** Names from different repos appear in the unified pick list; cross-repo collisions are disambiguated explicitly by repo path.
-- **CWD safety.** Use absolute paths when reading agent files across repos. Never `cd` into a repo for inspection — see the CWD safety section of `${CLAUDE_PLUGIN_ROOT}/docs/conventions.md`.
+- **CWD safety.** Use absolute paths when reading agent files across repos. Never `cd` into a repo for inspection — see the CWD safety section of `<framework-root>/docs/conventions.md`.
 
 ## See Also
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` — the boot procedure each teammate follows on spawn.
-- `${CLAUDE_PLUGIN_ROOT}/docs/consult.md` — lightweight one-shot question to an unloaded agent (in-session).
-- `${CLAUDE_PLUGIN_ROOT}/docs/attach.md` — sustained guest loading within one session.
-- `${CLAUDE_PLUGIN_ROOT}/docs/recall.md` — search lore of agents already loaded.
+- `<framework-root>/docs/agent-boot.md` — the boot procedure each teammate follows on spawn.
+- `<framework-root>/docs/consult.md` — lightweight one-shot question to an unloaded agent (in-session).
+- `<framework-root>/docs/attach.md` — sustained guest loading within one session.
+- `<framework-root>/docs/recall.md` — search lore of agents already loaded.
 - Official Agent Teams documentation: https://code.claude.com/docs/en/agent-teams

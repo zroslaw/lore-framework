@@ -6,12 +6,14 @@ Integrate reflection topics into the agent's existing lore.
 
 Merge always runs in a subagent, one per active agent, with all subagents launched in parallel. This is uniform for single- and multi-agent sessions — a single-agent session just spawns one subagent. Running merge in a subagent keeps session noise out of merge decisions and gives a clean, focused context.
 
+> **Engine note.** The spawn mechanics below describe Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`, selected at boot) defines a **subagent-spawn override**, follow it instead — e.g. on Codex use `spawn_agent` (role `worker`), not the `Agent` tool, and the **host reads this procedure and passes the steps inline** into each subagent's brief rather than pointing the subagent at this doc. The subagent still boots as its target agent.
+
 **Each subagent boots as the agent it is merging for**, using the standard boot procedure. Booting gives the subagent the agent's role, identity, and lore context naturally — the same pattern `/lr:consult` uses. After booting, the subagent runs the process below scoped to its own agent and returns a short summary to the host.
 
 Host responsibilities when merge is invoked:
 
 1. Collect active agents (host + any attached guests).
-2. For each, spawn a **`general-purpose`** subagent (merge needs `Write`/`Edit`/`Bash`; `Explore` does not) with a brief such as: _"Boot as agent `<name>` (repo: `<path>`) per `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md`, then run the merge procedure in `${CLAUDE_PLUGIN_ROOT}/docs/process-merge.md` scoped to yourself. Return a short summary of topics touched, role changes, and any anomalies. Do not commit — finalize handles that."_
+2. For each, spawn a **`general-purpose`** subagent (merge needs `Write`/`Edit`/`Bash`; `Explore` does not) with a brief such as: _"Boot as agent `<name>` (repo: `<path>`) per `<framework-root>/docs/agent-boot.md`, then run the merge procedure in `<framework-root>/docs/process-merge.md` scoped to yourself. Return a short summary of topics touched, role changes, and any anomalies. Do not commit — finalize handles that."_
 3. In a multi-agent session, spawn all subagents in parallel (single message with multiple Agent tool calls).
 4. Collect summaries and report per-agent success/failure to the user. **Retain each subagent's return** — phase 3 (summarize) uses it to compose guest summaries.
 
@@ -32,7 +34,7 @@ The steps below are what **each subagent** runs once booted as its target agent.
 
 ### Step 0: Refresh the Repo
 
-Before reading the lore for integration, run the auto-pull procedure in `${CLAUDE_PLUGIN_ROOT}/docs/auto-pull.md` against the agent's repo. The boot procedure already auto-pulls — this step is defense-in-depth, both because the freshness contract belongs at the merge site explicitly (the moment when stale lore is most damaging) and to cover any boot-pull skip (no remote, network blip) that may have left the repo behind.
+Before reading the lore for integration, run the auto-pull procedure in `<framework-root>/docs/auto-pull.md` against the agent's repo. The boot procedure already auto-pulls — this step is defense-in-depth, both because the freshness contract belongs at the merge site explicitly (the moment when stale lore is most damaging) and to cover any boot-pull skip (no remote, network blip) that may have left the repo behind.
 
 `--ff-only` is safe even though the merge subagent's working tree is dirty (the `reflections/` from phase 1, or any merge-in-progress edits): git refuses to fast-forward if the operation would clobber uncommitted edits, and otherwise advances `HEAD` cleanly leaving the working tree untouched. See `docs/auto-pull.md` § Invariants.
 

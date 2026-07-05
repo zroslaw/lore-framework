@@ -74,7 +74,7 @@ Repos in any conflict state above are **skipped during the pull phase** — the 
 
 ## Implementation
 
-The skill is a one-liner that invokes `${CLAUDE_PLUGIN_ROOT}/scripts/workspace-sync` with the current working directory. All logic lives in the script — Bash 3.2+ compatible (no associative arrays), parallel clone and pull phases, output captured per-repo for clean reporting.
+The skill is a one-liner that invokes `<framework-root>/scripts/workspace-sync` with the current working directory. All logic lives in the script — Bash 3.2+ compatible (no associative arrays), parallel clone and pull phases, output captured per-repo for clean reporting.
 
 Pulls use `--ff-only` so divergent local branches surface as failures rather than producing silent merge commits.
 

@@ -27,7 +27,7 @@ The user can also invoke it as a focused query: `"/lr:doctor — my plugin updat
 
 2. **Match against the catalog.** Read the **Catalog** section below. For each ailment, compare its symptom signature against the user's description. If multiple match, list them with their slugs and ask the user which to investigate first.
 
-3. **Load the matching ailment topic.** Read `${CLAUDE_PLUGIN_ROOT}/docs/doctor-<slug>.md`.
+3. **Load the matching ailment topic.** Read `<framework-root>/docs/doctor-<slug>.md`.
 
 4. **Run the diagnosis steps.** Execute the commands and inspect the output exactly as the topic prescribes. Confirm the diagnosis before proceeding.
 

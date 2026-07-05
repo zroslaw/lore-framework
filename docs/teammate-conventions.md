@@ -57,6 +57,6 @@ A useful self-check before any `SendMessage` call: *"Did the user in my pane jus
 
 ## See Also
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/spawn-teammate.md` — the skill that creates teammates (and the lead-side redirect protocol that is the team-lead's mirror of these rules).
-- `${CLAUDE_PLUGIN_ROOT}/docs/agent-boot.md` § Step 5 — where this doc is loaded.
-- `${CLAUDE_PLUGIN_ROOT}/docs/conventions.md` § Teammate Discipline — the framework-level summary of the asymmetry between the lead-side and teammate-side rules.
+- `<framework-root>/docs/spawn-teammate.md` — the skill that creates teammates (and the lead-side redirect protocol that is the team-lead's mirror of these rules).
+- `<framework-root>/docs/agent-boot.md` § Step 5 — where this doc is loaded.
+- `<framework-root>/docs/conventions.md` § Teammate Discipline — the framework-level summary of the asymmetry between the lead-side and teammate-side rules.

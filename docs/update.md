@@ -10,7 +10,7 @@ Optional argument: `--dry-run` — print what would change without writing any f
 
 ## Core Concept
 
-A single repo-level version identifier is the source of truth. The framework version lives in `${CLAUDE_PLUGIN_ROOT}/VERSION`. Each lore agent repo stamps this version in its `lore-repo.md` frontmatter. When the framework is ahead of a repo, `/lr:update` walks intermediate versions in sequence — applying migrations from `${CLAUDE_PLUGIN_ROOT}/migrations/` and displaying release notes from `${CLAUDE_PLUGIN_ROOT}/release-notes/` — then stamps the new version, but only after all steps succeed.
+A single repo-level version identifier is the source of truth. The framework version lives in `<framework-root>/VERSION`. Each lore agent repo stamps this version in its `lore-repo.md` frontmatter. When the framework is ahead of a repo, `/lr:update` walks intermediate versions in sequence — applying migrations from `<framework-root>/migrations/` and displaying release notes from `<framework-root>/release-notes/` — then stamps the new version, but only after all steps succeed.
 
 There is no per-agent version stamp. Agents within a repo migrate together with the repo.
 
@@ -27,7 +27,7 @@ Versions that need both have both files. Versions that introduce features withou
 
 ### 1. Read framework version
 
-Read `${CLAUDE_PLUGIN_ROOT}/VERSION`. Trim whitespace. This is the target version `F`.
+Read `<framework-root>/VERSION`. Trim whitespace. This is the target version `F`.
 
 ### 2. Discover repos
 
@@ -47,9 +47,9 @@ Read the `version` field from `lore-repo.md` frontmatter → repo version `R`.
 
 For `v` in `R+1` through `F` inclusive:
 
-1. **Migration**: if `${CLAUDE_PLUGIN_ROOT}/migrations/<v>.md` exists, read it and follow its instructions, scoped to the current repo. The migration doc is plain markdown; interpret its steps and execute them.
+1. **Migration**: if `<framework-root>/migrations/<v>.md` exists, read it and follow its instructions, scoped to the current repo. The migration doc is plain markdown; interpret its steps and execute them.
 
-2. **Release notes**: if `${CLAUDE_PLUGIN_ROOT}/release-notes/<v>.md` exists, read it and display the contents to the user.
+2. **Release notes**: if `<framework-root>/release-notes/<v>.md` exists, read it and display the contents to the user.
 
 3. **At least one** must exist for version `v`. If neither `migrations/<v>.md` nor `release-notes/<v>.md` is present, this is a framework packaging bug — report it and stop the upgrade for this repo.
 
@@ -138,7 +138,7 @@ It is acceptable to run read-only git commands (`git -C <lore-agent-repo> status
 
 ## Error Handling
 
-If the framework version file (`${CLAUDE_PLUGIN_ROOT}/VERSION`) is missing or unreadable, stop with a clear error — the plugin is broken or not installed.
+If the framework version file (`<framework-root>/VERSION`) is missing or unreadable, stop with a clear error — the plugin is broken or not installed.
 
 If neither a migration doc nor a release-notes doc exists for a version in the range `R+1 ... F`, stop upgrading that repo and report the gap — this is a framework packaging bug.
 
