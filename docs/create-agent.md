@@ -49,4 +49,6 @@ Add a new agent to an existing agent repo.
    Initial session. No accumulated lore yet.
    ```
 
-7. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>`. To also get a dedicated `/lr-<agent-name>-agent` shortcut command, run `/lr:register-repo <lore-agent-repo>`.
+7. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>`. To also get a dedicated per-agent shortcut, run `/lr:register-repo <lore-agent-repo>`:
+   - **Claude Code:** `/lr-<agent-name>-agent`
+   - **Codex:** `$lr-<agent-name>-agent`

@@ -45,7 +45,7 @@ If no lore agent is loaded in the current session, respond: `No agent loaded. Ru
 
 From the session conversation:
 
-- **Host** — whichever agent was booted via `/lr:boot` or a `/lr-<name>-agent` shortcut command.
+- **Host** — whichever agent was booted via `/lr:boot` or a registered per-agent shortcut.
 - **Guests** — any agents confirmed as attached by prior `/lr:attach` commands in this session (no detach in v1; once attached, they remain active).
 
 Resolve each active agent's `<lore-agent-repo>` path. Deduplicate repos: if host and a guest live in the same repo, pull that repo once.

@@ -1,5 +1,5 @@
 ---
-description: "Remove all agent shortcut commands for an agent repo. Usage: /lr:unregister-repo <lore-agent-repo>"
+description: "Remove all per-agent boot shortcuts for an agent repo. Usage: /lr:unregister-repo <lore-agent-repo>"
 argument-hint: "<lore-agent-repo>"
 ---
 

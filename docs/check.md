@@ -37,13 +37,23 @@ Note: `role.md` does not carry a `version` field at framework version 2+. Agent-
 
 ## 6. Agent discovery vs registration
 
-For each agent found in step 4, check whether a shortcut command `lr-<agent-name>-agent.md` exists in `.claude/commands/`. Report any agents without a registered shortcut command as **informational** (registration is optional — agents are always loadable via `/lr:boot`).
+For each agent found in step 4, check whether an engine-native registered shortcut exists:
 
-Conversely, for every `lr-*-agent.md` shortcut command in `.claude/commands/`, verify the agent directory it references actually exists. Report any shortcut commands pointing to missing agent directories as **errors**.
+- **Claude Code:** `lr-<agent-name>-agent.md` in `.claude/commands/`
+- **Codex:** `lr-<agent-name>-agent/` in `~/.codex/skills/` containing `SKILL.md`
 
-## 7. Shortcut command link validity
+Report any agents without a registered shortcut as **informational** (registration is optional — agents are always loadable via `/lr:boot`).
 
-For every `lr-*-agent.md` in `.claude/commands/`, extract all file paths referenced in the command. Verify each path resolves to an existing file. Report any broken paths.
+Conversely, for every registered shortcut artifact found in those locations, verify the agent directory it references actually exists. Report any shortcuts pointing to missing agent directories as **errors**.
+
+## 7. Registered shortcut link validity
+
+For every registered shortcut artifact:
+
+- **Claude Code:** `lr-*-agent.md` in `.claude/commands/`
+- **Codex:** `lr-*-agent/SKILL.md` in `~/.codex/skills/`
+
+Extract all file paths referenced in the content. Verify each path resolves to an existing file. Report any broken paths.
 
 ## 8. Agent directory structure
 
@@ -85,9 +95,9 @@ For every agent, use `git -C <lore-agent-repo> log -1 --format=%ci -- <file>` to
 
 For every agent, for each lore topic referenced in `lore-context.md`: read the topic file and compare its heading (first `#` line) and opening sentence against what `lore-context.md` says about it. Flag any cases where the topic's actual title or subject clearly differs from the description in lore-context — this indicates the summary was not updated after the topic was substantially revised.
 
-## 16. Shortcut command vs role.md
+## 16. Registered shortcut vs role.md
 
-For every `lr-*-agent.md` shortcut command, compare git last commit date of the shortcut command file against the last commit date of the agent's `role.md`. If `role.md` was updated more recently, flag it: the shortcut command may not accurately describe the agent's current role. Also do a quick semantic check: verify the agent name in the shortcut command matches the heading in `role.md`.
+For every registered shortcut artifact, compare its last modification date against the last commit date of the agent's `role.md`. If `role.md` was updated more recently, flag it: the shortcut may not accurately describe the agent's current role. Also do a quick semantic check: verify the agent name in the shortcut matches the heading in `role.md`.
 
 ## 17. Orphaned pre-plugin skill commands
 
@@ -96,20 +106,22 @@ Scan `<workspace>/.claude/commands/` for files matching `lr-*.md` that do **not*
 - If the plugin skill exists, flag the file as an **orphaned pre-plugin skill duplicate** — `/lr:<skill-name>` is now provided by the plugin, so the local command is redundant and typically references stale sibling paths (`lore-framework/docs/...`). Report the file path and the covering plugin skill. Suggest: run `/lr:update` (migration 5 prompts to delete these per file) or delete manually.
 - If no matching plugin skill exists, the file is a user-authored command — do not flag it.
 
-## 18. Legacy shortcut command formats
+## 18. Legacy registered shortcut formats
 
-For every `lr-*-agent.md` in `<workspace>/.claude/commands/` whose content contains `boot as agent`, check the format. The current form uses absolute paths and includes the agent directory:
+For every Claude shortcut file `lr-*-agent.md` in `<workspace>/.claude/commands/` whose content contains `boot as agent`, check the format. The current Claude form uses absolute paths and includes the agent directory:
 
 ```
 Read `<absolute-path>/docs/agent-boot.md` and boot as agent `<agent-name>` from `<absolute-agent-dir>`.
 ```
 
-Flag any file that instead uses:
+Flag any Claude file that instead uses:
 - `lore-framework/docs/agent-boot.md` (pre-v5 sibling-path form)
 - `<framework-root>/docs/agent-boot.md` (v5 form — unresolved in `.claude/commands/`)
 - Any form lacking the `from <agent-dir>` suffix
 
-These legacy formats cause slower or broken boots. Suggest: run `/lr:update` (migration 6 regenerates them) or re-register with `/lr:register-repo`.
+These legacy Claude formats cause slower or broken boots. Suggest: run `/lr:update` (migration 6 regenerates them) or re-register with `/lr:register-repo`.
+
+For every Codex shortcut skill `lr-*-agent/SKILL.md` in `~/.codex/skills/` whose content contains `boot as agent`, flag it if it lacks the `from <agent-dir>` suffix or does not point at an absolute `agent-boot.md` path. Suggest: re-register with `/lr:register-repo`.
 
 ## 19. Plugin manifest version
 

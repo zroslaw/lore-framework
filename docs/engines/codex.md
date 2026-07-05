@@ -14,7 +14,7 @@ finalize, plus binary ground-truth of the multi-agent subsystem. See lore
 | Binding | Value on Codex |
 |---|---|
 | **framework-root** | `${CLAUDE_PLUGIN_ROOT}` is **empty** here — never rely on it. Use the absolute path self-located in Step 0. When you spawn a subagent, **inline that absolute path** into its brief (the subagent cannot self-locate from your context). |
-| **invocation-syntax** | Codex installs the `SKILL.md` skills natively; a **user** invokes them through Codex's own skill mechanism. **Do not type `/lr:<skill>` as an agent** — in `codex exec` it falls through to the shell and fails. When you need a skill's behavior mid-task, **read `<framework-root>/docs/<skill>.md` and follow it directly.** |
+| **invocation-syntax** | Codex installs the `SKILL.md` skills natively; a **user** invokes them through Codex's own skill mechanism. Registered per-agent shortcuts are best exposed as **personal skills** in `~/.codex/skills/`, referenced like `$lr-<agent>-agent`. **Do not type `/lr:<skill>` as an agent** — in `codex exec` it falls through to the shell and fails. When you need a skill's behavior mid-task, **read `<framework-root>/docs/<skill>.md` and follow it directly.** |
 | **subagent-spawn** | Use Codex's native **`spawn_agent`** tool (feature `multi_agent`, on by default). Roles: `worker` (write), `explorer` (read-only). Collect results with `wait_agent` (call it sparingly — only when blocked on a result). **These tools are in-session model actions — they CANNOT be called from a shell command.** Caps: `agents.max_threads` ≈ 6, `agents.max_depth` = 1 (you may spawn; your subagents may not spawn again). See the fan-out override below. |
 | **memory-file** | `AGENTS.md` (not `CLAUDE.md`). |
 | **runtime-bounding** | No Bash-tool timeout flag; a long command is bounded by the Codex sandbox / `agents.job_max_runtime_seconds`. Ignore "set the Bash-tool timeout" prose. |
@@ -55,12 +55,12 @@ Codex's `workspace-write` sandbox **blocks writes to `.git/`** even inside the w
 
 - **auto-pull** (boot) will fail its `git pull` — that is fine, boot already degrades on pull
   failure; nothing to fix.
-- **finalize's commit** (and any framework `git commit`/`git pull`) cannot run under the default
-  sandbox. To let it through, run Codex with `.git` writable — e.g. `--sandbox
-  danger-full-access` for a trusted local run, or add the repo's `.git` to the writable roots
-  (`-c sandbox_workspace_write.writable_roots=[…]`). Otherwise **leave the merged changes
-  uncommitted and have the user commit by hand** — merge itself completes and writes lore to
-  disk; only the commit is gated. Report this rather than treating it as a merge failure.
+- **Lore's supported finalize path on Codex is: run with `.git` writable.** The plugin cannot
+  widen Codex's sandbox by itself, so this must come from how Codex is launched or configured.
+  For trusted local use, either run with `--sandbox danger-full-access` or add the repo's `.git`
+  to the writable roots (`-c sandbox_workspace_write.writable_roots=[…]`). Under the default
+  sandbox, finalize may still merge and write lore files, but the `git commit` step will be
+  blocked; treat that as a degraded fallback, not the intended product path.
 
 ## Notes
 

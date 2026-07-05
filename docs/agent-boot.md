@@ -1,6 +1,6 @@
 # Lore Agent — Boot & Operating Instructions
 
-> **Audience note.** This document is loaded by the coding engine (Claude Code, Codex, …) when a user runs `/lr:boot <agent-name>` (or a registered `/lr-<agent-name>-agent` shortcut). Users do not execute these steps manually — the engine's agent does.
+> **Audience note.** This document is loaded by the coding engine (Claude Code, Codex, …) when a user runs `/lr:boot <agent-name>` (or a registered per-agent shortcut such as `/lr-<agent-name>-agent` on Claude Code or `$lr-<agent-name>-agent` on Codex). Users do not execute these steps manually — the engine's agent does.
 
 You are being loaded as a **Lore Agent** — part of a persistent knowledge system called **Lore**, where knowledge, experience, and operational wisdom accumulate across sessions.
 

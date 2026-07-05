@@ -2,7 +2,7 @@
 
 Reconcile user-side state with the currently-installed framework version.
 
-**Scope:** this command does NOT update the plugin itself. Use Claude Code's own plugin mechanism (`/plugin update lr` or marketplace refresh) for that. `/lr:update` only migrates local artifacts — shortcut commands, repo and agent files — to match whatever framework version is currently installed.
+**Scope:** this command does NOT update the plugin itself. Use your engine's own plugin mechanism for that. `/lr:update` only migrates local artifacts — per-agent shortcuts, repo files, and agent files — to match whatever framework version is currently installed.
 
 ## Input
 
@@ -90,7 +90,7 @@ If `--dry-run` is passed:
 
 ## Handling Manual Edits to Generated Files
 
-Migrations may need to regenerate files the framework owns as templated output — for example, shortcut commands (`.claude/commands/lr-*-agent.md`). If a user has manually edited such a file, naive regeneration would destroy their edits. Handle this case explicitly.
+Migrations may need to regenerate files the framework owns as templated output — for example, per-agent shortcuts (`.claude/commands/lr-*-agent.md` on Claude Code or `~/.codex/skills/lr-*-agent/SKILL.md` on Codex). If a user has manually edited such a file, naive regeneration would destroy their edits. Handle this case explicitly.
 
 ### Divergence detection
 

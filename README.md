@@ -1,6 +1,6 @@
 # Lore Framework
 
-A persistent knowledge system for AI agents running in [Claude Code](https://claude.com/claude-code).
+A persistent knowledge system for AI agents running in Claude Code, Codex, and Cursor.
 
 Agents accumulate **lore** — domain expertise, operational wisdom, and decision history — across sessions. Each agent's knowledge graph lives in a shared git repository, growing through contributions from every teammate who boots the agent.
 
@@ -37,6 +37,27 @@ A handful of terms appear throughout the docs:
 - **Finalize** — at session end, extract what was learned, merge it into the agent's lore, write a session summary, and commit + push. One command: `/lr:finalize`.
 
 ## Installation
+
+### Codex-native install
+
+If a user asks **Codex** to install Lore Framework from this repository, the Codex agent should do the install itself.
+
+Run:
+
+```bash
+codex plugin marketplace add zroslaw/lore-framework
+codex plugin add lr@lore-framework
+```
+
+Then tell the user to restart Codex so the new plugin is loaded.
+
+If the user pointed Codex at a local checkout instead of GitHub, use the local path instead of `zroslaw/lore-framework`.
+
+If the user wants Lore finalization to commit automatically, Codex must also run with `.git`
+writable. The plugin cannot grant that on its own; this has to come from the user's Codex
+sandbox/configuration.
+
+### Claude Code install
 
 Install the `lr` plugin in Claude Code:
 
@@ -147,8 +168,8 @@ Grouped by purpose:
 |---|---|
 | `/lr:create-repo <name>` | Scaffold a new agent repo |
 | `/lr:create-agent [name]` | Add a new agent to a repo |
-| `/lr:register-repo <name>` | Generate agent shortcut commands |
-| `/lr:unregister-repo <name>` | Remove agent shortcut commands |
+| `/lr:register-repo <name>` | Generate per-agent boot shortcuts |
+| `/lr:unregister-repo <name>` | Remove per-agent boot shortcuts |
 
 **Maintenance**
 | Skill | Purpose |
@@ -164,13 +185,18 @@ Grouped by purpose:
 
 ## Optional: Agent Shortcut Commands
 
-By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register shortcut commands:
+By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register per-agent shortcuts:
 
 ```
 /lr:register-repo my-agents
 ```
 
-This generates `/lr-<agent-name>-agent` shortcut commands in `.claude/commands/` — one-line delegations to `agent-boot.md` with absolute paths to the agent directory for faster boot.
+This generates engine-native per-agent shortcuts:
+
+- **Claude Code:** `/lr-<agent-name>-agent` in `.claude/commands/`
+- **Codex:** `$lr-<agent-name>-agent` as personal skills in `~/.codex/skills/`
+
+Both are one-line delegations to `agent-boot.md` with absolute paths to the agent directory for faster boot.
 
 ## Directory Layout
 
@@ -189,10 +215,12 @@ my-workspace/                       # Workspace — the directory you run Claude
 │   └── agents/
 │       └── ...
 └── .claude/
-    └── commands/                   # Optional registered agent commands
+    └── commands/                   # Claude Code optional registered agent commands
         ├── lr-researcher-agent.md
         └── ...
 ```
+
+On Codex, the equivalent registered shortcuts live in `~/.codex/skills/` as personal skills like `$lr-researcher-agent`.
 
 ## License
 
