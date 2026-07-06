@@ -10,7 +10,7 @@ differ.
 | Binding | Value on Claude Code |
 |---|---|
 | **framework-root** | Self-locate (Step 0). `${CLAUDE_PLUGIN_ROOT}` also expands to it and may be used as a literal-path fallback. |
-| **invocation-syntax** | Skills are user-invoked as slash commands `/lr:<skill>`; the engine expands them. Per-agent boot shortcuts `/lr-<agent>-agent`. |
+| **invocation-syntax** | Skills are user-invoked as slash commands `/lr:<skill>`; the engine expands them. Canonical skill folders live under `skills/<skill>/`. Per-agent boot shortcuts `/lr-<agent>-agent`. |
 | **subagent-spawn** | The `Agent` tool. Fan-out = **N parallel `Agent` calls in a single message**. Sub-agent types: `general-purpose` (write), `Explore` (read-only). Each subagent boots as its target agent and reads the procedure doc itself. |
 | **memory-file** | `CLAUDE.md`. |
 | **runtime-bounding** | The Bash-tool `timeout` parameter bounds a command's runtime. |

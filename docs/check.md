@@ -149,3 +149,17 @@ For every file `<framework-root>/migrations/<N>.md`, verify a `## Write Paths` s
 If a remaining line matches neither shape → **error**: the migration's body contains free-form prose that the parser would consume as a (non-matching) pseudo-glob, silently producing an empty or partial write-set. The blast radius is the same as a missing section — the gate either over-defers or, worse, fails to defer when it should — so the severity matches Steps 20.1 and 20.2. Fix: move the prose outside the fenced block (after the closing fence, where the parser ignores it) or rewrite as a `#`-prefixed comment inside the fence.
 
 This check has teeth mainly when reviewing newly-authored migrations during framework development. For a marketplace install it confirms shipped migrations follow the convention.
+
+## 21. Cursor skill tree parity
+
+The Cursor engine loads skills from `skills/cursor/` (see `.cursor-plugin/plugin.json` and `docs/engines/cursor.md`). Each canonical plugin skill must have a matching prefixed wrapper.
+
+For every directory `<framework-root>/skills/<name>/` containing a `SKILL.md` (excluding the `cursor/` subtree itself), verify:
+
+- `<framework-root>/skills/cursor/lr-<name>/SKILL.md` exists.
+- Its frontmatter `name` field equals `lr-<name>`.
+- Its self-location line references `skills/cursor/lr-<name>/SKILL.md` (not the canonical `skills/<name>/` path).
+
+Conversely, every `skills/cursor/lr-<name>/` directory must have a matching canonical `skills/<name>/SKILL.md`. Orphaned cursor wrappers → **error** (stale after a rename/delete).
+
+If canonical and cursor wrappers drift (same doc target but different `$ARGUMENTS` handling or body text beyond the expected path/depth/`name`/`description` invocation-syntax differences), flag as **error** and suggest: run `python3 scripts/sync-cursor-skills` from the framework root to regenerate the cursor tree from canonical skills.
