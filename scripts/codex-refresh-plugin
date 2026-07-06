@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MARKETPLACE="${1:-lore-framework}"
+PLUGIN="${2:-lr}"
+
+if codex plugin marketplace upgrade "$MARKETPLACE"; then
+  :
+else
+  echo "note: marketplace upgrade for $MARKETPLACE failed or is unsupported; continuing with plugin reinstall" >&2
+  echo "note: this is expected for local-source marketplaces" >&2
+fi
+
+codex plugin add "${PLUGIN}@${MARKETPLACE}"
+
+echo "Refreshed ${PLUGIN}@${MARKETPLACE}. Restart Codex so new sessions load the updated plugin."

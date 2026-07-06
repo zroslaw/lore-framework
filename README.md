@@ -38,9 +38,15 @@ A handful of terms appear throughout the docs:
 
 ## Installation
 
+Engine-specific install guides:
+
+- [INSTALL-CODEX.md](INSTALL-CODEX.md) — Codex install, refresh, and team automation
+- [INSTALL-CURSOR.md](INSTALL-CURSOR.md) — Cursor install and refresh
+
 ### Codex-native install
 
-If a user asks **Codex** to install Lore Framework from this repository, the Codex agent should do the install itself.
+If a user asks **Codex** to install Lore Framework from this repository, the Codex agent should do
+the install itself.
 
 Run:
 
@@ -56,6 +62,9 @@ If the user pointed Codex at a local checkout instead of GitHub, use the local p
 If the user wants Lore finalization to commit automatically, Codex must also run with `.git`
 writable. The plugin cannot grant that on its own; this has to come from the user's Codex
 sandbox/configuration.
+
+For the full Codex guide, including refresh and team-automation patterns, see
+`INSTALL-CODEX.md`.
 
 ### Claude Code install
 
@@ -74,6 +83,11 @@ For local development:
 ```bash
 claude --plugin-dir ./lore-framework
 ```
+
+### Cursor install
+
+The verified Cursor path today is loading the framework from a local checkout via `--plugin-dir`.
+See `INSTALL-CURSOR.md` for the reproducible setup and refresh instructions.
 
 ## Quick Start
 

@@ -62,6 +62,21 @@ Codex's `workspace-write` sandbox **blocks writes to `.git/`** even inside the w
   sandbox, finalize may still merge and write lore files, but the `git commit` step will be
   blocked; treat that as a degraded fallback, not the intended product path.
 
+## Plugin refresh (operational)
+
+Codex installs `lr` persistently under `~/.codex/plugins/cache/...`. Updating the framework source
+or marketplace does **not** by itself move the installed plugin version already recorded in Codex.
+
+- **Git marketplace:** run `codex plugin marketplace upgrade lore-framework`, then
+  `codex plugin add lr@lore-framework`.
+- **Local-source marketplace:** run `codex plugin add lr@lore-framework`.
+- **Fallback reinstall:** if the installed version still does not move forward, run
+  `codex plugin remove lr@lore-framework` and then `codex plugin add lr@lore-framework`.
+
+A refresh done mid-session affects future sessions, not the one already running. Restart Codex
+after the refresh. See `<framework-root>/INSTALL-CODEX.md` for the user-facing install guide and
+`<framework-root>/scripts/codex-refresh-plugin` for a helper script.
+
 ## Notes
 
 - All values above are **facts to follow**, so you do not rediscover them at runtime.

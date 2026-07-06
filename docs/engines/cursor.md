@@ -43,6 +43,16 @@ using `--plugin-dir` against a local framework copy. Verified facts so far:
   interacts with Lore's workspace invariant. Until proven, keep Lore's multi-agent file work
   serial and host-driven on Cursor.
 
+## Plugin load and refresh (operational)
+
+The documented, empirically verified Cursor path today is `cursor-agent --plugin-dir
+/absolute/path/to/lore-framework` against a local checkout. If that checkout changes, restart
+Cursor with the same `--plugin-dir` target; the current session keeps using the plugin tree it
+already loaded.
+
+The framework also ships `.cursor-plugin/plugin.json`, but the verified guidance remains the local
+checkout path above. See `<framework-root>/INSTALL-CURSOR.md` for the user-facing install guide.
+
 ## Host-Side Override Rules
 
 Apply these substitutions anywhere a shared doc expects Claude `Agent` fan-out.

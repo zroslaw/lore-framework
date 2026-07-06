@@ -17,7 +17,10 @@ You should not be reading this doc — `agent-boot.md`'s version check skipped t
 
 The repo is stamped at a version newer than the installed framework. The plugin may be out of date.
 
-- Print a warning to the user: `<lore-agent-repo>: stamped as version R, but framework is at F — your plugin may be out of date. Run /plugin update lr or refresh the marketplace.`
+- Print a warning to the user. Use the active engine profile to give the engine-specific next step:
+  - **Codex:** `<lore-agent-repo>: stamped as version R, but framework is at F — your Codex plugin is older than the repo. Refresh the plugin (`codex plugin add lr@lore-framework`; if the marketplace is Git-backed, run `codex plugin marketplace upgrade lore-framework` first), restart Codex, then boot again. See <framework-root>/INSTALL-CODEX.md.`
+  - **Cursor:** `<lore-agent-repo>: stamped as version R, but framework is at F — your Cursor plugin/session is older than the repo. Refresh the plugin source per your install method, start a fresh Cursor session, then boot again. See <framework-root>/INSTALL-CURSOR.md.`
+  - **Other engines:** `<lore-agent-repo>: stamped as version R, but framework is at F — your plugin may be out of date. Refresh or reinstall the plugin using your engine's normal install flow, then boot again.`
 - Do NOT modify any files.
 - Continue boot in degraded mode.
 
