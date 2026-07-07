@@ -85,6 +85,16 @@ Match each dirty tracked file's repo-relative path against the write-set globs.
 
 - **Empty intersection** (no dirty file collides) → proceed to Step 2.
 
+- **Exact `lore-repo.md`-only collision on a stamp-only upgrade** → proceed to Step 2. If the
+  colliding set is exactly `lore-repo.md`, and the computed write-set is also exactly
+  `lore-repo.md` (that is: no migration in `R+1 .. F` writes any repo file beyond the final
+  version stamp), do **not** defer. This is the common "release-notes-only versions plus a dirty
+  stamp file" case. It is safe to continue because Step 3 reads the current working-tree
+  `lore-repo.md` and updates only its `version` field while preserving the rest of the file.
+  This also covers a previously-deferred local stamp such as committed `17`, working tree `18`,
+  now advancing to `23`: the earlier dirty stamp is not a reason to block the later stamp-only
+  upgrade.
+
 - **Non-empty intersection** → defer. Print a precise message naming the colliding files and the right command. Substitute `<lore-agent-repo>` with the actual repo path and quote it if it contains spaces — emit literal commands, not template placeholders:
 
   ```
@@ -101,20 +111,7 @@ Match each dirty tracked file's repo-relative path against the write-set globs.
 
   **This deferral is NOT a boot failure.** Print the message above, then return to `agent-boot.md` and finish loading the agent in degraded mode — do not emit any boot-failed signal or stop the boot.
 
-- **Addendum — previously-deferred stamp.** Independently of how many other files collide, if `lore-repo.md` is in the colliding set AND parsing its `version` field yields a value `<X>` numerically in `(R, F]` (i.e. ahead of the committed `R` but not past `F`), append a tailored hint specifically about `lore-repo.md`. The version field may use any of the YAML quoting variants (`version: 14`, `version: "14"`, `version: '14'`, with or without trailing comments) — strip quotes/whitespace/comments and parse as integer for the comparison.
-
-  ```
-  Note about lore-repo.md: it is dirty and stamped at version <X>, between R=<R> and F=<F> —
-  this looks like an earlier auto-upgrade was deferred mid-flight. For lore-repo.md specifically:
-    Accept that bump:   git -C "<lore-agent-repo>" commit lore-repo.md -m "stamp version <X>"
-    Or revert it:       git -C "<lore-agent-repo>" checkout -- lore-repo.md
-  ```
-
-  If `lore-repo.md` is the *only* colliding file, the addendum is the entire deferral reason — print it without the generic preamble. Otherwise, print the generic message above first, then the addendum.
-
-  Caveat: this heuristic assumes the dirty change is to the `version` field. If the user dirtied `description:` or `repos:` (other fields), the version-field parse still yields the committed `R`, the `(R, F]` test fails, and the addendum correctly does not fire — the generic message handles it. If the user happens to have *also* manually bumped the version while editing other fields, the addendum will fire alongside changes that aren't actually a deferred stamp; the suggested commands are still valid but the diagnostic prose may be slightly off. This is acceptable: the recovery commands are the load-bearing part.
-
-In both deferred cases: do NOT modify any files; continue boot in degraded mode. **A deferred upgrade is not a boot failure** — return to `agent-boot.md` step 3 and proceed to step 4; the agent still loads.
+In deferred cases: do NOT modify any files; continue boot in degraded mode. **A deferred upgrade is not a boot failure** — return to `agent-boot.md` step 3 and proceed to step 4; the agent still loads.
 
 ### Step 2: Walk versions from R+1 to F
 
