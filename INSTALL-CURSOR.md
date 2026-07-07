@@ -14,7 +14,7 @@ The verified reproducible Cursor path today is loading the framework from a loca
 cursor-agent --plugin-dir /absolute/path/to/lore-framework
 ```
 
-The framework's Cursor skill wrappers live under `skills/cursor/`, so the user-facing commands are
+The framework's Cursor skill wrappers live under `.cursor-skills/`, so the user-facing commands are
 slash commands such as `/lr-boot`, `/lr-recall`, and `/lr-finalize`.
 
 ## Refresh After the Framework Updates

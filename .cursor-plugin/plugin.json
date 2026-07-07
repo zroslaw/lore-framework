@@ -1,11 +1,11 @@
 {
   "name": "lr",
   "description": "Lore — persistent knowledge system for AI agents",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "author": {
     "name": "Yaroslav Panasyuk"
   },
   "repository": "https://github.com/zroslaw/lore-framework",
   "license": "MIT",
-  "skills": "skills/cursor/"
+  "skills": ".cursor-skills/"
 }

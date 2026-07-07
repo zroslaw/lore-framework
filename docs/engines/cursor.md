@@ -10,7 +10,7 @@ using `--plugin-dir` against a local framework copy. Verified facts so far:
 
 - `--plugin-dir` works for local plugin loading.
 - User-facing slash invocation works (`/lr-boot lore-architect`). Skill folders live under
-  `skills/cursor/lr-<skill>/` because Cursor shows the folder name in the picker — unlike Claude
+  `.cursor-skills/lr-<skill>/` because Cursor shows the folder name in the picker — unlike Claude
   Code, which prepends the plugin name as `/lr:<skill>`. The `.cursor-plugin/plugin.json` manifest
   points skill discovery at that tree only.
 - `${CLAUDE_PLUGIN_ROOT}` is empty in this engine path.
@@ -23,7 +23,7 @@ using `--plugin-dir` against a local framework copy. Verified facts so far:
 | Binding | Value on Cursor |
 |---|---|
 | **framework-root** | `${CLAUDE_PLUGIN_ROOT}` is empty here — never rely on it. Use the absolute path self-located in Step 0. Reuse that resolved path everywhere `<framework-root>` appears. |
-| **invocation-syntax** | User-invoked lore skills work as slash commands (`/lr-<skill>`, e.g. `/lr-boot`, `/lr-recall`; per-agent shortcuts remain `/lr-<agent>-agent`) when the framework is loaded through `--plugin-dir` or installed as a Cursor plugin. The `.cursor-plugin/plugin.json` manifest sets `"skills": "skills/cursor/"` so only the `lr-`-prefixed wrappers load — canonical `skills/<skill>/` remains for Claude Code. Mid-task, either invoke the skill by name or read `<framework-root>/docs/<skill>.md` directly if a tighter, file-driven execution path is clearer. |
+| **invocation-syntax** | User-invoked lore skills work as slash commands (`/lr-<skill>`, e.g. `/lr-boot`, `/lr-recall`; per-agent shortcuts remain `/lr-<agent>-agent`) when the framework is loaded through `--plugin-dir` or installed as a Cursor plugin. The `.cursor-plugin/plugin.json` manifest sets `"skills": ".cursor-skills/"` so only the `lr-`-prefixed wrappers load — canonical `skills/<skill>/` remains for Claude Code, while the hidden wrapper tree stays out of Codex's plugin skill crawl. Mid-task, either invoke the skill by name or read `<framework-root>/docs/<skill>.md` directly if a tighter, file-driven execution path is clearer. |
 | **subagent-spawn** | **Conservative v1 override:** no verified Cursor-native in-session subagent mechanism is relied on by the framework. For procedures that describe Claude `Agent` fan-out, execute the work **host-side, serially, one target agent at a time**. Read-only search work uses direct Read/Grep/Glob on each target lore directory; write work (merge, version reconcile, conflict resolution) is performed inline by the host, scoped to one agent/repo at a time. Do not claim parallel fan-out on Cursor until it is validated on the real engine. |
 | **memory-file** | `AGENTS.md`. |
 | **runtime-bounding** | No verified Claude-style Bash-tool `timeout` parameter is assumed here. Rely on Cursor's own job/approval controls plus the fast-fail git env vars in the shared docs. Ignore prose that specifically says to set a Bash-tool timeout parameter. |

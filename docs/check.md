@@ -152,14 +152,14 @@ This check has teeth mainly when reviewing newly-authored migrations during fram
 
 ## 21. Cursor skill tree parity
 
-The Cursor engine loads skills from `skills/cursor/` (see `.cursor-plugin/plugin.json` and `docs/engines/cursor.md`). Each canonical plugin skill must have a matching prefixed wrapper.
+The Cursor engine loads skills from `.cursor-skills/` (see `.cursor-plugin/plugin.json` and `docs/engines/cursor.md`). Each canonical plugin skill must have a matching prefixed wrapper.
 
-For every directory `<framework-root>/skills/<name>/` containing a `SKILL.md` (excluding the `cursor/` subtree itself), verify:
+For every directory `<framework-root>/skills/<name>/` containing a `SKILL.md`, verify:
 
-- `<framework-root>/skills/cursor/lr-<name>/SKILL.md` exists.
+- `<framework-root>/.cursor-skills/lr-<name>/SKILL.md` exists.
 - Its frontmatter `name` field equals `lr-<name>`.
-- Its self-location line references `skills/cursor/lr-<name>/SKILL.md` (not the canonical `skills/<name>/` path).
+- Its self-location line references `.cursor-skills/lr-<name>/SKILL.md` (not the canonical `skills/<name>/` path).
 
-Conversely, every `skills/cursor/lr-<name>/` directory must have a matching canonical `skills/<name>/SKILL.md`. Orphaned cursor wrappers → **error** (stale after a rename/delete).
+Conversely, every `.cursor-skills/lr-<name>/` directory must have a matching canonical `skills/<name>/SKILL.md`. Orphaned cursor wrappers → **error** (stale after a rename/delete).
 
 If canonical and cursor wrappers drift (same doc target but different `$ARGUMENTS` handling or body text beyond the expected path/depth/`name`/`description` invocation-syntax differences), flag as **error** and suggest: run `python3 scripts/sync-cursor-skills` from the framework root to regenerate the cursor tree from canonical skills.
