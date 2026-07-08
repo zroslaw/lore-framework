@@ -176,14 +176,17 @@ Grouped by purpose:
 | `/lr:merge` | Integrate reflections into lore |
 | `/lr:summarize` | Write a session summary |
 | `/lr:finalize` | Full session finalization (reflect + merge + summarize + commit + push) |
+| `/lr:takeover [session]` | **BETA** — Continue a session recorded by another engine (Codex, Claude Code) with its context restored |
 
 **Authoring agents and repos**
 | Skill | Purpose |
 |---|---|
 | `/lr:create-repo <name>` | Scaffold a new agent repo |
 | `/lr:create-agent [name]` | Add a new agent to a repo |
-| `/lr:register-repo <name>` | Generate per-agent boot shortcuts |
-| `/lr:unregister-repo <name>` | Remove per-agent boot shortcuts |
+| `/lr:register-agent [repo] <agent>` | Generate one direct boot shortcut |
+| `/lr:register-repo <name>` | Generate direct boot shortcuts for every agent in a repo |
+| `/lr:unregister-agent [repo] <agent>` | Remove one direct boot shortcut |
+| `/lr:unregister-repo <name>` | Remove direct boot shortcuts for every agent in a repo |
 
 **Maintenance**
 | Skill | Purpose |
@@ -199,18 +202,23 @@ Grouped by purpose:
 
 ## Optional: Agent Shortcut Commands
 
-By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register per-agent shortcuts:
+By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register either
+one agent or a whole repo:
 
 ```
+/lr:register-agent my-agents researcher
 /lr:register-repo my-agents
 ```
 
 This generates engine-native per-agent shortcuts:
 
 - **Claude Code:** `/lr-<agent-name>-agent` in `.claude/commands/`
+- **Cursor:** `/lr-<agent-name>-agent` in `.cursor/skills/`
 - **Codex:** `$lr-<agent-name>-agent` as personal skills in `~/.codex/skills/`
 
-Both are one-line delegations to `agent-boot.md` with absolute paths to the agent directory for faster boot.
+All of them delegate to `agent-boot.md` with an absolute agent path for faster boot. Cursor and
+Codex shortcut skills also carry intent-oriented descriptions so engine skill pickers can tell the
+agents apart more reliably.
 
 ## Directory Layout
 

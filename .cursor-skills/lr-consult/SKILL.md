@@ -1,6 +1,6 @@
 ---
 name: lr-consult
-description: "Consult another lore agent with a short question. A subagent boots the consultant, answers from its lore, and hands back specific file pointers. Usage: /lr-consult <agent-name> [hint]"
+description: "Ask another lore agent a focused one-off question without attaching it. Usage: /lr-consult <agent-name> [hint]"
 argument-hint: "<agent-name> [hint]"
 ---
 

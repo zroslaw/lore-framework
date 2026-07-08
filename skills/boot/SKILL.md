@@ -1,5 +1,5 @@
 ---
-description: "Load a lore agent by name. Usage: /lr:boot <agent-name>"
+description: "Boot a specific lore agent when you already know which agent you want. Usage: /lr:boot <agent-name>"
 argument-hint: "<agent-name>"
 ---
 

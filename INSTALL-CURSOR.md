@@ -17,6 +17,10 @@ cursor-agent --plugin-dir /absolute/path/to/lore-framework
 The framework's Cursor skill wrappers live under `.cursor-skills/`, so the user-facing commands are
 slash commands such as `/lr-boot`, `/lr-recall`, and `/lr-finalize`.
 
+If you want direct per-agent boot shortcuts inside a workspace, run `/lr-register-agent` or
+`/lr-register-repo` after the plugin is loaded. Those shortcuts are created under
+`.cursor/skills/` and are scoped to the matching repo.
+
 ## Refresh After the Framework Updates
 
 Update the checkout that Cursor points at, then start a fresh Cursor session with the same

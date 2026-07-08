@@ -121,7 +121,22 @@ Flag any Claude file that instead uses:
 
 These legacy Claude formats cause slower or broken boots. Suggest: run `/lr:update` (migration 6 regenerates them) or re-register with `/lr:register-repo`.
 
-For every Codex shortcut skill `lr-*-agent/SKILL.md` in `~/.codex/skills/` whose content contains `boot as agent`, flag it if it lacks the `from <agent-dir>` suffix or does not point at an absolute `agent-boot.md` path. Suggest: re-register with `/lr:register-repo`.
+For every Codex shortcut skill `lr-*-agent/SKILL.md` in `~/.codex/skills/` whose content contains
+`boot as agent`, flag it if it lacks the `from <agent-dir>` suffix or does not point at an
+absolute `agent-boot.md` path. Suggest: re-register with `/lr:register-agent` or
+`/lr:register-repo`.
+
+For every Cursor shortcut skill `lr-*-agent/SKILL.md` in `<workspace>/.cursor/skills/` whose
+content contains `boot as agent`, flag it if any of the following is missing:
+
+- frontmatter `name: lr-<agent-name>-agent`
+- `disable-model-invocation: true`
+- a `paths:` block scoping the shortcut to the matching repo
+- the `from <agent-dir>` suffix on the boot line
+- an absolute `agent-boot.md` path
+
+These are the current Cursor registration invariants. Suggest: re-register with
+`/lr:register-agent` or `/lr:register-repo`.
 
 ## 19. Plugin manifest version
 

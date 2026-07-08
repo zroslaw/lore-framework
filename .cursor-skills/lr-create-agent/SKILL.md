@@ -1,6 +1,6 @@
 ---
 name: lr-create-agent
-description: "Add a new agent to an agent repo. Usage: /lr-create-agent [agent-name]"
+description: "Create a new lore agent directory with its initial role and lore skeleton. Usage: /lr-create-agent [agent-name]"
 argument-hint: "[agent-name]"
 ---
 

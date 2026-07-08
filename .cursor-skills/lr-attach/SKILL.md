@@ -1,6 +1,6 @@
 ---
 name: lr-attach
-description: "Attach another lore agent's knowledge to the host session for sustained co-work, or list attached guests when called with no args. Usage: /lr-attach [agent-name]"
+description: "Bring another lore agent's knowledge into the current session for sustained co-work, or list attached guests when called with no args. Usage: /lr-attach [agent-name]"
 argument-hint: "[agent-name]"
 ---
 

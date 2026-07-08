@@ -1,5 +1,5 @@
 ---
-description: "Register an agent repo — generate per-agent boot shortcuts. Usage: /lr:register-repo <lore-agent-repo>"
+description: "Create or refresh direct boot shortcuts for every lore agent in a repo. Usage: /lr:register-repo <lore-agent-repo>"
 argument-hint: "<lore-agent-repo>"
 ---
 

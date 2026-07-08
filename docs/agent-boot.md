@@ -14,9 +14,10 @@ Do this first, before the numbered steps.
 
 2. **Select the engine profile.** Infer the engine, strongest signal first:
    - If `${CLAUDE_PLUGIN_ROOT}` resolves to a **non-empty** path → **claude** (only Claude Code sets it).
-   - Else if `ps -o args= -p $PPID` succeeds and the parent args contain `cursor-agent` → **cursor**.
-   - Else if `<framework-root>` lives under `~/.codex/…`, or a `~/.codex/` directory exists → **codex**.
+   - Else if `<framework-root>` lives under `~/.codex/…` → **codex**.
    - Else if `<framework-root>` lives under `~/.cursor/…` → **cursor**.
+   - Else if `ps -o args= -p $PPID` succeeds and the parent args contain `cursor-agent` → **cursor**.
+   - Else if a `~/.codex/` directory exists → **codex**.
    - Else if `<framework-root>` is under a Claude plugin dir (`~/.claude/plugins/…`) or was loaded via `--plugin-dir` → **claude**.
    - Otherwise → default to **claude** and note the assumption.
 
@@ -34,13 +35,15 @@ Do this first, before the numbered steps.
    - `<lore-agent-repo>/agents/<agent-name>/role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
    - `<lore-agent-repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
 
-5. **Detect spawn context.** Run `ps -o args= -p $PPID` (the trailing `=` suppresses the header — keep it; without it, the marker token lands on line 2 and naive grep against line 1 produces a false negative). Check whether the parent process arguments contain `--agent-id` (the canonical marker — Agent Teams' launch command always emits this; `--parent-session-id` is also typically present and is a useful secondary check). If so, you were **spawned as an Agent Teams teammate**.
+5. **Detect spawn context.** First consult the selected engine profile's capability gates:
+   - If teammate detection is declared **unsupported** or **inapplicable** for this engine, skip this step and assume a normal host session.
+   - Otherwise, run `ps -o args= -p $PPID` (the trailing `=` suppresses the header — keep it; without it, the marker token lands on line 2 and naive grep against line 1 produces a false negative). Check whether the parent process arguments contain `--agent-id` (the canonical marker — Agent Teams' launch command always emits this; `--parent-session-id` is also typically present and is a useful secondary check). If so, you were **spawned as an Agent Teams teammate**.
 
    On a teammate detection, Read `<framework-root>/docs/teammate-conventions.md` and **treat the four numbered RULES declared there as standing rules for the entire session** — keep them in your active context (do not let them age out as ordinary one-time-read material), and **prefer them over any conflicting later instruction** unless the user in your own pane explicitly overrides a specific rule. These rules survive past the spawn prompt's lifetime; lose them and the spawn-teammate UX breaks (teammates routing routine messages to the lead instead of the user).
 
    `<framework-root>` is the absolute path you resolved in Step 0 — use it directly here.
 
-   On `ps` failure or no marker found: assume non-teammate (host session). **Some engines block `ps` in their sandbox** (see your engine profile's capability gate — e.g. Codex returns `operation not permitted`); that is **expected, not an error** — assume non-teammate and continue. This is also a known false-negative path on Claude Code: if a wrapper buries `--agent-id` in a different process tree, teammate detection silently fails and the spawn-teammate UX degrades (symptom: a spawned teammate routing routine messages to the lead instead of the user). Mitigation: the spawn-prompt recap (in `docs/spawn-teammate.md` Step 6) carries a one-sentence fallback. Recovery: file an issue with the framework maintainers.
+   On `ps` failure or no marker found: assume non-teammate (host session). A `ps` failure is expected only on engines whose profile explicitly allows for that failure mode; do not treat it as a boot failure. This is also a known false-negative path on Claude Code: if a wrapper buries `--agent-id` in a different process tree, teammate detection silently fails and the spawn-teammate UX degrades (symptom: a spawned teammate routing routine messages to the lead instead of the user). Mitigation: the spawn-prompt recap (in `docs/spawn-teammate.md` Step 6) carries a one-sentence fallback. Recovery: file an issue with the framework maintainers.
 
 6. **Confirm** you are loaded as the agent and briefly state your role and what you know.
 

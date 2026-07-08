@@ -1,70 +1,161 @@
-# Register / Unregister Agent Repo
+# Register / Unregister Agent Shortcuts
 
-## Register
+Manage direct per-agent boot shortcuts for the current engine.
 
-Register an existing agent repo so its agents get **shortcut boot artifacts** for the current engine.
+These shortcuts are **optional** — agents can always be loaded via `/lr:boot <agent-name>` (or
+the engine-native equivalent). Registration adds a faster direct entry point with an absolute agent
+path and, on skill-based engines, richer routing metadata.
 
-This is **optional** — agents can always be loaded via `/lr:boot <agent-name>`. Registration adds faster per-agent shortcuts that provide absolute paths and skip agent discovery.
+The four user-facing operations share one procedure doc:
 
-- On **Claude Code**, registration creates shortcut commands in `.claude/commands/` like `/lr-<agent-name>-agent`.
-- On **Codex**, registration creates **personal skills** in `~/.codex/skills/` like `$lr-<agent-name>-agent`.
+- **Register Agent** — create or refresh a shortcut for one specific agent
+- **Register Repo** — create or refresh shortcuts for every agent in a repo
+- **Unregister Agent** — remove one agent's shortcut
+- **Unregister Repo** — remove every shortcut associated with a repo
 
-Use the current engine profile (`<framework-root>/docs/engines/<engine>.md`, selected at boot) to decide which artifact to generate.
+Use the current engine profile (`<framework-root>/docs/engines/<engine>.md`, selected at boot) to
+decide which native artifact to generate.
 
-**Input:** repo directory name (e.g., `my-agents`)
+## Engine-native shortcut locations
 
-### Steps
+- **Claude Code** — workspace-local command file:
+  `.claude/commands/lr-<agent-name>-agent.md`
+- **Cursor** — workspace-local skill:
+  `.cursor/skills/lr-<agent-name>-agent/SKILL.md`
+- **Codex** — personal skill:
+  `~/.codex/skills/lr-<agent-name>-agent/SKILL.md`
 
-1. **Verify** the repo exists in the current working directory and contains a `lore-repo.md` file at the root (confirming it is a lore agent repo).
+All generated shortcuts must remain thin pointers to `agent-boot.md`. Never inline boot logic or
+operating instructions into the generated artifact.
 
-2. **Scan** `<lore-agent-repo>/agents/` for agent directories. A valid agent directory contains at least a `role.md` file.
+## Shared helper steps
 
-3. **Resolve absolute paths** for use in the generated shortcut artifacts:
-   - **`<agent-boot-path>`** — the absolute path to `agent-boot.md` in the same `docs/` directory as this file. Derive it from the path you used to read this file.
-   - **`<agent-dir>`** — the absolute path to `<lore-agent-repo>/agents/<agent-name>/`.
+### Resolve the target repo
 
-4. **For each agent found**, create the engine-native shortcut artifact with the following one-line content:
+When an operation targets a repo explicitly:
 
-   ```
-   Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
-   ```
+1. Treat the repo argument as a directory name relative to the current working directory.
+2. Verify `<workspace>/<repo-name>/lore-repo.md` exists.
+3. Call that path `<lore-agent-repo>`.
 
-   Replace all three placeholders with the resolved values from step 3.
+When an operation targets a single agent and no repo argument was provided:
 
-   Write it to the engine-native location:
+1. Scan all directories in the current working directory for lore agent repos (directories
+   containing `lore-repo.md` at the root).
+2. Look for `agents/<agent-name>/role.md` inside each repo.
+3. If exactly one match exists, use that repo.
+4. If no match exists, report the available agents and stop with an error.
+5. If multiple matches exist, ask the user which repo they want.
 
-   - **Claude Code:** `.claude/commands/lr-<agent-name>-agent.md`
-   - **Codex:** `~/.codex/skills/lr-<agent-name>-agent/SKILL.md`
+### Resolve agent metadata
 
-   **Design note:** these artifacts are one-line delegations with absolute paths — a pointer to `agent-boot.md`, the agent name, and the agent directory. The absolute paths let boot skip discovery (faster startup). All boot logic and operating instructions live in `agent-boot.md` (single source of truth). Never inline boot steps or operating guidance into the generated artifact; update `agent-boot.md` instead.
+For every target agent:
 
-5. **Check for name collisions** — if the target artifact already exists for an agent name from a different repo, warn the user and skip that agent. Do not overwrite.
+1. Verify `<lore-agent-repo>/agents/<agent-name>/role.md` exists.
+2. Resolve:
+   - **`<agent-dir>`** — absolute path to `<lore-agent-repo>/agents/<agent-name>/`
+   - **`<agent-boot-path>`** — absolute path to `<framework-root>/docs/agent-boot.md`
+   - **`<repo-name>`** — basename of `<lore-agent-repo>`
+3. Read the `description` field from `role.md` YAML frontmatter. Use it as
+   **`<agent-purpose>`**. If missing, fall back to `Lore agent in <repo-name>`.
 
-6. **Report** what was registered: list agent names and the shortcuts created.
+### Current shortcut templates
 
-   Report them in the engine-native form:
+Generate exactly these engine-native forms.
 
-   - **Claude Code:** `/lr-<agent-name>-agent`
+#### Claude Code
+
+Write exactly this single line plus a trailing newline:
+
+```markdown
+Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
+```
+
+#### Cursor
+
+Write this `SKILL.md`:
+
+```markdown
+---
+name: lr-<agent-name>-agent
+description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpose>"
+paths:
+  - "<repo-name>/**"
+disable-model-invocation: true
+---
+
+Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
+```
+
+The `paths:` scoping keeps the shortcut visible only when the matching repo is relevant in the
+workspace, and `disable-model-invocation: true` keeps it explicit-only.
+
+#### Codex
+
+Write this `SKILL.md`:
+
+```markdown
+---
+name: lr-<agent-name>-agent
+description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpose>"
+---
+
+Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
+```
+
+## Register Agent
+
+**Inputs:** `[<lore-agent-repo>] <agent-name>`
+
+1. Resolve `<lore-agent-repo>` and the agent metadata using the shared helper steps above.
+2. Compute the engine-native target path for that agent.
+3. If the target artifact already exists:
+   - If it already points at the same `<agent-dir>`, overwrite it with the current template
+     (refresh behavior).
+   - If it points at a different repo/agent path, warn about the collision and stop without
+     overwriting.
+4. Create the parent directory if needed and write the current template.
+5. Report the created shortcut in the engine-native form:
+   - **Claude Code / Cursor:** `/lr-<agent-name>-agent`
    - **Codex:** `$lr-<agent-name>-agent`
 
-## Unregister
+## Register Repo
 
-Remove all shortcut artifacts associated with a repo.
+**Input:** `<lore-agent-repo>`
 
-**Input:** repo directory name
+1. Resolve `<lore-agent-repo>`.
+2. Scan `<lore-agent-repo>/agents/` for directories containing `role.md`.
+3. For each agent found, run the **Register Agent** procedure above.
+4. Report the created or refreshed shortcuts.
 
-### Steps
+## Unregister Agent
 
-1. **Scan** the engine-native shortcut location:
+**Inputs:** `[<lore-agent-repo>] <agent-name>`
 
-   - **Claude Code:** `.claude/commands/` for `lr-*-agent.md`
-   - **Codex:** `~/.codex/skills/` for directories `lr-*-agent/` containing `SKILL.md`
+1. Resolve `<lore-agent-repo>` and `<agent-name>`.
+2. Compute the engine-native shortcut path for that agent.
+3. If the artifact does not exist, report `not registered` and stop successfully.
+4. Delete the artifact:
+   - **Claude Code:** delete the `.md` file.
+   - **Cursor / Codex:** delete the `lr-<agent-name>-agent/` directory.
+5. Report the removed shortcut in the engine-native form.
 
-   For each artifact whose content contains `boot as agent`, check whether the absolute agent directory path in the content (the `from <agent-dir>` part) falls under the given repo. If there is no `from` clause (legacy format), extract the agent name from the filename or skill directory name and check if that agent exists in the given repo's `agents/` directory.
+## Unregister Repo
 
-2. **Delete** matching shortcut artifacts.
+**Input:** `<lore-agent-repo>`
 
-   - **Claude Code:** delete the matching `.md` files.
-   - **Codex:** delete the matching skill directories.
+1. Resolve `<lore-agent-repo>`.
+2. Scan the repo's `agents/` directory for valid agents.
+3. For each agent found, run the **Unregister Agent** procedure above.
+4. Report the removed shortcuts.
 
-3. **Report** what was removed.
+## Collision rule
+
+Shortcuts are keyed by agent name, so collisions are possible if two repos both define
+`agents/researcher/`.
+
+- If a shortcut already exists and points at a different `<agent-dir>`, do **not** overwrite it.
+- Tell the user which existing path owns the shortcut today and which repo they attempted to
+  register.
+- The user resolves the naming collision by renaming an agent or unregistering the old shortcut
+  first.

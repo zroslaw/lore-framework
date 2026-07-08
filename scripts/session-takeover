@@ -1,0 +1,544 @@
+#!/usr/bin/env python3
+"""session-takeover — list engine sessions and convert one into a takeover digest.
+
+Supports taking over a session recorded by one coding engine in another engine:
+the session log is parsed into a unified message list, then rendered as a
+markdown digest that any agent on any engine (Claude Code, Codex, Cursor) can
+load into context to continue the work.
+
+Pipeline: <engine log> -> [parser] -> message list -> [renderer] -> digest
+
+The unified message list uses the de facto API message shape:
+    {"role": "user"|"assistant", "content": str}                     -- a turn
+    {"role": "assistant", "tool": name, "args": str, "result": str}  -- a tool call
+Adding a new engine only requires a new parse_<engine>() function and a
+list_<engine>() discovery function.
+
+Engine support:
+    codex   -- list + convert (~/.codex/sessions rollout JSONL)
+    claude  -- list + convert (~/.claude/projects session JSONL)
+    cursor  -- list only (~/.cursor/chats; content-addressed SQLite store,
+               message ordering not yet reverse-engineered)
+
+Usage:
+    session-takeover --list [--engine E] [--limit N]
+    session-takeover <session-id | log-path> [-o digest.md] [--json out.json]
+
+With no -o, the digest is written to stdout.
+"""
+
+import argparse
+import glob
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+TRUNC_ARGS = 160     # max chars shown for tool-call arguments
+TRUNC_RESULT = 120   # max chars shown for tool-call results
+
+CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+CLAUDE_PROJECTS = Path.home() / ".claude" / "projects"
+CURSOR_CHATS = Path.home() / ".cursor" / "chats"
+
+
+def _clip(text, limit):
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+# ------------------------------------------------------------ codex parsing
+
+
+def _codex_call_summary(name, raw_args):
+    if name == "exec_command":
+        try:
+            cmd = json.loads(raw_args).get("cmd", raw_args)
+        except (json.JSONDecodeError, AttributeError):
+            cmd = raw_args
+        return _clip(cmd, TRUNC_ARGS)
+    if name == "apply_patch":
+        ops = re.findall(r"\*\*\* (Add|Update|Delete) File: (.+)", raw_args or "")
+        if ops:
+            return "; ".join(f"{op.lower()} {path.strip()}" for op, path in ops)
+    return _clip(raw_args or "", TRUNC_ARGS)
+
+
+def _codex_result_summary(output):
+    text = str(output or "")
+    exit_m = re.search(r"Process exited with code (\d+)", text)
+    lines = [
+        ln.strip()
+        for ln in text.splitlines()
+        if ln.strip()
+        and not re.match(
+            r"(Chunk ID|Wall time|Process exited|Original token count|Output)", ln
+        )
+    ]
+    first = _clip(lines[0], TRUNC_RESULT) if lines else ""
+    if exit_m:
+        status = "ok" if exit_m.group(1) == "0" else f"exit {exit_m.group(1)}"
+        return f"{status}: {first}" if first else status
+    return first
+
+
+def parse_codex(path):
+    """Parse a Codex rollout JSONL file -> (meta, messages)."""
+    meta = {"engine": "codex", "source": str(path)}
+    messages = []
+    pending = {}  # call_id -> tool message awaiting its result
+
+    for record in _iter_jsonl(path):
+        rtype = record.get("type")
+        payload = record.get("payload", {})
+
+        if rtype == "session_meta":
+            meta.update(
+                session_id=payload.get("id"),
+                started=payload.get("timestamp"),
+                cwd=payload.get("cwd"),
+                originator=payload.get("originator"),
+                cli_version=payload.get("cli_version"),
+            )
+        elif rtype == "turn_context":
+            meta.setdefault("model", payload.get("model"))
+            meta["ended"] = record.get("timestamp") or meta.get("ended")
+        elif rtype == "response_item":
+            ptype = payload.get("type")
+            if ptype == "message":
+                role = payload.get("role")
+                if role not in ("user", "assistant"):
+                    continue  # developer/system plumbing
+                text = "\n".join(
+                    c.get("text", "")
+                    for c in payload.get("content", [])
+                    if c.get("type") in ("input_text", "output_text")
+                ).strip()
+                # engine-injected context arrives tag-wrapped in the user role
+                if role == "user" and re.match(r"^<[a-z_]+>", text):
+                    continue
+                if text:
+                    messages.append({"role": role, "content": text})
+            elif ptype in ("function_call", "custom_tool_call"):
+                name = payload.get("name", "?")
+                raw = payload.get("arguments") or payload.get("input") or ""
+                msg = {
+                    "role": "assistant",
+                    "tool": name,
+                    "args": _codex_call_summary(name, raw),
+                    "result": "",
+                }
+                messages.append(msg)
+                call_id = payload.get("call_id") or payload.get("id")
+                if call_id:
+                    pending[call_id] = msg
+            elif ptype in ("function_call_output", "custom_tool_call_output"):
+                output = payload.get("output")
+                if isinstance(output, dict):
+                    output = output.get("content") or json.dumps(output)
+                msg = pending.pop(payload.get("call_id"), None)
+                if msg is not None:
+                    msg["result"] = _codex_result_summary(output)
+
+    return meta, messages
+
+
+# ----------------------------------------------------------- claude parsing
+
+# Tool-arg fields that best identify a call, tried in order per tool.
+_CLAUDE_ARG_KEYS = {
+    "Bash": ["command"],
+    "Read": ["file_path"],
+    "Write": ["file_path"],
+    "Edit": ["file_path"],
+    "NotebookEdit": ["notebook_path"],
+    "Glob": ["pattern"],
+    "Grep": ["pattern"],
+    "WebFetch": ["url"],
+    "WebSearch": ["query"],
+    "Agent": ["description"],
+    "Skill": ["skill"],
+}
+
+
+def _claude_call_summary(name, args):
+    if not isinstance(args, dict):
+        return _clip(args or "", TRUNC_ARGS)
+    for key in _CLAUDE_ARG_KEYS.get(name, []):
+        if args.get(key):
+            return _clip(args[key], TRUNC_ARGS)
+    return _clip(json.dumps(args, ensure_ascii=False), TRUNC_ARGS)
+
+
+def _claude_result_text(item):
+    content = item.get("content")
+    if isinstance(content, list):
+        content = " ".join(
+            c.get("text", "") for c in content if isinstance(c, dict)
+        )
+    prefix = "error: " if item.get("is_error") else ""
+    return _clip(prefix + str(content or ""), TRUNC_RESULT)
+
+
+def parse_claude(path):
+    """Parse a Claude Code session JSONL file -> (meta, messages)."""
+    meta = {"engine": "claude", "source": str(path)}
+    messages = []
+    pending = {}  # tool_use_id -> tool message awaiting its result
+
+    for record in _iter_jsonl(path):
+        rtype = record.get("type")
+        if rtype == "ai-title":
+            meta["title"] = record.get("aiTitle") or meta.get("title")
+            continue
+        if rtype not in ("user", "assistant") or record.get("isSidechain"):
+            continue
+
+        meta.setdefault("session_id", record.get("sessionId"))
+        meta.setdefault("cwd", record.get("cwd"))
+        meta.setdefault("started", record.get("timestamp"))
+        meta["ended"] = record.get("timestamp") or meta.get("ended")
+
+        message = record.get("message") or {}
+        content = message.get("content")
+
+        if rtype == "user":
+            if isinstance(content, str):
+                # engine-injected wrappers (<command-name>, caveats, reminders)
+                if not re.match(r"^\s*<[a-z-]+", content) and content.strip():
+                    messages.append({"role": "user", "content": content.strip()})
+                continue
+            for item in content or []:
+                itype = item.get("type")
+                if itype == "text":
+                    text = item.get("text", "").strip()
+                    if text and not re.match(r"^\s*<[a-z-]+", text):
+                        messages.append({"role": "user", "content": text})
+                elif itype == "tool_result":
+                    msg = pending.pop(item.get("tool_use_id"), None)
+                    if msg is not None:
+                        msg["result"] = _claude_result_text(item)
+
+        else:  # assistant
+            model = message.get("model")
+            if model and model != "<synthetic>":
+                meta.setdefault("model", model)
+            for item in content or []:
+                itype = item.get("type")
+                if itype == "text":
+                    text = item.get("text", "").strip()
+                    if text and model != "<synthetic>":
+                        messages.append({"role": "assistant", "content": text})
+                elif itype == "tool_use":
+                    name = item.get("name", "?")
+                    msg = {
+                        "role": "assistant",
+                        "tool": name,
+                        "args": _claude_call_summary(name, item.get("input")),
+                        "result": "",
+                    }
+                    messages.append(msg)
+                    if item.get("id"):
+                        pending[item["id"]] = msg
+
+    return meta, messages
+
+
+# ------------------------------------------------------------------ shared
+
+
+def _iter_jsonl(path):
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+PARSERS = {"codex": parse_codex, "claude": parse_claude}
+
+
+def detect_engine(path):
+    """Sniff the log format from the first few records."""
+    for record in _iter_jsonl(path):
+        if record.get("type") == "session_meta":
+            return "codex"
+        if "sessionId" in record:
+            return "claude"
+    return None
+
+
+# --------------------------------------------------------------- discovery
+
+
+def _fmt_ts(ts):
+    return ts[:16].replace("T", " ") if ts else "?"
+
+
+def _is_temp_cwd(cwd):
+    """Sessions run in temp dirs are almost always automated test fixtures."""
+    return bool(cwd) and cwd.startswith(("/tmp/", "/private/var/folders/",
+                                         "/var/folders/", "/private/tmp/"))
+
+
+def list_codex(limit, include_all=False):
+    """Non-archived Codex sessions, newest first, named ones from the index."""
+    names = {}
+    index = CODEX_HOME / "session_index.jsonl"
+    if index.is_file():
+        for record in _iter_jsonl(index):
+            names[record.get("id")] = record.get("thread_name")
+
+    sessions = []
+    for path in glob.glob(str(CODEX_HOME / "sessions" / "**" / "rollout-*.jsonl"),
+                          recursive=True):
+        m = re.search(r"rollout-.*?-([0-9a-f-]{36})\.jsonl$", path)
+        sid = m.group(1) if m else None
+        title = names.get(sid)
+        if not title:
+            continue  # unnamed rollouts are automated sub-runs; skip in listing
+        sessions.append(
+            {
+                "engine": "codex",
+                "id": sid,
+                "title": title,
+                "updated": datetime.fromtimestamp(
+                    os.path.getmtime(path), tz=timezone.utc
+                ).isoformat(),
+                "path": path,
+            }
+        )
+    sessions.sort(key=lambda s: s["updated"], reverse=True)
+    return sessions[:limit]
+
+
+def list_claude(limit, include_all=False):
+    """Claude Code sessions across all project dirs, newest first."""
+    sessions = []
+    for path in glob.glob(str(CLAUDE_PROJECTS / "*" / "*.jsonl")):
+        sessions.append((os.path.getmtime(path), path))
+    sessions.sort(reverse=True)
+
+    out = []
+    for mtime, path in sessions[: limit * 4]:  # over-scan; some have no dialog
+        title, first_prompt, cwd, has_dialog = None, None, None, False
+        for i, record in enumerate(_iter_jsonl(path)):
+            if record.get("type") == "ai-title":
+                title = record.get("aiTitle")
+                break  # canonical title found; stop scanning
+            if record.get("type") == "user" and not record.get("isSidechain"):
+                cwd = cwd or record.get("cwd")
+                content = (record.get("message") or {}).get("content")
+                if isinstance(content, str) and not content.startswith("<"):
+                    has_dialog = True
+                    first_prompt = first_prompt or _clip(content, 60)
+            if i > 300:  # title lines live near the top; don't scan huge logs
+                break
+        if not (has_dialog or title):
+            continue
+        if _is_temp_cwd(cwd) and not include_all:
+            continue
+        title = title or first_prompt
+        out.append(
+            {
+                "engine": "claude",
+                "id": Path(path).stem,
+                "title": title or "(untitled)",
+                "cwd": cwd,
+                "updated": datetime.fromtimestamp(
+                    mtime, tz=timezone.utc
+                ).isoformat(),
+                "path": path,
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def list_cursor(limit, include_all=False):
+    """Cursor chats from meta.json files. Listing only — no conversion yet."""
+    sessions = []
+    for meta_path in glob.glob(str(CURSOR_CHATS / "*" / "*" / "meta.json")):
+        try:
+            info = json.loads(Path(meta_path).read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not info.get("hasConversation"):
+            continue
+        if _is_temp_cwd(info.get("cwd")) and not include_all:
+            continue
+        updated = info.get("updatedAtMs") or info.get("createdAtMs") or 0
+        sessions.append(
+            {
+                "engine": "cursor",
+                "id": Path(meta_path).parent.name,
+                "title": "(cursor chat — conversion not yet supported)",
+                "cwd": info.get("cwd"),
+                "updated": datetime.fromtimestamp(
+                    updated / 1000, tz=timezone.utc
+                ).isoformat(),
+                "path": str(Path(meta_path).parent / "store.db"),
+            }
+        )
+    sessions.sort(key=lambda s: s["updated"], reverse=True)
+    return sessions[:limit]
+
+
+LISTERS = {"codex": list_codex, "claude": list_claude, "cursor": list_cursor}
+
+
+def resolve_session(token):
+    """Turn a session id (or id prefix) into a log path."""
+    candidates = glob.glob(
+        str(CODEX_HOME / "sessions" / "**" / f"rollout-*{token}*.jsonl"),
+        recursive=True,
+    ) + glob.glob(str(CLAUDE_PROJECTS / "*" / f"{token}*.jsonl"))
+    if len(candidates) == 1:
+        return Path(candidates[0])
+    if len(candidates) > 1:
+        sys.exit(
+            f"error: session id '{token}' is ambiguous:\n  "
+            + "\n  ".join(candidates)
+        )
+    return None
+
+
+# --------------------------------------------------------------- rendering
+
+
+def render_markdown(meta, messages):
+    out = ["# Session takeover digest", ""]
+    out.append(
+        "> This is a digest of a session recorded on another engine. "
+        "You are taking that session over: treat the conversation below as "
+        "your own prior context and continue from where it stopped. "
+        "Tool calls are collapsed to one-line summaries; files the session "
+        "created or modified are still on disk."
+    )
+    out += ["", "## Session", ""]
+    for key in (
+        "engine",
+        "title",
+        "model",
+        "originator",
+        "cli_version",
+        "session_id",
+        "started",
+        "ended",
+        "cwd",
+        "source",
+    ):
+        if meta.get(key):
+            out.append(f"- {key}: `{meta[key]}`")
+    out += ["", "## Transcript"]
+
+    current = None  # role of the heading we're currently under
+    for msg in messages:
+        if "tool" in msg:
+            if current != "assistant":
+                out += ["", "## Assistant", ""]
+                current = "assistant"
+            result = f" -> {msg['result']}" if msg["result"] else ""
+            out.append(f"- `[{msg['tool']}]` {msg['args']}{result}")
+            continue
+        heading = "## User" if msg["role"] == "user" else "## Assistant"
+        out += ["", heading, "", msg["content"]]
+        current = msg["role"]
+
+    out += [
+        "",
+        "---",
+        "**The recorded session ends here.** If the last assistant turn was "
+        "mid-task, that work is unfinished — verify current on-disk state "
+        "before continuing, then pick up where it stopped.",
+        "",
+    ]
+    return "\n".join(out)
+
+
+# -------------------------------------------------------------------- main
+
+
+def cmd_list(engines, limit, include_all=False):
+    for engine in engines:
+        sessions = LISTERS[engine](limit, include_all)
+        print(f"== {engine} ({len(sessions)} session(s)) ==")
+        for s in sessions:
+            cwd = f"  cwd: {s['cwd']}" if s.get("cwd") else ""
+            print(f"{_fmt_ts(s['updated'])}  {s['id'][:12]}  {s['title']}{cwd}")
+            print(f"    {s['path']}")
+        print()
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("session", nargs="?",
+                    help="session id (prefix ok) or path to an engine log")
+    ap.add_argument("--list", action="store_true",
+                    help="list recent sessions across engines")
+    ap.add_argument("--engine", choices=sorted(LISTERS),
+                    help="limit --list / force log format")
+    ap.add_argument("--limit", type=int, default=10,
+                    help="max sessions per engine in --list (default 10)")
+    ap.add_argument("--all", action="store_true",
+                    help="include temp-dir (test-fixture) sessions in --list")
+    ap.add_argument("-o", "--output", type=Path,
+                    help="write digest here (default: stdout)")
+    ap.add_argument("--json", type=Path,
+                    help="also dump the unified message list as JSON")
+    args = ap.parse_args()
+
+    if args.list:
+        cmd_list([args.engine] if args.engine else sorted(LISTERS),
+                 args.limit, args.all)
+        return
+    if not args.session:
+        sys.exit("error: pass a session id/path, or --list")
+
+    path = Path(args.session)
+    if not path.is_file():
+        path = resolve_session(args.session)
+        if path is None:
+            sys.exit(
+                f"error: '{args.session}' is neither a file nor a known "
+                "session id — try --list"
+            )
+
+    if args.engine == "cursor" or path.suffix == ".db":
+        sys.exit("error: cursor session conversion is not supported yet")
+    engine = args.engine or detect_engine(path)
+    if engine not in PARSERS:
+        sys.exit("error: could not detect log format; pass --engine")
+
+    meta, messages = PARSERS[engine](path)
+    if not messages:
+        sys.exit("error: no conversation messages found in log")
+
+    if args.json:
+        args.json.write_text(
+            json.dumps(
+                {"meta": meta, "messages": messages}, indent=2, ensure_ascii=False
+            )
+        )
+
+    digest = render_markdown(meta, messages)
+    if args.output:
+        args.output.write_text(digest)
+        turns = sum(1 for m in messages if "tool" not in m)
+        print(
+            f"wrote {args.output} ({turns} conversation turns, "
+            f"{len(messages) - turns} tool calls, engine: {engine})"
+        )
+    else:
+        print(digest)
+
+
+if __name__ == "__main__":
+    main()

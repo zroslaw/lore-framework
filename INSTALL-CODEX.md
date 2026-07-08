@@ -16,6 +16,9 @@ codex plugin add lr@lore-framework
 
 Then restart Codex so new sessions load the plugin.
 
+If you want direct per-agent boot shortcuts, use `$lr-register-agent` or `$lr-register-repo` after
+the plugin is loaded. Those shortcuts are personal skills under `~/.codex/skills/`.
+
 ## Local Development Install (local checkout)
 
 Use this when the plugin source is a local checkout on disk:

@@ -90,7 +90,11 @@ If `--dry-run` is passed:
 
 ## Handling Manual Edits to Generated Files
 
-Migrations may need to regenerate files the framework owns as templated output — for example, per-agent shortcuts (`.claude/commands/lr-*-agent.md` on Claude Code or `~/.codex/skills/lr-*-agent/SKILL.md` on Codex). If a user has manually edited such a file, naive regeneration would destroy their edits. Handle this case explicitly.
+Migrations may need to regenerate files the framework owns as templated output — for example,
+per-agent shortcuts (`.claude/commands/lr-*-agent.md` on Claude Code,
+`.cursor/skills/lr-*-agent/SKILL.md` on Cursor, or `~/.codex/skills/lr-*-agent/SKILL.md` on
+Codex). If a user has manually edited such a file, naive regeneration would destroy their edits.
+Handle this case explicitly.
 
 ### Divergence detection
 
