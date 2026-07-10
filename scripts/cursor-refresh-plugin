@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# cursor-refresh-plugin — git pull a lore-framework checkout and remind to restart.
+#
+# Usage: cursor-refresh-plugin [TARGET_DIR]
+#
+# Path resolution (first match wins):
+#   1. positional TARGET_DIR
+#   2. $LORE_FRAMEWORK_DIR
+#   3. ~/.cursor/plugins/local/lore-framework (symlink target, if valid)
+#   4. $HOME/src/lore-framework
+#
+# Exit codes:
+#   0  pull succeeded (or already up to date)
+#   1  checkout invalid or git pull failed
+#
+# Compatibility: Bash 3.2+ (macOS default).
+
+set -euo pipefail
+
+export GIT_TERMINAL_PROMPT=0
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes -o ConnectTimeout=10"
+
+resolve_target_dir() {
+  local candidate=""
+
+  if [[ $# -ge 1 ]] && [[ -n "${1:-}" ]]; then
+    candidate="$1"
+  elif [[ -n "${LORE_FRAMEWORK_DIR:-}" ]]; then
+    candidate="$LORE_FRAMEWORK_DIR"
+  elif [[ -L "$HOME/.cursor/plugins/local/lore-framework" ]]; then
+    candidate="$(cd "$HOME/.cursor/plugins/local/lore-framework" && pwd)"
+  elif [[ -d "$HOME/.cursor/plugins/local/lore-framework" ]]; then
+    candidate="$(cd "$HOME/.cursor/plugins/local/lore-framework" && pwd)"
+  else
+    candidate="$HOME/src/lore-framework"
+  fi
+
+  if [[ ! -d "$candidate" ]]; then
+    echo "cursor-refresh-plugin: directory not found: $candidate" >&2
+    echo "Pass TARGET_DIR or set LORE_FRAMEWORK_DIR to your lore-framework checkout." >&2
+    exit 1
+  fi
+
+  candidate="$(cd "$candidate" && pwd)"
+
+  if [[ ! -f "$candidate/VERSION" ]]; then
+    echo "cursor-refresh-plugin: not a lore-framework checkout (VERSION missing): $candidate" >&2
+    exit 1
+  fi
+
+  printf '%s' "$candidate"
+}
+
+TARGET_DIR="$(resolve_target_dir "${1:-}")"
+
+if ! git -C "$TARGET_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "cursor-refresh-plugin: not a git repository: $TARGET_DIR" >&2
+  exit 1
+fi
+
+OLD_HEAD="$(git -C "$TARGET_DIR" rev-parse HEAD)"
+VERSION_BEFORE="$(tr -d '[:space:]' < "$TARGET_DIR/VERSION")"
+
+if ! git -C "$TARGET_DIR" pull --ff-only; then
+  echo "cursor-refresh-plugin: git pull --ff-only failed for $TARGET_DIR" >&2
+  exit 1
+fi
+
+NEW_HEAD="$(git -C "$TARGET_DIR" rev-parse HEAD)"
+VERSION_AFTER="$(tr -d '[:space:]' < "$TARGET_DIR/VERSION")"
+
+echo "Lore Framework for Cursor — refresh"
+echo "  checkout: $TARGET_DIR"
+echo "  VERSION:  $VERSION_BEFORE → $VERSION_AFTER"
+
+if [[ "$OLD_HEAD" != "$NEW_HEAD" ]]; then
+  echo ""
+  echo "Commits pulled:"
+  git -C "$TARGET_DIR" log --oneline -n 10 "$OLD_HEAD..$NEW_HEAD" || true
+else
+  echo "  (already up to date)"
+fi
+
+echo ""
+echo "Start a FRESH Cursor session to load the updated plugin tree."
+echo "The running session keeps whatever it loaded at start — no hot-reload."
+echo ""
+echo "  cursor-agent --plugin-dir \"$TARGET_DIR\""
+echo ""
+echo "If plugin skills are unavailable mid-session, see docs/engines/cursor.md"
+echo "§ Mid-session fallback (file-driven via .cursor-skills/)."

@@ -140,14 +140,20 @@ These are the current Cursor registration invariants. Suggest: re-register with
 
 ## 19. Plugin manifest version
 
-Read the framework version `N` from `<framework-root>/VERSION`. Read the `version` field from both `<framework-root>/.claude-plugin/plugin.json` and the `lr` plugin entry in `<framework-root>/.claude-plugin/marketplace.json`.
+Read the framework version `N` from `<framework-root>/VERSION`. Read the `version` field from **all three** plugin manifests:
 
-Both must equal **`1.<N>.0`** (e.g. `VERSION` 14 → `1.14.0`), per `conventions.md` § Plugin Manifest Versioning. Report:
+1. `<framework-root>/.claude-plugin/plugin.json`
+2. The `lr` plugin entry in `<framework-root>/.claude-plugin/marketplace.json` (if `marketplace.json` is missing, skip this file gracefully — see `framework-improvements-backlog` for the open item; do not error solely on absence)
+3. `<framework-root>/.cursor-plugin/plugin.json`
 
-- Either manifest version ≠ `1.<N>.0` → **error**. The usual cause is a `VERSION` bump whose author forgot the manifest — which is exactly what stops Claude Code from detecting the release and refreshing its plugin cache. Fix: set both manifests to `1.<N>.0`. (For an *end user* rather than a framework developer, a mismatch more likely signals a stale plugin cache — see `/lr:doctor`.)
-- `plugin.json` and `marketplace.json` disagree with each other → **error**: reconcile both to the same `1.<N>.0`.
+Every manifest that was read must equal **`1.<N>.0`** (e.g. `VERSION` 14 → `1.14.0`), per `conventions.md` § Plugin Manifest Versioning. Report:
 
-This check has teeth mainly when the plugin source is the loaded plugin (e.g. `claude --plugin-dir ./lore-framework` during framework development); for a marketplace install it confirms the shipped manifest is internally consistent.
+- Any read manifest version ≠ `1.<N>.0` → **error**. The usual cause is a `VERSION` bump whose author forgot a manifest — which is exactly what stops Claude Code from detecting the release and refreshing its plugin cache. Fix: set all three to `1.<N>.0`. (For an *end user* rather than a framework developer, a mismatch on the Claude manifests more likely signals a stale plugin cache — see `/lr:doctor`.)
+- Among the manifests that were read, any pairwise disagreement → **error**: reconcile all to the same `1.<N>.0`.
+
+**Note:** `.cursor-plugin/plugin.json` is **consistency hygiene / mechanical parity** with `VERSION` — it is not a verified Cursor cache-detection lever (that mechanism is verified for Claude Code only). Drift still blocks ship because it signals an incomplete version bump.
+
+This check has teeth mainly when the plugin source is the loaded plugin (e.g. `claude --plugin-dir ./lore-framework` during framework development); for a marketplace install it confirms the shipped manifests are internally consistent.
 
 ## 20. Migration Write Paths declaration
 

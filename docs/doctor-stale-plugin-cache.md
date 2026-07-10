@@ -98,6 +98,7 @@ Whenever a framework migration or release note **adds, removes, or renames** a s
 ## See Also
 
 - `docs/doctor.md` — orchestrator and ailment catalog.
+- `docs/doctor-cursor-session-without-plugin.md` — Cursor session with no plugin loaded (missing skills entirely, not stale content).
 - `docs/conventions.md` — the cache-clear footer convention authors must apply when shipping cache-affecting versions.
 - `docs/update.md` — `/lr:update` flow; cache-clear is a follow-up step after a version bump that changes skills.
 - `release-notes/12.md` — first release note that codifies the cache-clear convention.

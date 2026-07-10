@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# install-cursor-plugin — post-clone helper for Cursor Lore Framework installs.
+#
+# Requires an existing lore-framework checkout (Step 1 of INSTALL-CURSOR.md).
+# Does not clone the repo — run git clone first.
+#
+# Usage: install-cursor-plugin [--no-pull] [--symlink] [TARGET_DIR]
+#
+#   TARGET_DIR   absolute or relative path to lore-framework checkout
+#                (default: $LORE_FRAMEWORK_DIR or $HOME/src/lore-framework)
+#   --no-pull    skip git pull --ff-only
+#   --symlink    create ~/.cursor/plugins/local/lore-framework → TARGET_DIR
+#                (only when D2 probe confirmed IDE loads from local plugins dir;
+#                 default is off — see INSTALL-CURSOR.md)
+#
+# Exit codes:
+#   0  success
+#   1  checkout invalid, symlink blocked, or unrecoverable error
+#
+# Compatibility: Bash 3.2+ (macOS default).
+
+set -euo pipefail
+
+export GIT_TERMINAL_PROMPT=0
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes -o ConnectTimeout=10"
+
+DO_PULL=1
+DO_SYMLINK=0
+TARGET_DIR=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-pull) DO_PULL=0; shift ;;
+    --symlink) DO_SYMLINK=1; shift ;;
+    -h|--help)
+      sed -n '2,16p' "$0"
+      exit 0
+      ;;
+    -*)
+      echo "install-cursor-plugin: unknown option: $1" >&2
+      exit 1
+      ;;
+    *)
+      if [[ -n "$TARGET_DIR" ]]; then
+        echo "install-cursor-plugin: unexpected extra argument: $1" >&2
+        exit 1
+      fi
+      TARGET_DIR="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$TARGET_DIR" ]]; then
+  TARGET_DIR="${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
+fi
+
+if [[ ! -d "$TARGET_DIR" ]]; then
+  echo "install-cursor-plugin: directory not found: $TARGET_DIR" >&2
+  echo "Run git clone first — see INSTALL-CURSOR.md § Step 1." >&2
+  exit 1
+fi
+
+# Resolve to absolute path (portable: cd + pwd).
+TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
+
+if [[ ! -f "$TARGET_DIR/VERSION" ]]; then
+  echo "install-cursor-plugin: not a lore-framework checkout (VERSION missing): $TARGET_DIR" >&2
+  echo "Run git clone first — see INSTALL-CURSOR.md § Step 1." >&2
+  exit 1
+fi
+
+VERSION="$(tr -d '[:space:]' < "$TARGET_DIR/VERSION")"
+
+if [[ "$DO_PULL" -eq 1 ]] && git -C "$TARGET_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if ! git -C "$TARGET_DIR" pull --ff-only; then
+    echo "warning: git pull --ff-only failed; continuing with on-disk checkout" >&2
+  fi
+  VERSION="$(tr -d '[:space:]' < "$TARGET_DIR/VERSION")"
+fi
+
+SYMLINK_STATUS="skipped (default — use --symlink only after D2 probe passes; see INSTALL-CURSOR.md)"
+LOCAL_PLUGIN_DIR="$HOME/.cursor/plugins/local"
+LOCAL_LINK="$LOCAL_PLUGIN_DIR/lore-framework"
+
+if [[ "$DO_SYMLINK" -eq 1 ]]; then
+  mkdir -p "$LOCAL_PLUGIN_DIR"
+  if [[ -e "$LOCAL_LINK" ]] && [[ ! -L "$LOCAL_LINK" ]]; then
+    echo "install-cursor-plugin: refusing to replace non-symlink at $LOCAL_LINK" >&2
+    exit 1
+  fi
+  ln -sfn "$TARGET_DIR" "$LOCAL_LINK"
+  SYMLINK_STATUS="created $LOCAL_LINK → $TARGET_DIR"
+fi
+
+echo "Lore Framework for Cursor — install helper"
+echo "  VERSION:     $VERSION"
+echo "  checkout:    $TARGET_DIR"
+echo "  symlink:     $SYMLINK_STATUS"
+echo ""
+echo "Launch (deterministic — verified path):"
+echo "  cursor-agent --plugin-dir \"$TARGET_DIR\""
+echo ""
+echo "Some installs also expose 'agent' as an alias for cursor-agent."
+echo ""
+echo "Full guide: $TARGET_DIR/INSTALL-CURSOR.md"

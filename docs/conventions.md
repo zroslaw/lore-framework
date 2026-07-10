@@ -284,11 +284,19 @@ Both declare an explicit empty write-set: the gate parses the body, finds no glo
 
 ## Plugin Manifest Versioning
 
-Every `VERSION` bump must also bump the plugin manifest version in **both** `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. Use the mechanical mapping **`"version": "1.<VERSION>.0"`** (framework `VERSION` 14 → manifest `1.14.0`) — derived from `VERSION` so it can't be forgotten, strictly increasing, and valid semver. `/lr:check` enforces this (check #19): it flags any manifest whose version isn't `1.<VERSION>.0`.
+Every `VERSION` bump must also bump the plugin manifest version in **all three** manifests:
 
-Why it matters: Claude Code identifies a plugin release by the manifest version. If the manifest stays frozen (it sat at `1.0.0` from v1 through v13), the plugin layer never sees a new version and never refreshes its cache on its own — the root cause of the recurring "stale skill catalog after an upgrade" pain that the manual **Clear Plugin Cache** footer exists to work around.
+- `.claude-plugin/plugin.json`
+- `.claude-plugin/marketplace.json` (the `lr` plugin entry)
+- `.cursor-plugin/plugin.json`
 
-Relationship to the cache-clear footer: bumping the manifest is what lets the platform *detect* a release; keep the Clear Plugin Cache footer (above) as belt-and-suspenders until it's confirmed that a manifest bump alone makes Claude Code auto-invalidate the cache. The two are complementary. See `doctor-stale-plugin-cache.md`.
+Use the mechanical mapping **`"version": "1.<VERSION>.0"`** (framework `VERSION` 14 → manifest `1.14.0`) — derived from `VERSION` so it can't be forgotten, strictly increasing, and valid semver. `/lr:check` enforces this (check #19): it flags any manifest whose version isn't `1.<VERSION>.0`.
+
+Why it matters for Claude Code: Claude identifies a plugin release by the manifest version. If the manifest stays frozen (it sat at `1.0.0` from v1 through v13), the plugin layer never sees a new version and never refreshes its cache on its own — the root cause of the recurring "stale skill catalog after an upgrade" pain that the manual **Clear Plugin Cache** footer exists to work around.
+
+The `.cursor-plugin/plugin.json` bump is **consistency hygiene / mechanical parity** with `VERSION` — do **not** claim it is a verified Cursor cache-detection lever (that mechanism is verified for Claude Code only). It still must move with every `VERSION` bump so mixed-engine checkouts stay internally consistent.
+
+Relationship to the cache-clear footer: bumping the Claude manifests is what lets the platform *detect* a release; keep the Clear Plugin Cache footer (above) as belt-and-suspenders until it's confirmed that a manifest bump alone makes Claude Code auto-invalidate the cache. The two are complementary. See `doctor-stale-plugin-cache.md`.
 
 ## Plugin MCP Servers
 

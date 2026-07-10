@@ -54,6 +54,16 @@ Symptom signatures:
 - A SKILL.md or doc edit in the marketplace install doesn't seem to take effect.
 - A `/plugin update` or marketplace refresh appears to succeed but Claude Code's behavior reflects the prior version.
 
+#### `doctor-cursor-session-without-plugin`
+
+*Cursor agent session started without the Lore plugin loaded — no `/lr-*` skills in the picker.*
+
+Symptom signatures:
+
+- `/lr-boot`, `/lr-doctor`, `/lr-check`, etc. are not in the available-skills list.
+- User expected Lore slash commands after opening IDE chat or `cursor-agent` without `--plugin-dir`.
+- `${CLAUDE_PLUGIN_ROOT}` is empty (this is normal on Cursor — not a diagnostic signal).
+
 *(More ailments accrue here as real-world failures surface and get distilled into topics. The catalog is the framework's accumulated healing wisdom.)*
 
 ## What Belongs in the Catalog
