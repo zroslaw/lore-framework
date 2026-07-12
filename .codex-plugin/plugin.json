@@ -29,7 +29,7 @@
       "Write"
     ],
     "websiteURL": "https://github.com/zroslaw/lore-framework",
-    "logo": "./assets/logo.svg",
-    "composerIcon": "./assets/logo.svg"
+    "logo": "./assets/logo-512.png",
+    "composerIcon": "./assets/logo-256.png"
   }
 }

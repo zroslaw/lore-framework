@@ -8,7 +8,11 @@ Work through the following checks in order. Report each issue found. At the end,
 
 ## 1. Agent repo discovery
 
-Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root. If no agent repos are found, flag it: no lore agent repos exist in this workspace.
+Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root.
+
+**Anchor the scan to your actual current working directory** — run `pwd` first if unsure. This is the directory the session was invoked from. It is **not** `<framework-root>` (the plugin/framework directory you just read this file from), and **not** `<framework-root>`'s parent. Do not scan the framework directory or walk up to a parent directory looking for a workspace: a lore agent repo that is not under the current working directory is out of scope for this run. (Booting has the same guard — see `agent-boot.md` Step 1.)
+
+If no agent repos are found, flag it: no lore agent repos exist in this workspace.
 
 ## 2. lore-repo.md validation
 

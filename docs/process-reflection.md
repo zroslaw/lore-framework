@@ -28,7 +28,7 @@ For each agent iteration, review the session and identify:
 
 ## How to Write Reflection Topics
 
-Write each reflection topic as a plain markdown file in the current agent's `reflections/` directory (the agent whose iteration is running).
+Write each reflection topic as a plain markdown file in the current agent's `reflections/` directory (the agent whose iteration is running). This directory lives **inside the agent's own directory** — `<lore-agent-repo>/agents/<agent-name>/reflections/`, a sibling of that agent's `lore/`, `lore-context.md`, and `workdir/`. It is **not** at the repo root and **not** at the workspace root. Create it if it does not exist. Writing reflections anywhere else (e.g. `<lore-agent-repo>/reflections/`) is wrong — the merge step, `/lr:check`, and finalization all look only inside the agent directory, so a misplaced reflection is silently lost.
 
 Rules:
 - **One topic per file** — atomic, focused on a single concept or lesson

@@ -4,8 +4,8 @@
 
 ## Symptoms
 
-- A skill known to exist in the current framework `VERSION` does not appear in the session's available-skills list (e.g. `/lr:workspace-pull` is missing on a v11+ install).
-- An **old** skill name still appears after a hard rename (e.g. `/lr:workspace-pull` is still listed after the v25 rename to `/lr:workspace-pull`).
+- A skill known to exist in the current framework `VERSION` does not appear in the session's available-skills list (e.g. `/lr:workspace-pull` is missing on a v25+ install).
+- An **old** skill name still appears after a hard rename (e.g. `/lr:workspace-sync` is still listed after the v25 rename to `/lr:workspace-pull`).
 - A SKILL.md or doc edit made in the marketplace install at `~/.claude/plugins/marketplaces/lore-framework/`, or via a normal plugin update, doesn't seem to have taken effect — the prior content keeps loading.
 - A registered per-agent shortcut (`/lr-<agent-name>-agent` on Claude Code, `$lr-<agent-name>-agent` on Codex) points at a path or behavior that no longer matches the framework — typically right after upgrading.
 - A `/plugin update` or marketplace refresh appears to succeed but Claude Code's behavior reflects the prior version.
