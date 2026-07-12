@@ -5,6 +5,12 @@ This is the canonical Codex install and refresh guide for Lore Framework.
 If a Codex agent is asked to install Lore from GitHub, point it at this file and have it follow the
 commands here directly.
 
+Lore ships **native Codex packaging** — a `.codex-plugin/plugin.json` manifest and a
+`.agents/plugins/marketplace.json` marketplace file — so Codex loads it through its own supported
+manifest path and presents it (display name, logo, category) in the `/plugins` browser. The install
+commands below are unchanged; a repo checkout without these files still installs via the legacy
+`.claude-plugin/marketplace.json` fallback, but the native packaging is preferred when present.
+
 ## Normal Team Install (Git marketplace)
 
 Use this for teammates and customers who should track the published `lore-framework` repo:

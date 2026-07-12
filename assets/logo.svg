@@ -1,0 +1,23 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Lore">
+  <defs>
+    <linearGradient id="lr-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#lr-bg)"/>
+  <!-- knowledge graph: topics linked by reference -->
+  <g stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" opacity="0.9">
+    <line x1="160" y1="150" x2="150" y2="322"/>
+    <line x1="160" y1="150" x2="330" y2="200"/>
+    <line x1="150" y1="322" x2="330" y2="200"/>
+    <line x1="150" y1="322" x2="352" y2="360"/>
+    <line x1="330" y1="200" x2="352" y2="360"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="160" cy="150" r="34"/>
+    <circle cx="150" cy="322" r="46"/>
+    <circle cx="330" cy="200" r="30"/>
+    <circle cx="352" cy="360" r="26"/>
+  </g>
+</svg>

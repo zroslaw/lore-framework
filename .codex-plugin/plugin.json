@@ -1,0 +1,35 @@
+{
+  "name": "lr",
+  "version": "1.25.0",
+  "description": "Lore — persistent knowledge system for AI agents",
+  "author": {
+    "name": "Yaroslav Panasyuk"
+  },
+  "homepage": "https://github.com/zroslaw/lore-framework",
+  "repository": "https://github.com/zroslaw/lore-framework",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "agents",
+    "knowledge",
+    "memory",
+    "lore",
+    "context",
+    "persistent"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Lore",
+    "shortDescription": "Persistent, self-improving knowledge for AI agents",
+    "longDescription": "Lore is a persistent knowledge system for AI coding agents. Agents accumulate decisions, domain knowledge, and operational wisdom across sessions as a team-shared knowledge graph, and reflect what they learn back into it at the end of each session.",
+    "developerName": "Yaroslav Panasyuk",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/zroslaw/lore-framework",
+    "logo": "./assets/logo.svg",
+    "composerIcon": "./assets/logo.svg"
+  }
+}

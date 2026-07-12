@@ -1,5 +1,6 @@
 {
   "name": "lr",
+  "displayName": "Lore",
   "description": "Lore — persistent knowledge system for AI agents",
   "version": "1.25.0",
   "author": {
@@ -7,5 +8,16 @@
   },
   "repository": "https://github.com/zroslaw/lore-framework",
   "license": "MIT",
+  "keywords": [
+    "cursor",
+    "plugin",
+    "skills",
+    "agents",
+    "knowledge",
+    "memory",
+    "lore",
+    "context"
+  ],
+  "logo": "assets/logo.svg",
   "skills": ".cursor-skills/"
 }

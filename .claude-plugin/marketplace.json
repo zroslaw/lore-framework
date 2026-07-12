@@ -1,5 +1,6 @@
 {
   "name": "lore-framework",
+  "description": "Lore — a persistent, self-improving knowledge system for AI coding agents",
   "owner": {
     "name": "Yaroslav Panasyuk"
   },
