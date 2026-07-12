@@ -48,7 +48,7 @@ cursor-agent --plugin-dir "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
 
 Some installs expose `agent` as an alias for `cursor-agent`; all examples here use `cursor-agent`.
 
-After launch, Lore skills appear as `/lr-boot`, `/lr-init`, `/lr-finalize`, etc.
+After launch, Lore skills appear as `/lr-boot`, `/lr-workspace-init`, `/lr-finalize`, etc.
 
 ## Verified install path today
 

@@ -10,7 +10,7 @@ The invariant matters because:
 
 - The workspace is read as a snapshot of current production across all its repos. Switching a top-level checkout to a feature branch breaks that view.
 - Agent knowledge about "what this repo looks like in prod" assumes the top-level checkout reflects prod. Drift from that assumption quietly corrupts lore.
-- `/lr:workspace-sync` refreshes all top-level repos. If one is on a feature branch, that refresh semantics gets confusing.
+- `/lr:workspace-pull` refreshes all top-level repos. If one is on a feature branch, that refresh semantics gets confusing.
 
 ## Rule
 

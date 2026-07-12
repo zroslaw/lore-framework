@@ -9,7 +9,7 @@ The shared procedure for refreshing one lore agent repo's git state mid-flow. Us
 - **`process-merge.md` step 0** — defense-in-depth pull right before the merge subagent reads its lore.
 - **`docs/pull-lore.md`** — the user-invoked `/lr:pull-lore` skill iterates this procedure across active agents.
 
-The procedure is intentionally narrow: one `git pull --ff-only` against the agent's repo, with safety gates and a degraded-mode failure path. No clone logic (that's `/lr:workspace-sync`), no migration logic (that's `version-check.md`), no commit or push.
+The procedure is intentionally narrow: one `git pull --ff-only` against the agent's repo, with safety gates and a degraded-mode failure path. No clone logic (that's `/lr:workspace-pull`), no migration logic (that's `version-check.md`), no commit or push.
 
 ## Inputs
 
@@ -80,11 +80,11 @@ The lore framework's worktree convention (see `worktrees.md`) keeps top-level re
 
 ## Distinct From
 
-- **`/lr:workspace-sync`** — filesystem-wide: discovers `lore-repo.md` files, clones missing repos declared in `repos:`, pulls every top-level git repo. Auto-pull is single-repo and never clones.
+- **`/lr:workspace-pull`** — filesystem-wide: discovers `lore-repo.md` files, clones missing repos declared in `repos:`, pulls every top-level git repo. Auto-pull is single-repo and never clones.
 - **`version-check.md`** — repo-version reconciliation: applies migrations and stamps `lore-repo.md` after a framework `VERSION` bump. Auto-pull is git-only and never modifies file contents.
 - **`resolve-conflicts.md`** — finalize-time merge of remote conflicts in agent subtrees. Triggered only when push is rejected; auto-pull is the *prevention* arm of the same problem.
 
-The three sit on a spectrum: auto-pull keeps the local repo fresh (so the rest of the flow reads current data); `/lr:workspace-sync` keeps the workspace fresh (so all repos are present and up to date); resolve-conflicts heals after a concurrent finalize collided. They compose without overlap.
+The three sit on a spectrum: auto-pull keeps the local repo fresh (so the rest of the flow reads current data); `/lr:workspace-pull` keeps the workspace fresh (so all repos are present and up to date); resolve-conflicts heals after a concurrent finalize collided. They compose without overlap.
 
 ## See Also
 
@@ -92,5 +92,5 @@ The three sit on a spectrum: auto-pull keeps the local repo fresh (so the rest o
 - `agent-boot.md` — boot-time invocation site.
 - `attach.md` — guest-attach invocation site.
 - `process-merge.md` — pre-merge invocation site (defense-in-depth atop boot pull).
-- `workspace-sync.md` — workspace-wide companion.
+- `workspace-pull.md` — workspace-wide companion.
 - `conventions.md` § Tooling: CWD Safety — why `git -C <repo>` instead of `cd`.

@@ -17,7 +17,7 @@ Use this when you suspect another contributor (or a parallel session, or your ow
 3. **Re-reads each active agent's `role.md` and `lore-context.md`** — so any changes pulled in actually take effect in working memory. Without this step, the pulled files are on disk but the host is still operating from the pre-pull context.
 4. **Reports a one-line summary per repo** — pulled / already up to date / failed / skipped (no origin), so the user can see what changed.
 
-`/lr:pull-lore` does not run `/lr:workspace-sync` — that's a separate workspace-wide tool. `/lr:pull-lore` is scoped narrowly to the agents currently loaded.
+`/lr:pull-lore` does not run `/lr:workspace-pull` — that's a separate workspace-wide tool. `/lr:pull-lore` is scoped narrowly to the agents currently loaded.
 
 ## Usage
 
@@ -90,13 +90,13 @@ If the re-read of `role.md` or `lore-context.md` fails (e.g., file missing after
 
 - **Boot already auto-pulls.** `/lr:pull-lore` is the mid-session manual equivalent. A typical session never needs to invoke it explicitly — the boot pull and the pre-merge pull cover the common cases.
 - **`/lr:reflect` and `/lr:merge`.** `/lr:merge` runs in a subagent that boots as the target agent, so its boot pull covers freshness. `/lr:pull-lore` before `/lr:reflect` is sometimes useful when the user knows the host's lore-context has drifted from disk after a long session.
-- **`/lr:workspace-sync`** is the workspace-wide peer (every top-level repo, including non-lore application code repos). `/lr:pull-lore` is session-scoped (only the lore agent repos of currently loaded agents). Use workspace-sync to bootstrap or refresh the whole workspace; use `/lr:pull-lore` to refresh active agents quickly without touching unrelated repos.
+- **`/lr:workspace-pull`** is the workspace-wide peer (every top-level repo, including non-lore application code repos). `/lr:pull-lore` is session-scoped (only the lore agent repos of currently loaded agents). Use workspace-pull to bootstrap or refresh the whole workspace; use `/lr:pull-lore` to refresh active agents quickly without touching unrelated repos.
 
 ## See Also
 
 - `<framework-root>/docs/auto-pull.md` — the per-repo procedure this skill iterates.
 - `<framework-root>/docs/agent-boot.md` — the boot-time auto-pull, which makes `/lr:pull-lore` rarely necessary.
 - `<framework-root>/docs/process-merge.md` — the pre-merge auto-pull (defense-in-depth).
-- `<framework-root>/docs/workspace-sync.md` — workspace-wide companion (different scope).
+- `<framework-root>/docs/workspace-pull.md` — workspace-wide companion (different scope).
 - `<framework-root>/docs/attach.md` — `/lr:attach` also auto-pulls the guest repo on attach.
 - `<framework-root>/docs/recall.md` — pair with `/lr:pull-lore` when freshly pulled lore-context wants to be re-explored.

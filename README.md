@@ -127,14 +127,14 @@ A teammate has set up an agent repo and pointed you at it.
 
 1. **Clone any one of the agent repos** into a workspace directory of your choice.
 2. **Run your coding agent from the workspace** (the parent directory) — Claude Code, Codex, or Cursor.
-3. **Sync the workspace** — clones any other repos the agent repo declares; pulls everything:
+3. **Pull the workspace** — clones any other repos the workspace and agent repos declare; pulls everything:
    ```
-   /lr:workspace-sync
+   /lr:workspace-pull
    ```
-   (Cursor: `/lr-workspace-sync`; Codex: `$lr-workspace-sync`.)
+   (Cursor: `/lr-workspace-pull`; Codex: `$lr-workspace-pull`.)
 4. **Initialize the workspace** so future sessions auto-load the framework's conventions:
    ```
-   /lr:init
+   /lr:workspace-init
    ```
    On Codex and Cursor this writes `AGENTS.md` (not `CLAUDE.md`).
 5. **Boot an agent and start working:**
@@ -162,7 +162,7 @@ You're introducing the framework into a new area.
    ```
 4. **Initialize the workspace:**
    ```
-   /lr:init
+   /lr:workspace-init
    ```
 5. **Boot and work with the agent:**
    ```
@@ -180,8 +180,8 @@ Grouped by purpose. **Claude** column uses `/lr:<skill>`; **Cursor** uses `/lr-<
 **Workspace setup**
 | Skill | Purpose | Cursor |
 |---|---|---|
-| `/lr:workspace-sync` | Clone declared repos and pull all top-level repos in the workspace | `/lr-workspace-sync` |
-| `/lr:init` | Write the framework-managed section into the workspace memory file | `/lr-init` |
+| `/lr:workspace-pull` | Pull the workspace repo, clone declared repos, and pull all top-level repos | `/lr-workspace-pull` |
+| `/lr:workspace-init` | Bootstrap or refresh the workspace (descriptor, git root, memory file) | `/lr-workspace-init` |
 | `/lr:list-agents` | List all agents in the workspace | `/lr-list-agents` |
 | `/lr:list-repos` | List all agent repos in the workspace | `/lr-list-repos` |
 

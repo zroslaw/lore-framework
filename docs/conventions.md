@@ -43,12 +43,18 @@ Session summaries live under `sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md`
 ### Workspace
 ```
 <workspace>/
+├── lore-workspace.md            # Optional workspace descriptor (workspace-level `repos:` layout)
 ├── <lore-agent-repo>/           # One or more lore agent repos (each has lore-repo.md)
 │   └── ...
-├── <other-repo>/                # Optionally, repos declared via `repos:` in lore-repo.md
+├── <other-repo>/                # Optionally, repos declared via `repos:` (workspace- or domain-level)
 │   └── ...
 └── .claude/commands/            # Claude Code optional agent shortcut commands
 ```
+
+The workspace root may itself be a git repo (a "workspace meta-repo") that versions
+`lore-workspace.md`, `README.md`, and the memory file, while gitignoring the child repo clones.
+`/lr:workspace-init` scaffolds this; `/lr:workspace-pull` maintains the `.gitignore` and pulls the
+root first. When the root is not a git repo, everything still works in local-only mode.
 
 On Cursor, the equivalent registered shortcuts live in workspace-local `.cursor/skills/` as
 path-scoped skills. On Codex, they live outside the workspace in `~/.codex/skills/` as personal
@@ -58,13 +64,22 @@ The lore framework itself is installed as a plugin (`lr`), not as a repo in the 
 
 ## Descriptor Files
 
-Two descriptor files carry YAML frontmatter so the framework can machine-read them:
+Three descriptor files carry YAML frontmatter so the framework can machine-read them:
 
 - **`lore-repo.md`** — at the root of a lore agent repo. Frontmatter fields:
   - `description` (string, required)
   - `version` (string, required) — matches the framework `VERSION` when the repo was created or last migrated. The repo version is the single source of truth for migration state; `/lr:update` uses it to decide what migrations to apply.
-  - `repos` (block-form list of strings, optional) — remote URLs of repos this agent repo expects to find as siblings in the workspace. Consumed by `/lr:workspace-sync`. See `docs/workspace-sync.md` for the full schema.
+  - `repos` (block-form list of strings, optional) — **domain-level** declaration: remote URLs of sibling repos the agents in this domain need. Consumed by `/lr:workspace-pull`. See `docs/workspace-pull.md`.
+- **`lore-workspace.md`** — optional, at the workspace root (not inside an agent repo). Frontmatter fields:
+  - `description` (string) — human label for the workspace.
+  - `repos` (block-form list of strings, optional) — **workspace-level** declaration: remote URLs of the top-level repos that belong in this workspace, including the lore **agent repos themselves**. Consumed by `/lr:workspace-pull` (phase 1). The markdown body is user-owned onboarding prose. Written by `/lr:workspace-init`.
 - **`role.md`** — at the root of each agent directory. Frontmatter fields: `description` (string) only. Agents do not carry their own version stamp at framework version 2+; they migrate together with the repo.
+
+**The dual meaning of `repos:`.** The same YAML key names repos at two scopes. In `lore-workspace.md`
+it is the *workspace layout* — which top-level repos (agent repos + shared repos) should exist as
+siblings. In a `lore-repo.md` it is that *agent domain's dependencies* — the sibling repos those
+agents need. `/lr:workspace-pull` reads the workspace level first (so agent repos are on disk), then
+the domain level, and clones the union. Both use identical block-form list syntax.
 
 ## Lore Topics
 
@@ -115,7 +130,7 @@ The agent's shell working directory is shared across Bash, Glob, Grep, and subse
 
 Framework-authored shell commands run in whatever environment the agent booted in — and the primary dev platform is macOS (BSD userland), not GNU/Linux. Commands that silently assume GNU coreutils break there, and the failure is often invisible: a `command not found` (exit 127) inside a best-effort flow reads as the underlying operation failing, not as a portability bug.
 
-- **No GNU-only binaries.** Most notably `timeout` / `gtimeout` — absent on a stock macOS. To bound a command's runtime, use your Bash tool's own timeout parameter, not a `timeout` wrapper. (This exact trap silently disabled v13 auto-pull on macOS; see `auto-pull.md` § Step 2.) Inside a **standalone script** there is no Bash-tool timeout and no portable one-liner for a hard wall-clock cap — prevent hangs at the source with fail-fast env vars (`GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with `BatchMode`/`ConnectTimeout`), or implement a bash watchdog (background the job, then `sleep`+`kill`). `scripts/workspace-sync` takes the fail-fast-env-vars route.
+- **No GNU-only binaries.** Most notably `timeout` / `gtimeout` — absent on a stock macOS. To bound a command's runtime, use your Bash tool's own timeout parameter, not a `timeout` wrapper. (This exact trap silently disabled v13 auto-pull on macOS; see `auto-pull.md` § Step 2.) Inside a **standalone script** there is no Bash-tool timeout and no portable one-liner for a hard wall-clock cap — prevent hangs at the source with fail-fast env vars (`GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with `BatchMode`/`ConnectTimeout`), or implement a bash watchdog (background the job, then `sleep`+`kill`). `scripts/workspace-pull` takes the fail-fast-env-vars route.
 - **Watch BSD-vs-GNU flag differences** on tools present in both userlands: `sed -i` (BSD needs `-i ''`), `date -d` (GNU-only), `readlink -f` / `realpath` (not always present), `grep -P`, `xargs -r`. Prefer a portable invocation or a short Bash/`git` equivalent.
 - **Prefer git's own knobs over external wrappers** for git operations: `GIT_TERMINAL_PROMPT=0` (suppress HTTP(S) auth prompts), `GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=<n>'` (fail-fast SSH), `git -C <repo>` (see § Tooling: CWD Safety above).
 

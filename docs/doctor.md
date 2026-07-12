@@ -49,7 +49,7 @@ Each ailment is owned by a `doctor-<slug>.md` topic. To add a new ailment, write
 
 Symptom signatures:
 
-- A skill known to exist in the current `VERSION` is missing from the available-skills list (e.g. `/lr:workspace-sync` on a v11+ install).
+- A skill known to exist in the current `VERSION` is missing from the available-skills list (e.g. `/lr:workspace-pull` on a v11+ install).
 - An old skill name lingers after a hard rename (e.g. `/lr:pull-domain` after the v11 rename).
 - A SKILL.md or doc edit in the marketplace install doesn't seem to take effect.
 - A `/plugin update` or marketplace refresh appears to succeed but Claude Code's behavior reflects the prior version.
@@ -116,7 +116,7 @@ A `doctor-<slug>.md` topic uses this skeleton:
 
 - **`/lr:check`** — content-level consistency (descriptor validity, references, staleness). Covers what the framework can detect statically. `/lr:doctor` is for runtime/environmental issues that escape static checks.
 - **`/lr:update`** — applies version migrations and release notes. If the issue is "I'm behind on framework versions," that's `/lr:update`, not `/lr:doctor`. Some ailments (e.g. stale cache after an update) emerge **as a side effect of** a successful `/lr:update` and belong here.
-- **`/lr:workspace-sync`** — git-level sync. If a sibling repo is missing or behind, that's `/lr:workspace-sync`. If `/lr:workspace-sync` itself is missing from the available skills, that's a doctor case.
+- **`/lr:workspace-pull`** — git-level sync. If a sibling repo is missing or behind, that's `/lr:workspace-pull`. If `/lr:workspace-pull` itself is missing from the available skills, that's a doctor case.
 
 ## Limitations
 
