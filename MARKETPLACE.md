@@ -16,6 +16,7 @@ plugin marketplaces.
 - License: `MIT`
 - Author / developer: `Yaroslav Panasyuk`
 - Website / homepage: `https://github.com/zroslaw/lore-framework`
+- Privacy policy: `https://github.com/zroslaw/lore-framework/blob/main/PRIVACY.md`
 - Category: `Productivity`
 
 ## Descriptions

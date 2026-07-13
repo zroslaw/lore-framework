@@ -57,6 +57,7 @@ Engine-specific install guides:
 - [INSTALL-CODEX.md](INSTALL-CODEX.md) — Codex install, refresh, and team automation
 - [INSTALL-CURSOR.md](INSTALL-CURSOR.md) — Cursor install and refresh
 - [MARKETPLACE.md](MARKETPLACE.md) — submission metadata for Claude Code, Codex, and Cursor
+- [PRIVACY.md](PRIVACY.md) — privacy and data-handling policy
 
 ### Codex-native install
 
