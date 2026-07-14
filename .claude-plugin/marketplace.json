@@ -9,7 +9,7 @@
       "name": "lr",
       "source": "./",
       "description": "Persistent knowledge system for AI agents",
-      "version": "1.25.0",
+      "version": "1.26.0",
       "repository": "https://github.com/zroslaw/lore-framework",
       "license": "MIT"
     }

@@ -17,8 +17,8 @@ list_<engine>() discovery function.
 Engine support:
     codex   -- list + convert (~/.codex/sessions rollout JSONL)
     claude  -- list + convert (~/.claude/projects session JSONL)
-    cursor  -- list only (~/.cursor/chats; content-addressed SQLite store,
-               message ordering not yet reverse-engineered)
+    cursor  -- list + convert (~/.cursor/chats index + agent-transcripts JSONL;
+               tool results paired from store.db via batch-window matching)
 
 Usage:
     session-takeover --list [--engine E] [--limit N]
@@ -28,12 +28,15 @@ With no -o, the digest is written to stdout.
 """
 
 import argparse
+import binascii
+import contextlib
 import glob
 import json
 import os
 import re
+import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 TRUNC_ARGS = 160     # max chars shown for tool-call arguments
@@ -41,7 +44,19 @@ TRUNC_RESULT = 120   # max chars shown for tool-call results
 
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 CLAUDE_PROJECTS = Path.home() / ".claude" / "projects"
-CURSOR_CHATS = Path.home() / ".cursor" / "chats"
+_CURSOR_GENERIC_TITLES = frozenset({"New Agent", "New Chat"})
+
+
+def _cursor_home():
+    return Path(os.environ.get("CURSOR_HOME", str(Path.home() / ".cursor")))
+
+
+def _cursor_chats():
+    return _cursor_home() / "chats"
+
+
+def _cursor_projects():
+    return _cursor_home() / "projects"
 
 
 def _clip(text, limit):
@@ -246,6 +261,311 @@ def parse_claude(path):
     return meta, messages
 
 
+# ----------------------------------------------------------- cursor parsing
+
+_CURSOR_ARG_KEYS = {
+    "Shell": ["command"],
+    "Read": ["path"],
+    "Write": ["path"],
+    "StrReplace": ["path"],
+    "Delete": ["path"],
+    "Glob": ["glob_pattern"],
+    "Grep": ["pattern"],
+    "WebFetch": ["url"],
+    "WebSearch": ["search_term"],
+    "Task": ["description"],
+    "CallMcpTool": ["toolName"],
+    "GenerateImage": ["description"],
+}
+
+
+def _cursor_call_summary(name, args):
+    if not isinstance(args, dict):
+        return _clip(args or "", TRUNC_ARGS)
+    for key in _CURSOR_ARG_KEYS.get(name, []):
+        if args.get(key):
+            return _clip(args[key], TRUNC_ARGS)
+    return _clip(json.dumps(args, ensure_ascii=False), TRUNC_ARGS)
+
+
+def _cursor_result_summary(result):
+    if isinstance(result, dict):
+        text = result.get("content") or json.dumps(result, ensure_ascii=False)
+    else:
+        text = str(result or "")
+    if "exit code" in text.lower() or "Exit code:" in text:
+        first = text.splitlines()[0] if text.splitlines() else text
+        return _clip(first, TRUNC_RESULT)
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return _clip(lines[0] if lines else text, TRUNC_RESULT)
+
+
+def _cursor_extract_user_text(raw):
+    text = raw.strip()
+    if not text:
+        return None
+    match = re.search(r"<user_query>\s*(.*?)\s*</user_query>", text, re.S)
+    if match:
+        return match.group(1).strip()
+    text = re.sub(r"<timestamp>.*?</timestamp>\s*", "", text, flags=re.S).strip()
+    if not text or re.match(r"^\s*<[a-z-]+", text):
+        return None
+    return text
+
+
+def _cursor_jsonl_paths_for_uuid(session_uuid):
+    return [
+        Path(p)
+        for p in glob.glob(
+            str(
+                _cursor_projects()
+                / "*"
+                / "agent-transcripts"
+                / session_uuid
+                / f"{session_uuid}.jsonl"
+            )
+        )
+    ]
+
+
+def _cursor_unique_path(hits, label, session_uuid, *, strict=False):
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        if strict:
+            sys.exit(
+                f"error: multiple {label} for Cursor chat {session_uuid}:\n  "
+                + "\n  ".join(str(h) for h in hits)
+            )
+        return None
+    return None
+
+
+def cursor_jsonl_for_uuid(session_uuid, *, strict=False):
+    return _cursor_unique_path(
+        _cursor_jsonl_paths_for_uuid(session_uuid),
+        "agent-transcript paths",
+        session_uuid,
+        strict=strict,
+    )
+
+
+def cursor_store_db_for_uuid(session_uuid, *, strict=False):
+    hits = [
+        Path(p)
+        for p in glob.glob(str(_cursor_chats() / "*" / session_uuid / "store.db"))
+    ]
+    return _cursor_unique_path(
+        hits, "store.db paths", session_uuid, strict=strict
+    )
+
+
+def cursor_chat_meta_for_uuid(session_uuid):
+    hits = glob.glob(str(_cursor_chats() / "*" / session_uuid / "meta.json"))
+    if len(hits) != 1:
+        return {}
+    try:
+        return json.loads(Path(hits[0]).read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def cursor_store_meta(store_db):
+    if store_db is None or not store_db.is_file():
+        return {}
+    try:
+        with contextlib.closing(sqlite3.connect(store_db)) as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key=0").fetchone()
+        if not row:
+            return {}
+        raw = row[0]
+        if isinstance(raw, str) and re.fullmatch(r"[0-9a-fA-F]+", raw):
+            raw = binascii.unhexlify(raw)
+        elif isinstance(raw, bytes):
+            try:
+                raw = binascii.unhexlify(raw)
+            except binascii.Error:
+                pass
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode("utf-8", errors="replace")
+        return json.loads(raw)
+    except (json.JSONDecodeError, OSError, sqlite3.Error, binascii.Error):
+        return {}
+
+
+def cursor_first_user_query(jsonl_path):
+    for record in _iter_jsonl(jsonl_path):
+        if record.get("role") != "user":
+            continue
+        for item in (record.get("message") or {}).get("content") or []:
+            if item.get("type") != "text":
+                continue
+            text = _cursor_extract_user_text(item.get("text", ""))
+            if text:
+                return _clip(text, 60)
+    return None
+
+
+def cursor_session_status(jsonl_path):
+    ended = False
+    for record in _iter_jsonl(jsonl_path):
+        if record.get("type") == "turn_ended":
+            ended = True
+    return "completed" if ended else "in-progress"
+
+
+def _cursor_load_tool_results(store_db):
+    results = []
+    if store_db is None or not store_db.is_file():
+        return results
+    with contextlib.closing(sqlite3.connect(store_db)) as conn:
+        rows = list(
+            conn.execute("SELECT rowid, id, data FROM blobs ORDER BY rowid")
+        )
+    for _rowid, _blob_id, data in rows:
+        if not data or data[:1] != b"{":
+            continue
+        try:
+            record = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        if record.get("role") != "tool":
+            continue
+        for item in record.get("content") or []:
+            if item.get("type") != "tool-result":
+                continue
+            results.append(
+                {
+                    "name": item.get("toolName", "?"),
+                    "result": _cursor_result_summary(item.get("result")),
+                }
+            )
+    return results
+
+
+def _cursor_batch_has_duplicate_names(tool_uses):
+    names = [tool.get("name", "?") for tool in tool_uses]
+    return len(names) != len(set(names))
+
+
+def _cursor_pair_tool_batch(tool_uses, results, result_index):
+    """Pair one assistant JSONL batch of tool_use items with store.db results.
+
+    Cursor may complete parallel tool calls in a different order than JSONL
+    lists them. Pair within a fixed-size window (the next len(batch) results in
+    sqlite rowid order) by tool name, in JSONL invocation order.
+    """
+    window_end = result_index + len(tool_uses)
+    window = results[result_index:window_end]
+    used = set()
+    paired = []
+    for tool in tool_uses:
+        name = tool.get("name", "?")
+        match = None
+        for idx, item in enumerate(window):
+            if idx in used:
+                continue
+            if item["name"] == name:
+                match = item
+                used.add(idx)
+                break
+        paired.append(match["result"] if match else "")
+    return paired, window_end
+
+
+def _cursor_resolved_title(store_info, jsonl_path):
+    title = store_info.get("name")
+    if title in _CURSOR_GENERIC_TITLES:
+        title = None
+    return title or cursor_first_user_query(jsonl_path) or "(untitled)"
+
+
+def parse_cursor(path):
+    """Parse a Cursor agent-transcript JSONL + store.db tool results."""
+    jsonl_path = Path(path)
+    session_id = jsonl_path.stem
+    store_db = cursor_store_db_for_uuid(session_id, strict=True)
+    chat_meta = cursor_chat_meta_for_uuid(session_id)
+    store_info = cursor_store_meta(store_db)
+
+    meta = {
+        "engine": "cursor",
+        "source": str(jsonl_path),
+        "session_id": session_id,
+        "cwd": chat_meta.get("cwd"),
+        "status": cursor_session_status(jsonl_path),
+    }
+    meta["title"] = _cursor_resolved_title(store_info, jsonl_path)
+    if store_info.get("lastUsedModel"):
+        meta["model"] = store_info["lastUsedModel"]
+    if chat_meta.get("createdAtMs"):
+        meta["started"] = _fmt_ts(chat_meta["createdAtMs"] / 1000)
+    if chat_meta.get("updatedAtMs"):
+        meta["ended"] = _fmt_ts(chat_meta["updatedAtMs"] / 1000)
+
+    tool_results = _cursor_load_tool_results(store_db)
+    result_index = 0
+    messages = []
+    paired_tools = 0
+    duplicate_name_batches = False
+
+    for record in _iter_jsonl(jsonl_path):
+        if record.get("type") == "turn_ended":
+            continue
+        role = record.get("role")
+        if role == "user":
+            for item in (record.get("message") or {}).get("content") or []:
+                if item.get("type") != "text":
+                    continue
+                text = _cursor_extract_user_text(item.get("text", ""))
+                if text:
+                    messages.append({"role": "user", "content": text})
+        elif role == "assistant":
+            content = (record.get("message") or {}).get("content") or []
+            text_parts = []
+            tool_uses = []
+            for item in content:
+                if item.get("type") == "text":
+                    text = (item.get("text") or "").strip()
+                    if text and text != "[REDACTED]":
+                        text_parts.append(text)
+                elif item.get("type") == "tool_use":
+                    tool_uses.append(item)
+            if text_parts:
+                messages.append(
+                    {"role": "assistant", "content": "\n\n".join(text_parts)}
+                )
+            if tool_uses:
+                if _cursor_batch_has_duplicate_names(tool_uses):
+                    duplicate_name_batches = True
+                paired_results, result_index = _cursor_pair_tool_batch(
+                    tool_uses, tool_results, result_index
+                )
+                for tool, result in zip(tool_uses, paired_results):
+                    if result:
+                        paired_tools += 1
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "tool": tool.get("name", "?"),
+                            "args": _cursor_call_summary(
+                                tool.get("name"), tool.get("input")
+                            ),
+                            "result": result,
+                        }
+                    )
+
+    meta["tool_results_paired"] = paired_tools
+    meta["tool_calls_total"] = sum(
+        1 for msg in messages if "tool" in msg
+    )
+    if len(tool_results) != meta["tool_calls_total"]:
+        meta["pairing_uncertain"] = True
+    if duplicate_name_batches:
+        meta["pairing_uncertain"] = True
+    return meta, messages
+
+
 # ------------------------------------------------------------------ shared
 
 
@@ -261,24 +581,32 @@ def _iter_jsonl(path):
                 continue
 
 
-PARSERS = {"codex": parse_codex, "claude": parse_claude}
+PARSERS = {"codex": parse_codex, "claude": parse_claude, "cursor": parse_cursor}
 
 
 def detect_engine(path):
     """Sniff the log format from the first few records."""
+    path = Path(path)
+    if path.suffix == ".jsonl" and "agent-transcripts" in str(path):
+        return "cursor"
     for record in _iter_jsonl(path):
         if record.get("type") == "session_meta":
             return "codex"
         if "sessionId" in record:
             return "claude"
+        if record.get("role") in ("user", "assistant") and "message" in record:
+            return "cursor"
     return None
 
 
 # --------------------------------------------------------------- discovery
 
 
-def _fmt_ts(ts):
-    return ts[:16].replace("T", " ") if ts else "?"
+def _fmt_ts(epoch):
+    """Format a Unix epoch timestamp for display in the local timezone."""
+    if not epoch:
+        return "?"
+    return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
 
 
 def _is_temp_cwd(cwd):
@@ -308,9 +636,7 @@ def list_codex(limit, include_all=False):
                 "engine": "codex",
                 "id": sid,
                 "title": title,
-                "updated": datetime.fromtimestamp(
-                    os.path.getmtime(path), tz=timezone.utc
-                ).isoformat(),
+                "updated": os.path.getmtime(path),
                 "path": path,
             }
         )
@@ -351,9 +677,7 @@ def list_claude(limit, include_all=False):
                 "id": Path(path).stem,
                 "title": title or "(untitled)",
                 "cwd": cwd,
-                "updated": datetime.fromtimestamp(
-                    mtime, tz=timezone.utc
-                ).isoformat(),
+                "updated": mtime,
                 "path": path,
             }
         )
@@ -363,9 +687,9 @@ def list_claude(limit, include_all=False):
 
 
 def list_cursor(limit, include_all=False):
-    """Cursor chats from meta.json files. Listing only — no conversion yet."""
+    """Cursor chats from meta.json; paths point at agent-transcript JSONL."""
     sessions = []
-    for meta_path in glob.glob(str(CURSOR_CHATS / "*" / "*" / "meta.json")):
+    for meta_path in glob.glob(str(_cursor_chats() / "*" / "*" / "meta.json")):
         try:
             info = json.loads(Path(meta_path).read_text())
         except (json.JSONDecodeError, OSError):
@@ -374,17 +698,28 @@ def list_cursor(limit, include_all=False):
             continue
         if _is_temp_cwd(info.get("cwd")) and not include_all:
             continue
+        session_id = Path(meta_path).parent.name
+        jsonl_path = cursor_jsonl_for_uuid(session_id)
+        store_db = Path(meta_path).parent / "store.db"
+        store_info = cursor_store_meta(store_db)
+        if jsonl_path:
+            title = _cursor_resolved_title(store_info, jsonl_path)
+        else:
+            name = store_info.get("name")
+            title = name if name not in _CURSOR_GENERIC_TITLES else "(untitled)"
+        status = cursor_session_status(jsonl_path) if jsonl_path else "no-transcript"
         updated = info.get("updatedAtMs") or info.get("createdAtMs") or 0
         sessions.append(
             {
                 "engine": "cursor",
-                "id": Path(meta_path).parent.name,
-                "title": "(cursor chat — conversion not yet supported)",
+                "id": session_id,
+                "title": title,
                 "cwd": info.get("cwd"),
-                "updated": datetime.fromtimestamp(
-                    updated / 1000, tz=timezone.utc
-                ).isoformat(),
-                "path": str(Path(meta_path).parent / "store.db"),
+                "updated": updated / 1000,
+                "path": str(jsonl_path or store_db),
+                "model": store_info.get("lastUsedModel"),
+                "status": status,
+                "is_subagent": bool(info.get("isSubagent")),
             }
         )
     sessions.sort(key=lambda s: s["updated"], reverse=True)
@@ -400,6 +735,14 @@ def resolve_session(token):
         str(CODEX_HOME / "sessions" / "**" / f"rollout-*{token}*.jsonl"),
         recursive=True,
     ) + glob.glob(str(CLAUDE_PROJECTS / "*" / f"{token}*.jsonl"))
+    cursor_candidates = []
+    for hit in glob.glob(
+        str(_cursor_projects() / "*" / "agent-transcripts" / f"*{token}*" / f"*{token}*.jsonl")
+    ):
+        path = Path(hit)
+        if path.parent.name == path.stem:
+            cursor_candidates.append(str(path))
+    candidates.extend(cursor_candidates)
     if len(candidates) == 1:
         return Path(candidates[0])
     if len(candidates) > 1:
@@ -427,6 +770,7 @@ def render_markdown(meta, messages):
         "engine",
         "title",
         "model",
+        "status",
         "originator",
         "cli_version",
         "session_id",
@@ -434,8 +778,11 @@ def render_markdown(meta, messages):
         "ended",
         "cwd",
         "source",
+        "tool_results_paired",
+        "tool_calls_total",
+        "pairing_uncertain",
     ):
-        if meta.get(key):
+        if meta.get(key) is not None and meta.get(key) != "":
             out.append(f"- {key}: `{meta[key]}`")
     out += ["", "## Transcript"]
 
@@ -460,6 +807,25 @@ def render_markdown(meta, messages):
         "before continuing, then pick up where it stopped.",
         "",
     ]
+    if meta.get("engine") == "cursor":
+        note = (
+            "> **Cursor transcript note.** Cursor stores some assistant turns "
+            "as `[REDACTED]` at rest; those lines are omitted from this digest."
+        )
+        paired = meta.get("tool_results_paired")
+        total = meta.get("tool_calls_total")
+        if paired is not None and total:
+            note += (
+                f" Tool results were paired for {paired}/{total} tool calls "
+                "via store.db batch-window matching."
+            )
+        if meta.get("pairing_uncertain"):
+            note += (
+                " Pairing may be incomplete — counts may differ, or a batch "
+                "contained parallel calls with the same tool name (results "
+                "paired by name only within each batch window)."
+            )
+        out += [note, ""]
     return "\n".join(out)
 
 
@@ -472,7 +838,15 @@ def cmd_list(engines, limit, include_all=False):
         print(f"== {engine} ({len(sessions)} session(s)) ==")
         for s in sessions:
             cwd = f"  cwd: {s['cwd']}" if s.get("cwd") else ""
-            print(f"{_fmt_ts(s['updated'])}  {s['id'][:12]}  {s['title']}{cwd}")
+            extras = []
+            if s.get("model"):
+                extras.append(s["model"])
+            if s.get("status"):
+                extras.append(s["status"])
+            if s.get("is_subagent"):
+                extras.append("subagent")
+            tag = f"  [{', '.join(extras)}]" if extras else ""
+            print(f"{_fmt_ts(s['updated'])}  {s['id'][:12]}  {s['title']}{tag}{cwd}")
             print(f"    {s['path']}")
         print()
 
@@ -503,6 +877,13 @@ def main():
         sys.exit("error: pass a session id/path, or --list")
 
     path = Path(args.session)
+    if path.suffix == ".db":
+        jsonl_path = cursor_jsonl_for_uuid(path.parent.name, strict=True)
+        if jsonl_path is None:
+            sys.exit(
+                f"error: no agent-transcript JSONL found for Cursor chat {path.parent.name}"
+            )
+        path = jsonl_path
     if not path.is_file():
         path = resolve_session(args.session)
         if path is None:
@@ -511,8 +892,6 @@ def main():
                 "session id — try --list"
             )
 
-    if args.engine == "cursor" or path.suffix == ".db":
-        sys.exit("error: cursor session conversion is not supported yet")
     engine = args.engine or detect_engine(path)
     if engine not in PARSERS:
         sys.exit("error: could not detect log format; pass --engine")

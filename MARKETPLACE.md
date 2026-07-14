@@ -8,9 +8,9 @@ plugin marketplaces.
 - Plugin id: `lr`
 - Display name: `Lore`
 - Repository / marketplace name: `lore-framework`
-- Version: `1.25.0`
-- Runtime release tag: `lr--v1.25.0`
-- Runtime release commit: `09fe4f0`
+- Version: `1.26.0`
+- Runtime release tag: `lr--v1.26.0`
+- Runtime release commit: `(pending — set when v26 is committed and tagged)`
 - Submission metadata: this file on `main`
 - Repository: `https://github.com/zroslaw/lore-framework`
 - License: `MIT`
@@ -64,7 +64,7 @@ Packaging:
 
 - `.claude-plugin/plugin.json`
 - `.claude-plugin/marketplace.json`
-- Release tag `lr--v1.25.0`
+- Release tag `lr--v1.26.0`
 
 Validation:
 
@@ -77,7 +77,7 @@ Submission path:
 
 1. Submit via Claude Console plugin form: `https://platform.claude.com/plugins/submit`
 2. Use repository URL `https://github.com/zroslaw/lore-framework`.
-3. Use release tag `lr--v1.25.0` / runtime commit `09fe4f0` if a version or commit field is requested.
+3. Use release tag `lr--v1.26.0` / runtime commit from the v26 ship commit if a version or commit field is requested.
 4. Paste the short, medium, long descriptions above as needed.
 
 Current direct install before community approval:

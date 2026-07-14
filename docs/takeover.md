@@ -12,18 +12,20 @@ The mechanical work lives in `<framework-root>/scripts/session-takeover` (python
 |---|---|---|
 | Codex (`~/.codex/sessions/`) | yes | yes |
 | Claude Code (`~/.claude/projects/`) | yes | yes |
-| Cursor (`~/.cursor/chats/`) | yes | **not yet** — content-addressed SQLite store; message ordering not reverse-engineered |
+| Cursor (`~/.cursor/chats/` + `~/.cursor/projects/.../agent-transcripts/`) | yes | yes — ordered JSONL transcript; tool results paired from `store.db` when present |
+
+Cursor conversion reads `agent-transcripts/<session-uuid>/<session-uuid>.jsonl` for message order and user/assistant/tool-call content. Tool **results** are loaded from the matching `store.db` under `~/.cursor/chats/` and paired by batch-window name matching (parallel tool calls may complete out of JSONL order; same-name parallel batches set `pairing_uncertain` in the digest). Some assistant text is stored as `[REDACTED]` at rest and is omitted from the digest. Listing timestamps are shown in the **local timezone**. Trust on-disk state over the digest when they disagree.
 
 ## Inputs
 
-- Optional: `<session-id | log-path>` — a session id (prefix is enough) or an absolute path to an engine-native session log.
+- Optional: `<session-id | log-path>` — a session id (prefix is enough), an absolute path to a Cursor agent-transcript `.jsonl`, or a Cursor `store.db` path (redirects to the sibling JSONL by session uuid).
 
 ## Procedure
 
 ### With no argument — explore and ask
 
 1. Run `<framework-root>/scripts/session-takeover --list` (Bash-tool timeout ~30s; add `--all` only if the user asks about test-fixture sessions).
-2. Show the user a compact table of what was found — per engine: last-updated time, short id, title, and cwd when it differs from the current workspace. Note that Cursor sessions can be listed but not yet converted.
+2. Show the user a compact table of what was found — per engine: last-updated time, short id, title, model/status when known, and cwd when it differs from the current workspace.
 3. Ask which session to take over. Do not pick one yourself — recency is not intent.
 4. Continue with the chosen id below.
 
@@ -48,3 +50,4 @@ The mechanical work lives in `<framework-root>/scripts/session-takeover` (python
 - `agent-boot.md` — boot flow used when the digest names a lore agent.
 - `wait.md` — the other session-continuity primitive (waiting for external events vs restoring lost context).
 - `finalize.md` — how session knowledge is durably preserved; takeover is the recovery path for sessions that never got there.
+- Cursor pairing details and per-engine log layouts live in the lore-architect dev repo: `lore/cursor-takeover-batch-pairing.md`, `lore/engine-session-log-formats.md`, `lore/takeover-feature.md`.
