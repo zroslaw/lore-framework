@@ -1,188 +1,113 @@
 # Lore Framework
 
-A persistent knowledge system for AI agents running in Claude Code, Codex, and Cursor.
+**Persistent, team-shared memory for your AI coding agents** — on Claude Code, Codex, and Cursor.
 
-Agents accumulate **lore** — domain expertise, operational wisdom, and decision history — across sessions. Each agent's knowledge graph lives in a shared git repository, growing through contributions from every teammate who boots the agent.
+Every AI session starts from zero. Your agent re-learns the codebase, the decisions, and the gotchas
+every time — and so does every teammate's. Static `CLAUDE.md` files and scattered docs go stale the
+day they're written, and keeping them current is a tax on the people actually shipping.
+
+> What if your agent remembered everything it learned — and got smarter every time anyone on the team used it?
+
+An agent accumulates **lore** — decisions, domain expertise, and operational wisdom — while you use
+it. At session end it distills what it learned and commits it to a shared git repo, so the next
+person to boot the agent inherits everything it knows.
+
+- **No maintenance tax** — the knowledge base updates itself as you work: no dedicated upkeep sessions, no hand-written docs rotting in a wiki.
+- **Compounds over time, solo or shared** — for one person it means never re-explaining context across sessions; on a team, everyone boots the same agents and grows the same lore. The wider the adoption, the more valuable it gets.
+- **A specialist, not a generic assistant** — each agent already knows its area, its history, and how the team works.
+- **Boring by design** — just plain markdown in git. Reviewable, portable, no database, no lock-in.
+
+**→ Get started:** paste **[QUICKSTART.md](QUICKSTART.md)** into your AI coding agent and ask it to set Lore up — or follow [Getting started](#getting-started) below.
+
+## Use cases
+
+Lore agents fit anywhere knowledge is worth keeping — at work **and** in your personal life. A few
+examples:
+
+**At work**
+- **A codebase or service specialist** — knows a system's architecture, the decisions behind it, and the gotchas that bite newcomers, so the next engineer (or the next AI session) is productive immediately.
+- **An evaluation assistant** — scores applications, proposals, or submissions against consistent criteria, and remembers how earlier calls were made.
+- **A long-running project companion** — tracks status, runbooks, and the *why* behind past choices across an effort that outlives any single session.
+
+**Across a team or org**
+- **Onboarding & handoffs** — a new teammate boots the agent and inherits its full history, decisions, and gotchas, instead of days of context-dumping.
+- **Cross-team work** — a task spanning two areas can draw on both teams' agents at once, so neither side has to re-explain its system.
+
+**For yourself**
+- **Personal finance & tax** — your tax situation, equity compensation, recurring bills, and mortgage schedule, with the reasoning behind past decisions carried year to year.
+- **Health & wellness** — grounded in your own longitudinal data, tracking what you've tried and what actually worked.
+- **A hobby or life admin** — RC aircraft design, a home lab, woodworking; or licenses, registrations, and local rules — anything worth not re-researching from scratch every time.
+
+Even used entirely solo, an agent that remembers is worth it. Shared with a team, it compounds.
+
+## Getting started
+
+**[QUICKSTART.md](QUICKSTART.md)** is the entry point — paste its link into your AI coding agent and
+ask it to set Lore up. The agent detects its engine, installs the plugin, and walks you through your
+first agent. **[FIRST-STEPS.md](FIRST-STEPS.md)** is that walkthrough to follow by hand.
+
+Per-engine install and refresh detail:
+
+- [INSTALL-CLAUDE.md](INSTALL-CLAUDE.md) — Claude Code
+- [INSTALL-CODEX.md](INSTALL-CODEX.md) — Codex
+- [INSTALL-CURSOR.md](INSTALL-CURSOR.md) — Cursor
+
+Reference: [MARKETPLACE.md](MARKETPLACE.md) (submission metadata) · [PRIVACY.md](PRIVACY.md) (data handling).
+
+## Go deeper — meet the maintainer agent
+
+Lore Framework is built *with* Lore: its maintainer is a lore agent, **lore-architect**, living in
+**[lore-framework-dev](https://github.com/zroslaw/lore-framework-dev)**. It holds the design
+decisions and rationale behind everything here — a working demo of the idea, and the fastest way to
+learn the framework or start contributing. Install Lore, clone that repo into a workspace, run your
+coding agent there, and boot the agent (`/lr:boot lore-architect`) — then just ask.
 
 ## Engine syntax
 
-Lore skills use different invocation prefixes per engine:
+Lore skills use a different invocation prefix per engine — this legend recurs throughout the docs:
 
-| Engine | Skill syntax | Example boot |
-|--------|--------------|--------------|
+| Engine | Skill syntax | Example |
+|--------|--------------|---------|
 | Claude Code | `/lr:<skill>` | `/lr:boot lore-architect` |
 | Cursor | `/lr-<skill>` | `/lr-boot lore-architect` |
 | Codex | `$lr-<skill>` | `$lr-boot lore-architect` |
 
 Per-agent shortcuts: `/lr-<agent>-agent` (Claude, Cursor) or `$lr-<agent>-agent` (Codex).
 
-If Cursor plugin skills are unavailable, see [INSTALL-CURSOR.md](INSTALL-CURSOR.md) and `docs/engines/cursor.md` § Mid-session fallback.
+## Team-shared knowledge
 
-## Team-Shared Knowledge
+Lore agents are **team-shared knowledge containers**, not personal notebooks. The framework converts
+tribal knowledge — domain expertise, design rationale, decisions, status, intermediate work — into
+durable, transmissible assets in shared git repos. Multiple contributors are expected to:
 
-Lore agents are **team-shared knowledge containers**, not personal notebooks. The framework's purpose is to convert tribal knowledge — domain expertise, design rationale, decisions, status, intermediate work — into durable, transmissible assets stored in shared git repos.
-
-Multiple contributors are expected to:
 - Boot the same agent in their own sessions
 - Reflect and merge into the same `lore/` and `lore-context.md`
-- Commit `sessions/` summaries that teammates will read for context
-- Push concurrently — conflicts are auto-resolved via the merge process
+- Commit `sessions/` summaries teammates read for context
+- Push concurrently — conflicts are auto-resolved by the merge process
 
-This framing informs every design choice: directory-driven storage so git is the medium, plain markdown so anyone can read and edit, push-conflict-resolution because concurrent contributors are expected (not exceptional), sessions as narrative artifacts written for future readers.
-
-## How It Works
-
-The framework provides:
-- A structured way to define AI agents with persistent memory
-- A reflection/merge process that extracts and integrates session knowledge
-- Skills for managing agents and their knowledge lifecycle
-
-Agents are plain markdown. Knowledge is plain markdown. Git tracks everything. No databases, no config files, no build steps.
+This framing drives every design choice: directory-driven storage so git is the medium, plain
+markdown so anyone can read and edit, and sessions written as narrative artifacts for future readers.
 
 ## Concepts
 
 A handful of terms appear throughout the docs:
 
-- **Workspace** — the directory you run your coding agent from (Claude Code, Codex, or Cursor). Holds one or more agent repos and any other repos they declare.
-- **Agent repo** — a git repo containing one or more lore agents. Marked by a `lore-repo.md` at its root. Conceptually, the **domain** an agent (or set of agents) covers.
+- **Workspace** — the directory you run your coding agent from. Holds one or more agent repos and any other repos they declare.
+- **Agent repo** — a git repo containing one or more lore agents, marked by a `lore-repo.md` at its root. Conceptually, the **domain** an agent (or set of agents) covers.
 - **Agent** — a directory under `agents/<name>/` inside an agent repo. Has a `role.md` (identity) and `lore-context.md` (working knowledge), plus a `lore/` knowledge graph of markdown topics.
-- **Lore** — the agent's accumulated knowledge: decisions, domain expertise, operational wisdom. Plain markdown, tracked in git, shared across teammates.
-- **Boot** — load an agent's role and lore into your session (see engine syntax above).
-- **Finalize** — at session end, extract what was learned, merge it into the agent's lore, write a session summary, and commit + push (one command per engine syntax table).
-
-## Installation
-
-Engine-specific install guides:
-
-- [INSTALL-CODEX.md](INSTALL-CODEX.md) — Codex install, refresh, and team automation
-- [INSTALL-CURSOR.md](INSTALL-CURSOR.md) — Cursor install and refresh
-- [MARKETPLACE.md](MARKETPLACE.md) — submission metadata for Claude Code, Codex, and Cursor
-- [PRIVACY.md](PRIVACY.md) — privacy and data-handling policy
-
-### Codex-native install
-
-If a user asks **Codex** to install Lore Framework from this repository, the Codex agent should do
-the install itself.
-
-Run:
-
-```bash
-codex plugin marketplace add zroslaw/lore-framework
-codex plugin add lr@lore-framework
-```
-
-Then tell the user to restart Codex so the new plugin is loaded.
-
-If the user pointed Codex at a local checkout instead of GitHub, use the local path instead of `zroslaw/lore-framework`.
-
-If the user wants Lore finalization to commit automatically, Codex must also run with `.git`
-writable. The plugin cannot grant that on its own; this has to come from the user's Codex
-sandbox/configuration.
-
-For the full Codex guide, including refresh and team-automation patterns, see
-`INSTALL-CODEX.md`.
-
-### Claude Code install
-
-Install the `lr` plugin in Claude Code:
-
-```bash
-# Add the lore-framework marketplace
-claude plugin marketplace add zroslaw/lore-framework
-
-# Install the lr plugin
-claude plugin install lr@lore-framework
-```
-
-For local development:
-
-```bash
-claude --plugin-dir ./lore-framework
-```
-
-### Cursor install
-
-Two-step install (clone, then helper), then launch with `--plugin-dir`:
-
-```bash
-git clone https://github.com/zroslaw/lore-framework.git "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
-bash "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}/scripts/install-cursor-plugin" "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
-cursor-agent --plugin-dir "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
-```
-
-Refresh after updates:
-
-```bash
-bash "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}/scripts/cursor-refresh-plugin"
-cursor-agent --plugin-dir "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
-```
-
-Full guide: [INSTALL-CURSOR.md](INSTALL-CURSOR.md).
-
-## Quick Start
-
-Pick the path that matches your situation.
-
-### Joining a team that already uses Lore Framework
-
-A teammate has set up an agent repo and pointed you at it.
-
-1. **Clone any one of the agent repos** into a workspace directory of your choice.
-2. **Run your coding agent from the workspace** (the parent directory) — Claude Code, Codex, or Cursor.
-3. **Pull the workspace** — clones any other repos the workspace and agent repos declare; pulls everything:
-   ```
-   /lr:workspace-pull
-   ```
-   (Cursor: `/lr-workspace-pull`; Codex: `$lr-workspace-pull`.)
-4. **Initialize the workspace** so future sessions auto-load the framework's conventions:
-   ```
-   /lr:workspace-init
-   ```
-   On Codex and Cursor this writes `AGENTS.md` (not `CLAUDE.md`).
-5. **Boot an agent and start working:**
-   ```
-   /lr:boot <agent-name>
-   ```
-   (Cursor: `/lr-boot <agent-name>`; Codex: `$lr-boot <agent-name>`. Run list-agents if you don't yet know what's available.)
-6. **Finalize at session end** to preserve what was learned:
-   ```
-   /lr:finalize
-   ```
-
-### Starting fresh — creating your own agent repo
-
-You're introducing the framework into a new area.
-
-1. **Run your coding agent from a workspace directory.**
-2. **Create an agent repo:**
-   ```
-   /lr:create-repo my-agents
-   ```
-3. **Create an agent:**
-   ```
-   /lr:create-agent
-   ```
-4. **Initialize the workspace:**
-   ```
-   /lr:workspace-init
-   ```
-5. **Boot and work with the agent:**
-   ```
-   /lr:boot my-agent-name
-   ```
-6. **Finalize at session end:**
-   ```
-   /lr:finalize
-   ```
+- **Lore** — the agent's accumulated knowledge: decisions, domain expertise, and operational wisdom. Plain markdown, tracked in git, shared across teammates.
+- **Boot** — load an agent's role and lore into your session.
+- **Finalize** — at session end, extract what was learned, merge it into the agent's lore, write a session summary, and commit + push.
 
 ## Skills
 
-Grouped by purpose. **Claude** column uses `/lr:<skill>`; **Cursor** uses `/lr-<skill>`; **Codex** uses `$lr-<skill>`.
+Grouped by purpose. The **Claude** column uses `/lr:<skill>`; **Cursor** uses `/lr-<skill>`; **Codex** uses `$lr-<skill>`.
 
 **Workspace setup**
 | Skill | Purpose | Cursor |
 |---|---|---|
 | `/lr:workspace-pull` | Pull the workspace repo, clone declared repos, and pull all top-level repos | `/lr-workspace-pull` |
+| `/lr:pull-lore` | Mid-session refresh of just the active agents' repos | `/lr-pull-lore` |
 | `/lr:workspace-init` | Bootstrap or refresh the workspace (descriptor, git root, memory file) | `/lr-workspace-init` |
 | `/lr:list-agents` | List all agents in the workspace | `/lr-list-agents` |
 | `/lr:list-repos` | List all agent repos in the workspace | `/lr-list-repos` |
@@ -195,6 +120,13 @@ Grouped by purpose. **Claude** column uses `/lr:<skill>`; **Cursor** uses `/lr-<
 | `/lr:attach <agent>` | Attach another agent as a guest in this session | `/lr-attach` |
 | `/lr:consult <agent> [hint]` | One-shot question to an unloaded agent | `/lr-consult` |
 | `/lr:spawn-teammate [<agent>...]` | **BETA** — Spawn lore agents as Agent Teams teammates | `/lr-spawn-teammate` |
+
+**Interaction style**
+| Skill | Purpose | Cursor |
+|---|---|---|
+| `/lr:dialogue` | Talk in short conversational turns, one step at a time | `/lr-dialogue` |
+| `/lr:follow-me` | You drive the direction; the agent offers small suggestions and doesn't race ahead | `/lr-follow-me` |
+| `/lr:plain-language` | Switch to plain, simple English | `/lr-plain-language` |
 
 **Background / headless**
 | Skill | Purpose | Cursor |
@@ -233,27 +165,14 @@ Grouped by purpose. **Claude** column uses `/lr:<skill>`; **Cursor** uses `/lr-<
 | `/lr:df-repo-init [<repo>]` | **BETA** — Create the DF backbone repo (`<repo>-df`) for a source repo | `/lr-df-repo-init` |
 | `/lr:df-ula-file <file>` | **BETA** — Run a ULA (unit-level analysis) pass on one file | `/lr-df-ula-file` |
 
-## Optional: Agent Shortcut Commands
+## Agent shortcut commands
 
-By default, agents are loaded via `/lr:boot <agent-name>`. For convenience, you can register either
-one agent or a whole repo:
+By default you boot with `/lr:boot <name>`. To register a direct `/lr-<name>-agent` shortcut for one
+agent or a whole repo, use `/lr:register-agent` or `/lr:register-repo`. Shortcuts land in
+`.claude/commands/` (Claude Code), `.cursor/skills/` (Cursor), or `~/.codex/skills/` (Codex), and
+delegate to the boot procedure with an absolute agent path. See [FIRST-STEPS.md](FIRST-STEPS.md) § 5.
 
-```
-/lr:register-agent my-agents researcher
-/lr:register-repo my-agents
-```
-
-This generates engine-native per-agent shortcuts:
-
-- **Claude Code:** `/lr-<agent-name>-agent` in `.claude/commands/`
-- **Cursor:** `/lr-<agent-name>-agent` in `.cursor/skills/`
-- **Codex:** `$lr-<agent-name>-agent` as personal skills in `~/.codex/skills/`
-
-All of them delegate to `agent-boot.md` with an absolute agent path for faster boot. Cursor and
-Codex shortcut skills also carry intent-oriented descriptions so engine skill pickers can tell the
-agents apart more reliably.
-
-## Directory Layout
+## Directory layout
 
 ```
 my-workspace/                       # Workspace — the directory you run your coding agent from

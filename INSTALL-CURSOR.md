@@ -5,6 +5,16 @@ This is the canonical Cursor install and refresh guide for Lore Framework.
 If a Cursor agent is asked to install Lore from GitHub, point it at this file and have it follow the
 commands here directly.
 
+## For the AI agent reading this
+
+If a user asked you to set up Lore Framework and you are running in **Cursor**, you are the
+installer. Cursor's verified path is a **local checkout launched with `--plugin-dir`** — not a
+one-command marketplace install — so this involves cloning the repo, running a helper script, and
+relaunching. Before you clone into a directory, run the helper, or create a symlink, tell the user
+what you're about to do and where, and get their go-ahead. Cursor does **not** hot-reload skills, so
+new skills appear only after you relaunch with `--plugin-dir`; tell the user to expect that restart.
+When the plugin is loaded, hand the user into [FIRST-STEPS.md](FIRST-STEPS.md).
+
 ## Engine syntax
 
 On Cursor, Lore skills invoke as **`/lr-<skill>`** (hyphen, no colon) — e.g. `/lr-boot`,
@@ -15,7 +25,7 @@ Claude Code uses `/lr:<skill>`; Codex uses `$lr-<skill>`. See the README engine 
 
 ## Install sequence (two-step bootstrap)
 
-v25 does **not** claim a single self-contained script for users with zero prior clone. Use this
+There is no single self-contained one-command install for a user with no prior checkout. Use this
 documented sequence:
 
 ### Step 1 — Bootstrap checkout (user or agent)
@@ -40,7 +50,12 @@ The helper validates that `VERSION` exists (i.e. you cloned first). It optionall
 `git pull --ff-only` and can create a local-plugins symlink with `--symlink` — see § Local plugins
 symlink below.
 
-### Step 3 — Launch (deterministic, verified)
+### Step 3 — Launch (the user must do this)
+
+> **Agents: you cannot perform this step.** Relaunching Cursor is the user's action — you're running
+> inside the current, plugin-less session and can't restart it with a new flag. Tell the user to run
+> this (or add `--plugin-dir` to their launch config), then continue once they're in the new session.
+> While you wait, you can still help via the mid-session fallback in `docs/engines/cursor.md`.
 
 ```bash
 cursor-agent --plugin-dir "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
@@ -52,11 +67,12 @@ After launch, Lore skills appear as `/lr-boot`, `/lr-workspace-init`, `/lr-final
 
 ## Verified install path today
 
-The empirically verified reproducible path is **local checkout + `--plugin-dir`**. The framework
-ships `.cursor-plugin/plugin.json` and `.cursor-skills/` wrappers, but operator docs treat
-`--plugin-dir` as the deterministic load surface until Tier B marketplace flows are validated.
+The reliable, reproducible path is **local checkout + `--plugin-dir`**. The framework ships
+`.cursor-plugin/plugin.json` and `.cursor-skills/` wrappers, but treat `--plugin-dir` as the
+deterministic way to load Lore until a Cursor-native marketplace install has been verified on your
+build.
 
-## Local plugins symlink (optional, D2-gated)
+## Local plugins symlink (optional)
 
 `install-cursor-plugin --symlink` can create:
 
@@ -64,12 +80,10 @@ ships `.cursor-plugin/plugin.json` and `.cursor-skills/` wrappers, but operator 
 ~/.cursor/plugins/local/lore-framework → /your/checkout
 ```
 
-**Only use `--symlink` after confirming** your Cursor IDE loads Lore skills from
-`~/.cursor/plugins/local/` without `--plugin-dir` (the D2 probe — see your team's probe notes or
-`lore-framework-dev` workdir `cursor-marketplace-probe-notes.md`). If D2 is not confirmed on your
-build, skip `--symlink` and use `--plugin-dir` every time.
-
-The install helper **defaults to no symlink** (`--symlink` is opt-in).
+**Only use `--symlink` after confirming** your Cursor build loads Lore skills from
+`~/.cursor/plugins/local/` *without* `--plugin-dir`. If you haven't confirmed that, skip `--symlink`
+and use `--plugin-dir` every time. The install helper **defaults to no symlink** (`--symlink` is
+opt-in).
 
 ## Refresh after the framework updates
 
@@ -129,11 +143,11 @@ After the plugin is loaded, register workspace-local shortcuts:
 
 These create `.cursor/skills/lr-<agent>-agent/` wrappers scoped to the matching repo.
 
-## Cursor-native plugin installs (deferred)
+## Cursor-native plugin installs (not yet verified)
 
-Tier B marketplace / IDE-native install flows are **not** documented as verified in v25. When your
-team validates a Cursor-native path, extend this guide — do not assume marketplace install works
-until probed on your CLI build (`cursor-agent --help | grep -i plugin`).
+Marketplace / IDE-native install flows are **not** documented as verified here. Don't assume a
+marketplace install works until you've checked it on your own CLI build
+(`cursor-agent --help | grep -i plugin`); until then, use the `--plugin-dir` path above.
 
 ## Optional Cursor configuration
 
