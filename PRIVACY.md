@@ -1,20 +1,20 @@
 # Privacy Policy
 
-Lore Framework is a local, git-backed plugin for AI coding agents. It does not run a hosted service
+Lore Agents is a local, git-backed plugin for AI coding agents. It does not run a hosted service
 and does not collect telemetry.
 
-## Data Storage
+## Data storage
 
 Lore stores agent knowledge as plain markdown files in repositories chosen by the user. These files
 may include agent roles, lore topics, session summaries, workspace descriptors, and reflection notes.
 
-## Data Access
+## Data access
 
 Lore reads and writes files only through the host coding agent's normal workspace permissions. It can
 access files in repositories and directories that the user has made available to the host coding
 agent.
 
-## Network Use
+## Network use
 
 Lore does not automatically send source code, lore, session summaries, or workspace files to the
 plugin author or to a Lore service.
@@ -31,9 +31,9 @@ environment.
 
 ## Telemetry
 
-Lore Framework does not include analytics, tracking, telemetry, or a remote reporting endpoint.
+Lore Agents does not include analytics, tracking, telemetry, or a remote reporting endpoint.
 
-## Third-Party Services
+## Third-party services
 
 Lore runs inside host coding agents such as Claude Code, Codex, and Cursor. Those hosts may process
 conversation, file, and tool-use data according to their own terms and privacy policies. Lore does

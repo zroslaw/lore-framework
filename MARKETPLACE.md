@@ -1,16 +1,16 @@
 # Marketplace Submission Metadata
 
-Canonical copy for submitting or registering Lore Framework in Claude Code, Codex, and Cursor
+Canonical copy for submitting or registering Lore Agents in Claude Code, Codex, and Cursor
 plugin marketplaces.
 
 ## Release
 
 - Plugin id: `lr`
-- Display name: `Lore`
+- Display name: `Lore Agents`
 - Repository / marketplace name: `lore-framework`
 - Version: `1.26.0`
 - Runtime release tag: `lr--v1.26.0`
-- Runtime release commit: `42dd3b8`
+- Runtime release commit: `3909129`
 - Submission metadata: this file on `main`
 - Repository: `https://github.com/zroslaw/lore-framework`
 - License: `MIT`
@@ -23,16 +23,16 @@ plugin marketplaces.
 
 Short description:
 
-> Persistent, self-improving knowledge for AI coding agents.
+> Persistent, team-shared memory for AI coding agents.
 
 Medium description:
 
-> Lore is a persistent knowledge system for AI coding agents. Agents accumulate decisions, domain
-> knowledge, and operational wisdom across sessions as a team-shared markdown knowledge graph.
+> Lore Agents gives AI coding agents a persistent, team-shared memory. Agents accumulate decisions,
+> domain knowledge, and operational wisdom across sessions as a team-shared markdown knowledge graph.
 
 Long description:
 
-> Lore turns coding agents into persistent, team-shared collaborators. Each lore agent lives in a
+> Lore Agents turns coding agents into persistent, team-shared collaborators. Each lore agent lives in a
 > git-backed markdown repository with a role, compact working context, and a knowledge graph of
 > decisions, domain facts, operational runbooks, and session learnings. The framework provides skills
 > to boot agents, recall their lore, reflect and merge new knowledge at session end, manage agent
@@ -43,7 +43,7 @@ Long description:
 `agents`, `skills`, `knowledge`, `memory`, `lore`, `context`, `persistent`, `markdown`, `git`,
 `workspace`, `collaboration`, `productivity`
 
-## Capabilities And Data Handling
+## Capabilities and data handling
 
 - Reads and writes local workspace files in user-selected repositories.
 - Stores knowledge as plain markdown under user-owned git repos.
@@ -51,10 +51,10 @@ Long description:
 - Does not require a hosted service, external database, API key, or vendor account beyond the host
   coding agent itself.
 - Does not collect telemetry.
-- Does not exfiltrate source code or lore automatically; network effects are explicit git/plugin
-  install/update actions initiated by the user or documented workflow.
+- Does not exfiltrate source code or lore automatically; network activity happens only through
+  explicit git or plugin install/update actions, initiated by the user or a documented workflow.
 
-## Engine Status
+## Engine status
 
 ### Claude Code
 
@@ -77,7 +77,7 @@ Submission path:
 
 1. Submit via Claude Console plugin form: `https://platform.claude.com/plugins/submit`
 2. Use repository URL `https://github.com/zroslaw/lore-framework`.
-3. Use release tag `lr--v1.26.0` / runtime commit `42dd3b8` if a version or commit field is requested.
+3. Use release tag `lr--v1.26.0` / runtime commit `3909129` if a version or commit field is requested.
 4. Paste the short, medium, long descriptions above as needed.
 
 Current direct install before community approval:
@@ -140,7 +140,7 @@ Submission / distribution notes:
 - Do not claim seamless Cursor marketplace auto-refresh until the team marketplace + auto-refresh
   path has been validated on the target Cursor installation.
 
-## Reviewer Notes
+## Reviewer notes
 
 Lore is intentionally file- and git-native. Its core artifacts are human-readable markdown files in
 the user's repositories, so teams can inspect, review, diff, revert, branch, and merge the agent's

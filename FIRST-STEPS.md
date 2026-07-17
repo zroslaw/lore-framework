@@ -2,13 +2,15 @@
 
 This is a guided walkthrough: from an installed plugin to a working agent that learns across
 sessions. It takes about ten minutes. If the plugin isn't installed yet, start at
-[QUICKSTART.md](QUICKSTART.md).
+[QUICKSTART.md](QUICKSTART.md). Joining a team that already uses Lore Agents? You won't create a
+repo — install the plugin if you haven't, clone your team's agent repo, and follow
+[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path) (path A) instead.
 
 **Skill syntax by engine.** Examples below use Claude Code's `/lr:<skill>` form. Substitute for your
 engine:
 
 | Engine | Skill syntax | Example |
-|--------|--------|---------|
+|--------|--------------|---------|
 | Claude Code | `/lr:<skill>` | `/lr:create-repo my-agents` |
 | Cursor | `/lr-<skill>` | `/lr-create-repo my-agents` |
 | Codex | `$lr-<skill>` | `$lr-create-repo my-agents` |
@@ -46,7 +48,7 @@ and an `agents/` folder. Name it for the area it will cover — `payments-agents
 > **Sharing (optional):** `create-repo` makes a *local* git repo with no remote. To share it with
 > teammates — and to let `/lr:finalize` push — create an empty repo on your git host and add it:
 > `git -C my-agents remote add origin <url>`. Working solo? Skip this; finalize still commits your
-> agent's learning locally, it just won't push.
+> agent's learning locally — it just won't push.
 
 ## Step 3 — Create your first agent
 

@@ -1,7 +1,7 @@
 {
   "name": "lr",
   "version": "1.26.0",
-  "description": "Lore — persistent knowledge system for AI agents",
+  "description": "Lore Agents — persistent, team-shared memory for AI coding agents",
   "author": {
     "name": "Yaroslav Panasyuk"
   },
@@ -19,9 +19,9 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Lore",
-    "shortDescription": "Persistent, self-improving knowledge for AI agents",
-    "longDescription": "Lore is a persistent knowledge system for AI coding agents. Agents accumulate decisions, domain knowledge, and operational wisdom across sessions as a team-shared knowledge graph, and reflect what they learn back into it at the end of each session.",
+    "displayName": "Lore Agents",
+    "shortDescription": "Persistent, team-shared memory for AI coding agents",
+    "longDescription": "Lore Agents turns coding agents into persistent, team-shared collaborators. Each lore agent lives in a git-backed markdown repository with a role, compact working context, and a knowledge graph of decisions, domain facts, operational runbooks, and session learnings. The framework provides skills to boot agents, recall their lore, reflect and merge new knowledge at session end, manage agent repos, initialize workspaces, and move sessions across Claude Code, Codex, and Cursor.",
     "developerName": "Yaroslav Panasyuk",
     "category": "Productivity",
     "capabilities": [

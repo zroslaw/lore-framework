@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "lr",
-  "displayName": "Lore",
-  "description": "Lore — persistent knowledge system for AI agents",
+  "displayName": "Lore Agents",
+  "description": "Lore Agents — persistent, team-shared memory for AI coding agents",
   "version": "1.26.0",
   "author": {
     "name": "Yaroslav Panasyuk"

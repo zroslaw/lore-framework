@@ -1,21 +1,23 @@
-# Install Lore Framework on Claude Code
+# Install Lore Agents on Claude Code
 
-This is the canonical Claude Code install and refresh guide for Lore Framework.
+This is the canonical Claude Code install and refresh guide for Lore Agents.
 
 If a Claude Code agent is asked to install Lore from GitHub, point it at this file and have it follow
 the commands here directly.
 
 ## For the AI agent reading this
 
-If a user asked you to set up Lore Framework and you are running in **Claude Code**, you are the
+If a user asked you to set up Lore Agents and you are running in **Claude Code**, you are the
 installer. Run the install yourself, explaining each step. Before you add a marketplace, install a
 plugin, or delete a cache directory, tell the user what you're about to do and get their go-ahead —
 these change global Claude Code state, not just this workspace. After install, some skills only
 appear in a **fresh session**; if a skill you expect is missing, that's usually the cache, not a
-failed install (see § Refresh and § Version mismatch below). When the plugin is loaded, hand the
-user into [FIRST-STEPS.md](FIRST-STEPS.md).
+failed install (see § Refresh and § Version mismatch below). When the plugin is loaded, ask whether
+the user is joining a team that already uses Lore Agents or starting fresh — for joining, point them
+to [QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path); for starting fresh,
+hand them into [FIRST-STEPS.md](FIRST-STEPS.md).
 
-## Normal team install (Git marketplace)
+## Normal team install (git marketplace)
 
 Use this for teammates and customers who should track the published `lore-framework` repo:
 
@@ -25,10 +27,8 @@ claude plugin install lr@lore-framework
 ```
 
 The `lr` skills (`/lr:boot`, `/lr:workspace-init`, `/lr:finalize`, …) become available. If they
-don't appear immediately, start a fresh Claude Code session.
-
-If you want direct per-agent boot shortcuts, use `/lr:register-agent` or `/lr:register-repo` after
-the plugin is loaded. Those shortcuts are workspace-local commands under `.claude/commands/`.
+don't appear immediately, start a fresh Claude Code session. For direct per-agent boot shortcuts,
+see § Per-agent boot shortcuts below.
 
 ## Local development install (local checkout)
 
@@ -46,11 +46,11 @@ effect in the next session.
 ## Refresh after the framework updates
 
 The marketplace install caches the plugin tree under `~/.claude/plugins/`. After the upstream repo
-moves forward, re-resolve it:
+moves forward, update the marketplace source and the installed plugin:
 
 ```bash
-claude plugin marketplace add zroslaw/lore-framework
-claude plugin install lr@lore-framework
+claude plugin marketplace update lore-framework
+claude plugin update lr@lore-framework
 ```
 
 Then start a fresh session. A refresh done mid-session affects future sessions, not the one already
@@ -95,3 +95,9 @@ cause is that the repo moved forward but the installed Claude Code plugin did no
 session holds a stale cache. Refresh the plugin using the commands above, clear the cache if needed,
 start a fresh session, then boot again. See `docs/version-check.md` and
 `docs/doctor-stale-plugin-cache.md`.
+
+## After install
+
+Plugin installed? Continue with [FIRST-STEPS.md](FIRST-STEPS.md) to create your first agent — or,
+if you're joining a team that already uses Lore Agents, pick up at
+[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path) (path A).

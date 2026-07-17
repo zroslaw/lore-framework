@@ -1,7 +1,7 @@
 {
   "name": "lore-framework",
   "interface": {
-    "displayName": "Lore"
+    "displayName": "Lore Agents"
   },
   "plugins": [
     {

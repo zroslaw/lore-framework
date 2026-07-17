@@ -1,19 +1,22 @@
-# Install Lore Framework on Cursor
+# Install Lore Agents on Cursor
 
-This is the canonical Cursor install and refresh guide for Lore Framework.
+This is the canonical Cursor install and refresh guide for Lore Agents.
 
 If a Cursor agent is asked to install Lore from GitHub, point it at this file and have it follow the
 commands here directly.
 
 ## For the AI agent reading this
 
-If a user asked you to set up Lore Framework and you are running in **Cursor**, you are the
+If a user asked you to set up Lore Agents and you are running in **Cursor**, you are the
 installer. Cursor's verified path is a **local checkout launched with `--plugin-dir`** — not a
 one-command marketplace install — so this involves cloning the repo, running a helper script, and
 relaunching. Before you clone into a directory, run the helper, or create a symlink, tell the user
 what you're about to do and where, and get their go-ahead. Cursor does **not** hot-reload skills, so
 new skills appear only after you relaunch with `--plugin-dir`; tell the user to expect that restart.
-When the plugin is loaded, hand the user into [FIRST-STEPS.md](FIRST-STEPS.md).
+When the plugin is loaded, ask whether the user is joining a team that already uses Lore Agents or
+starting fresh — for joining, point them to
+[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path); for starting fresh,
+hand them into [FIRST-STEPS.md](FIRST-STEPS.md).
 
 ## Engine syntax
 
@@ -23,7 +26,7 @@ On Cursor, Lore skills invoke as **`/lr-<skill>`** (hyphen, no colon) — e.g. `
 
 Claude Code uses `/lr:<skill>`; Codex uses `$lr-<skill>`. See the README engine legend.
 
-## Install sequence (two-step bootstrap)
+## Install sequence (three-step bootstrap)
 
 There is no single self-contained one-command install for a user with no prior checkout. Use this
 documented sequence:
@@ -173,3 +176,9 @@ Refresh the checkout, start a fresh `cursor-agent --plugin-dir` session, then bo
 | No `/lr-*` skills at all | `docs/doctor-cursor-session-without-plugin.md` |
 | Skills present but old content | Refresh + new session; `doctor-stale-plugin-cache.md` (Claude) |
 | Need Lore mid-session without plugin | `docs/engines/cursor.md` § Mid-session fallback |
+
+## After install
+
+Plugin installed? Continue with [FIRST-STEPS.md](FIRST-STEPS.md) to create your first agent — or,
+if you're joining a team that already uses Lore Agents, pick up at
+[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path) (path A).

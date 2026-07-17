@@ -1,6 +1,6 @@
-# Lore Framework — Quick Start
+# Lore Agents — Quick Start
 
-**Lore Framework** gives your AI coding agents a persistent, team-shared memory. Agents accumulate
+**Lore Agents** gives your AI coding agents a persistent, team-shared memory. Agents accumulate
 **lore** — decisions, domain expertise, and operational wisdom — across sessions, stored as
 plain markdown in a git repo that every teammate contributes to. It runs on **Claude Code**,
 **Codex**, and **Cursor**.
@@ -16,7 +16,7 @@ you through your first agent — asking you what it needs along the way.
 
 ## For the AI agent reading this
 
-If a user pasted this link and asked you to set up Lore Framework, **you are the installer**. Follow
+If a user pasted this link and asked you to set up Lore Agents, **you are the installer**. Follow
 this playbook. Communicate as you go — the user may not know the framework yet, so explain what each
 step does and what comes next.
 
@@ -39,10 +39,12 @@ step does and what comes next.
    engine's skill list once the plugin is loaded. Some engines need a **restart or a fresh session**
    first; if so, tell the user to restart, then continue. If you can't tell, ask the user to run the
    list-agents skill (`/lr:list-agents`, Cursor `/lr-list-agents`, Codex `$lr-list-agents`) and
-   report what they see. On Codex, skills are invoked by the user — don't type `$lr-…` yourself.
+   report what they see. A fresh install has no agents yet — an **empty agent list still confirms
+   the plugin loaded**; don't report it as a failure. On Codex, skills are invoked by the user —
+   don't type `$lr-…` yourself.
 
 5. **Then start the user's first agent.** Ask whether they are **joining a team that already uses
-   Lore** or **starting fresh**, and follow the matching path below. For the fresh path, hand them
+   Lore Agents** or **starting fresh**, and follow the matching path below. For the fresh path, hand them
    into the first-steps walkthrough:
    https://github.com/zroslaw/lore-framework/blob/main/FIRST-STEPS.md
 
@@ -73,7 +75,7 @@ Skills invoke with a different prefix per engine — this legend recurs througho
 
 ## After install: pick your path
 
-### A. Joining a team that already uses Lore
+### A. Joining a team that already uses Lore Agents
 
 A teammate has an agent repo and pointed you at it.
 

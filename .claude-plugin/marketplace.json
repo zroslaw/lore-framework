@@ -1,6 +1,6 @@
 {
   "name": "lore-framework",
-  "description": "Lore — a persistent, self-improving knowledge system for AI coding agents",
+  "description": "Lore Agents — persistent, team-shared memory for AI coding agents",
   "owner": {
     "name": "Yaroslav Panasyuk"
   },
@@ -8,7 +8,7 @@
     {
       "name": "lr",
       "source": "./",
-      "description": "Persistent knowledge system for AI agents",
+      "description": "Persistent, team-shared memory for AI coding agents",
       "version": "1.26.0",
       "repository": "https://github.com/zroslaw/lore-framework",
       "license": "MIT"
