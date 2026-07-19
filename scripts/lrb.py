@@ -645,6 +645,11 @@ def process_outbox(workspace, beings, state, now):
                 else:
                     req["timeout_minutes"] = timeout_minutes
         if reason is None:
+            # Persist the normalized timeout_minutes before accepting:
+            # accepted/ files ARE the pending schedule (rebuilt-never-stored
+            # applies to state.json, not here), so the file must carry the
+            # value the spawn will use even when the request omitted it.
+            atomic_write_json(src, req)
             dest = os.path.join(outbox_accepted_dir(workspace), fn)
         else:
             req["rejected_reason"] = reason
@@ -685,25 +690,43 @@ def _parse_result_json(content):
     return None
 
 
-def _pid_identity(pid):
-    """Return process identity from ps, False for a dead PID, None when the
-    OS/sandbox refuses identity inspection."""
+def _ps_field(pid, field):
+    """One ps field for one PID. Returns the stripped value, False for a
+    dead/invisible PID (nonzero exit or empty output), None when the
+    OS/sandbox refuses to run ps at all."""
     try:
-        r = subprocess.run(["ps", "-p", str(pid), "-o", "lstart=", "-o", "command="],
+        r = subprocess.run(["ps", "-p", str(pid), "-o", field + "="],
                             capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:
         return False
-    lines = [line.rstrip("\n") for line in r.stdout.splitlines() if line.strip()]
-    if not lines:
-        return False
-    # With two -o fields, ps prints each field on its own line on macOS.
-    # If a platform combines them, command_match still has the full output.
-    return {
-        "start": lines[0].strip(),
-        "command": "\n".join(lines).strip(),
-    }
+    out = r.stdout.strip()
+    return out if out else False
+
+
+def _pid_identity(pid):
+    """Return process identity from ps, False for a dead PID, None when the
+    OS/sandbox refuses identity inspection.
+
+    lstart and command are fetched with two SEPARATE ps calls, never one
+    call with two -o fields: macOS ps joins multiple -o fields onto one
+    line, so a combined query embeds the command line inside "start" — and
+    the command string of a live process is NOT stable (macOS framework
+    Python re-execs bin/python3.x into Python.app/…/MacOS/Python moments
+    after spawn, the same effect _daemon_status documents), which made the
+    start-equality check misread a genuinely alive re-adopted session as a
+    PID-reuse mismatch and reap it while it was still running. "start" must
+    be pure start-time to work as an identity anchor."""
+    start = _ps_field(pid, "lstart")
+    if start is None or start is False:
+        return start
+    command = _ps_field(pid, "command")
+    if command is None:
+        return None
+    if command is False:
+        return False  # died between the two calls: dead either way
+    return {"start": start, "command": command}
 
 
 def _pid_matches_entry(pid, entry):
