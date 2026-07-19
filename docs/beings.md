@@ -78,15 +78,31 @@ grace period; finished → read the engine's result JSON, record cost) → persi
 single-session cost) since cost is only known at session end — documented as designed, not a bug.
 
 **Engines are explicit configuration, never auto-detected** (`lrb engines add <name> --command
-<path> [--permission-mode default|full]` — probes `<path> --version` as validation). Permission
-mode defaults to the engine's own default; `full` (e.g. `--dangerously-skip-permissions`) only by
-explicit config — a being never chooses its own permission level.
+<path> [--kind claude|codex] [--session-cost-usd N] [--permission-mode default|full]` — probes
+`<path> --version` as validation). Permission mode defaults to the engine's own default; `full`
+(`--dangerously-skip-permissions` on claude-kind, `--dangerously-bypass-approvals-and-sandbox` on
+codex-kind) only by explicit config — a being never chooses its own permission level.
+
+**Engine kinds.** Each engine has a `kind` — its invocation + result contract. Kind defaults to
+the engine *name* when the name is itself a known kind, else `claude`:
+
+- **`claude`** — spawns `CMD -p PROMPT --output-format json --model M`; the single JSON object on
+  stdout carries `total_cost_usd`/`is_error`/`result`, and the *reported* cost is charged against
+  `daily-usd`.
+- **`codex`** — spawns `CMD exec --json --skip-git-repo-check -m M PROMPT`; stdout is JSONL events
+  ending in `turn.completed` (token usage — recorded in the ledger — but **no USD**) or
+  `turn.failed`. Because Codex reports no cost, `--session-cost-usd` is **required** at `engines
+  add`: that flat USD amount is charged per finished session, whatever its outcome (over-charging
+  only trips the cap earlier — the safe direction; without it the `daily-usd` spawn gate would
+  silently never trip for codex beings).
 
 **Result-capture contract:** the Keeper redirects the engine's stdout to a log file (stderr goes to
 a *sibling* `<log>.stderr.log`, never merged in — any stderr noise merged into the JSON stream
-would break the whole-content parse and silently zero out the cost, defeating the budget cap); for
-`claude -p --output-format json` the final JSON object *is* the result (`total_cost_usd`,
-`is_error`, `result`). No separate result-file protocol.
+would break the whole-content parse and silently zero out the cost, defeating the budget cap;
+observed for real: `codex` writes spurious ERROR lines to stderr on perfectly successful runs).
+For claude-kind, the final JSON object *is* the result (`total_cost_usd`, `is_error`, `result`);
+for codex-kind, the last JSONL event decides the outcome (`turn.completed` → ok, with `usage`
+tokens copied into the ledger; `turn.failed`/`error` → error). No separate result-file protocol.
 
 **Only one Keeper runs at a time, machine-wide.** `lrb daemon` takes an exclusive lock
 (`$LRB_HOME/daemon.lock`); a second concurrent daemon refuses to start rather than double-spawning
@@ -166,7 +182,8 @@ deferred until a real being needs a second behavior.
 ## Non-goals (MVP)
 
 Teams/hierarchy, delegation, retries/alerting, dashboards, full unattended autonomy, worktree-per-
-session, systemd/Windows, engines beyond Claude, `lrb-*` skills (namespace reserved).
+session, systemd/Windows, engine kinds beyond Claude Code and Codex, `lrb-*` skills (namespace
+reserved).
 
 ## See Also
 - `scripts/lrb.py` — the implementation (single stdlib file, floor Python 3.9).

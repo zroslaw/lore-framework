@@ -50,6 +50,15 @@ if sys.version_info < (3, 9):
     sys.exit("lrb: requires Python 3.9+, found %s" % sys.version.split()[0])
 
 VERSION = "0.1.0"
+# Engine kinds — the per-engine invocation + result contract (see docs/beings.md):
+#   claude: `CMD -p PROMPT --output-format json --model M` → one JSON object on
+#           stdout carrying total_cost_usd/is_error; cost comes from the result.
+#   codex:  `CMD exec --json --skip-git-repo-check -m M PROMPT` → JSONL events on
+#           stdout ending in turn.completed (usage tokens, NO usd) or turn.failed;
+#           cost comes from the engine's configured session-cost-usd flat rate,
+#           charged per finished session — without it the daily-usd spawn gate
+#           would silently never trip for codex beings (prompt-theater trap).
+ENGINE_KINDS = ("claude", "codex")
 LABEL = "com.lore-beings.keeper"
 TICK_SECONDS = 30
 DEFAULT_CONCURRENCY_CAP = 3
@@ -807,9 +816,26 @@ def spawn_session(workspace, being_id, being, engine_cfg, task_name, prompt_text
     loop for every other being/workspace."""
     log_path = log_path_for(workspace, being_id, task_name, now)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    cmd = [engine_cfg["command"], "-p", prompt_text, "--output-format", "json", "--model", being["model"]]
-    if engine_cfg.get("permission_mode") == "full":
-        cmd.append("--dangerously-skip-permissions")
+    kind = engine_cfg.get("kind", "claude")
+    if kind not in ENGINE_KINDS:
+        # Hand-edited config with a kind this lrb doesn't know: visible
+        # failure, no guessing (same rule as engine-not-configured).
+        ledger_append(workspace, being_id, {
+            "task": task_name, "outcome": "failed-to-spawn",
+            "error": "unknown engine kind %r (known: %s)" % (kind, ", ".join(ENGINE_KINDS)),
+            "recorded_at": now.isoformat(timespec="seconds"),
+        })
+        return None
+    if kind == "codex":
+        cmd = [engine_cfg["command"], "exec", "--json", "--skip-git-repo-check",
+               "-m", being["model"]]
+        if engine_cfg.get("permission_mode") == "full":
+            cmd.append("--dangerously-bypass-approvals-and-sandbox")
+        cmd.append(prompt_text)
+    else:
+        cmd = [engine_cfg["command"], "-p", prompt_text, "--output-format", "json", "--model", being["model"]]
+        if engine_cfg.get("permission_mode") == "full":
+            cmd.append("--dangerously-skip-permissions")
     # stderr goes to a SIBLING file, not merged into stdout: `claude -p
     # --output-format json` promises exactly one JSON object on stdout, but
     # any stderr noise (a CLI update notice, an MCP warning) merged into the
@@ -843,6 +869,11 @@ def spawn_session(workspace, being_id, being, engine_cfg, task_name, prompt_text
         "log_path": log_path,
         "command": engine_cfg["command"],  # for PID-reuse identity checks — see _pid_matches_entry
         "process_start": (_pid_identity(proc.pid) or {}).get("start"),
+        # Recorded at spawn (not looked up at finish) so a mid-flight
+        # `engines remove`/re-add can't change how a running session is
+        # accounted for.
+        "engine_kind": kind,
+        "session_cost_usd": engine_cfg.get("session_cost_usd"),
     })
     return proc
 
@@ -1207,8 +1238,33 @@ class Keeper(object):
             except OSError:
                 result = None
         killed = "kill_sent_at" in entry
+        kind = entry.get("engine_kind", "claude")
         cost = 0.0
-        if isinstance(result, dict):
+        usage = None
+        if kind == "codex":
+            # Codex reports no USD; charge the engine's configured flat
+            # session-cost-usd for EVERY finished session regardless of
+            # outcome — over-charging only makes the cap trip earlier (the
+            # safe direction; repeated crashes exhausting the budget and
+            # stopping further spawns is the desired behavior, not a bug).
+            try:
+                cost = require_finite_nonnegative_float(
+                    entry.get("session_cost_usd") or 0.0, "session_cost_usd")
+            except ValueError:
+                cost = 0.0
+            rtype = result.get("type") if isinstance(result, dict) else None
+            if killed:
+                outcome = "timeout"
+            elif rtype == "turn.completed":
+                outcome = "ok"
+                usage = result.get("usage")
+            elif rtype in ("turn.failed", "error"):
+                outcome = "error"
+            elif content:
+                outcome = "unparseable"  # died mid-stream / non-JSONL output
+            else:
+                outcome = "crashed"
+        elif isinstance(result, dict):
             try:
                 cost = require_finite_nonnegative_float(result.get("total_cost_usd") or 0.0, "total_cost_usd")
                 outcome = "timeout" if killed else ("error" if result.get("is_error") else "ok")
@@ -1223,12 +1279,15 @@ class Keeper(object):
             outcome = "crashed"  # process died leaving no output at all
         if started.date() == now.date():
             bstate["spent_today_usd"] = bstate.get("spent_today_usd", 0.0) + cost
-        ledger_append(workspace, being_id, {
+        ledger_entry = {
             "task": entry["task"], "outcome": outcome, "pid": entry["pid"],
             "started": entry["started"], "finished": now.isoformat(timespec="seconds"),
             "duration_s": round((now - started).total_seconds(), 1), "cost_usd": cost,
             "log_path": log_path,
-        })
+        }
+        if usage is not None:
+            ledger_entry["usage"] = usage  # tokens recorded too; dollars stay the budget unit
+        ledger_append(workspace, being_id, ledger_entry)
 
 
 # ---- CLI: install / daemon ----------------------------------------------
@@ -1501,6 +1560,23 @@ def cmd_stop(args):
 
 def cmd_engines_add(args):
     cfg = load_config()
+    # Kind defaults to the engine NAME when that name is itself a known kind
+    # ("claude", "codex") — the common case; anything else (a stub, a wrapper
+    # script under a custom name) defaults to the claude-shaped contract and
+    # can say otherwise with --kind.
+    kind = args.kind or (args.name if args.name in ENGINE_KINDS else "claude")
+    session_cost_usd = None
+    if kind == "codex":
+        if args.session_cost_usd is None:
+            die("kind 'codex' reports no USD cost — pass --session-cost-usd <flat USD "
+                "charged per session> so the daily-usd spawn gate stays enforceable")
+        try:
+            session_cost_usd = require_finite_nonnegative_float(
+                args.session_cost_usd, "--session-cost-usd")
+        except ValueError as e:
+            die(str(e))
+    elif args.session_cost_usd is not None:
+        die("--session-cost-usd only applies to kind 'codex' (kind %r reports its own cost)" % kind)
     command = args.command or shutil.which(args.name)
     if not command:
         die("no command found for engine %r; pass --command" % args.name)
@@ -1512,11 +1588,14 @@ def cmd_engines_add(args):
         die("engine probe failed for %r (%s): %s" % (args.name, command, e))
     if r.returncode != 0:
         die("engine probe failed for %r (%s): exit %d" % (args.name, command, r.returncode))
-    cfg.setdefault("engines", {})[args.name] = {
-        "command": command, "permission_mode": args.permission_mode,
-    }
+    entry = {"command": command, "permission_mode": args.permission_mode, "kind": kind}
+    if session_cost_usd is not None:
+        entry["session_cost_usd"] = session_cost_usd
+    cfg.setdefault("engines", {})[args.name] = entry
     save_config(cfg)
-    print("lrb: engine %r added (%s, permission_mode=%s)" % (args.name, command, args.permission_mode))
+    print("lrb: engine %r added (%s, kind=%s, permission_mode=%s%s)" % (
+        args.name, command, kind, args.permission_mode,
+        ", session_cost_usd=%s" % session_cost_usd if session_cost_usd is not None else ""))
 
 
 def cmd_engines_remove(args):
@@ -1530,7 +1609,11 @@ def cmd_engines_remove(args):
 def cmd_engines_list(args):
     cfg = load_config()
     for name, e in cfg.get("engines", {}).items():
-        print("%-12s %-40s permission_mode=%s" % (name, e["command"], e.get("permission_mode", "default")))
+        extra = ""
+        if e.get("session_cost_usd") is not None:
+            extra = "  session_cost_usd=%s" % e["session_cost_usd"]
+        print("%-12s %-40s kind=%-8s permission_mode=%s%s" % (
+            name, e["command"], e.get("kind", "claude"), e.get("permission_mode", "default"), extra))
 
 
 def _ensure_gitignored(path, entry):
@@ -1633,6 +1716,12 @@ def build_parser():
     s = esub.add_parser("add")
     s.add_argument("name")
     s.add_argument("--command", help="path to the engine binary (default: look up on PATH)")
+    s.add_argument("--kind", choices=list(ENGINE_KINDS),
+                    help="invocation/result contract (default: the engine name if it is a "
+                         "known kind, else 'claude')")
+    s.add_argument("--session-cost-usd", dest="session_cost_usd", type=float,
+                    help="flat USD charged per session for engines that report no cost "
+                         "(required for kind 'codex')")
     s.add_argument("--permission-mode", dest="permission_mode", choices=["default", "full"], default="default")
     s.set_defaults(func=cmd_engines_add)
     s = esub.add_parser("remove")
