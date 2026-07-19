@@ -58,7 +58,12 @@ VERSION = "0.1.0"
 #           cost comes from the engine's configured session-cost-usd flat rate,
 #           charged per finished session — without it the daily-usd spawn gate
 #           would silently never trip for codex beings (prompt-theater trap).
-ENGINE_KINDS = ("claude", "codex")
+#   cursor: `CMD -p PROMPT --output-format json --model M --plugin-dir D
+#           --workspace W [--force --sandbox disabled]` → one JSON object on
+#           stdout (claude-shaped: result/total_cost_usd/is_error/usage); cost
+#           from total_cost_usd when present, else optional session-cost-usd
+#           flat fallback — plugin_dir is required at engines add (Lore skills).
+ENGINE_KINDS = ("claude", "codex", "cursor")
 LABEL = "com.lore-beings.keeper"
 TICK_SECONDS = 30
 DEFAULT_CONCURRENCY_CAP = 3
@@ -247,6 +252,19 @@ def require_finite_nonnegative_float(value, label):
     if not math.isfinite(f) or f < 0:
         raise ValueError("%s must be a finite nonnegative number" % label)
     return f
+
+
+def require_plugin_dir(path, label="--plugin-dir"):
+    """Validate a lore-framework checkout path for cursor-kind engines."""
+    if not path or not isinstance(path, str):
+        raise ValueError("%s must be a non-empty path" % label)
+    abs_path = os.path.abspath(path)
+    if not os.path.isdir(abs_path):
+        raise ValueError("%s path does not exist: %s" % (label, abs_path))
+    if not os.path.isfile(os.path.join(abs_path, "VERSION")):
+        raise ValueError("%s path is not a lore-framework root (missing VERSION): %s"
+                         % (label, abs_path))
+    return abs_path
 
 
 def require_timeout_minutes(value, label="timeout-minutes"):
@@ -832,6 +850,25 @@ def spawn_session(workspace, being_id, being, engine_cfg, task_name, prompt_text
         if engine_cfg.get("permission_mode") == "full":
             cmd.append("--dangerously-bypass-approvals-and-sandbox")
         cmd.append(prompt_text)
+    elif kind == "cursor":
+        plugin_dir = engine_cfg.get("plugin_dir")
+        if not plugin_dir:
+            ledger_append(workspace, being_id, {
+                "task": task_name, "outcome": "failed-to-spawn",
+                "error": "cursor engine missing plugin_dir — re-add with --plugin-dir",
+                "recorded_at": now.isoformat(timespec="seconds"),
+            })
+            return None
+        cmd = [
+            engine_cfg["command"], "-p", prompt_text,
+            "--output-format", "json",
+            "--model", being["model"],
+            "--plugin-dir", plugin_dir,
+            "--workspace", workspace,
+            "--trust",
+        ]
+        if engine_cfg.get("permission_mode") == "full":
+            cmd.extend(["--force", "--sandbox", "disabled"])
     else:
         cmd = [engine_cfg["command"], "-p", prompt_text, "--output-format", "json", "--model", being["model"]]
         if engine_cfg.get("permission_mode") == "full":
@@ -1264,6 +1301,34 @@ class Keeper(object):
                 outcome = "unparseable"  # died mid-stream / non-JSONL output
             else:
                 outcome = "crashed"
+        elif kind == "cursor":
+            usage = None
+            if isinstance(result, dict):
+                usage = result.get("usage")
+                reported = result.get("total_cost_usd")
+                if reported is not None:
+                    try:
+                        cost = require_finite_nonnegative_float(reported, "total_cost_usd")
+                        outcome = "timeout" if killed else ("error" if result.get("is_error") else "ok")
+                    except ValueError:
+                        cost = 0.0
+                        outcome = "invalid-cost"
+                elif entry.get("session_cost_usd") is not None:
+                    try:
+                        cost = require_finite_nonnegative_float(
+                            entry.get("session_cost_usd"), "session_cost_usd")
+                    except ValueError:
+                        cost = 0.0
+                    outcome = "timeout" if killed else ("error" if result.get("is_error") else "ok")
+                else:
+                    cost = 0.0
+                    outcome = "timeout" if killed else ("error" if result.get("is_error") else "ok")
+            elif killed:
+                outcome = "timeout"
+            elif content:
+                outcome = "unparseable"
+            else:
+                outcome = "crashed"
         elif isinstance(result, dict):
             try:
                 cost = require_finite_nonnegative_float(result.get("total_cost_usd") or 0.0, "total_cost_usd")
@@ -1561,11 +1626,12 @@ def cmd_stop(args):
 def cmd_engines_add(args):
     cfg = load_config()
     # Kind defaults to the engine NAME when that name is itself a known kind
-    # ("claude", "codex") — the common case; anything else (a stub, a wrapper
-    # script under a custom name) defaults to the claude-shaped contract and
-    # can say otherwise with --kind.
+    # ("claude", "codex", "cursor") — the common case; anything else (a stub,
+    # a wrapper script under a custom name) defaults to the claude-shaped
+    # contract and can say otherwise with --kind.
     kind = args.kind or (args.name if args.name in ENGINE_KINDS else "claude")
     session_cost_usd = None
+    plugin_dir = None
     if kind == "codex":
         if args.session_cost_usd is None:
             die("kind 'codex' reports no USD cost — pass --session-cost-usd <flat USD "
@@ -1575,8 +1641,25 @@ def cmd_engines_add(args):
                 args.session_cost_usd, "--session-cost-usd")
         except ValueError as e:
             die(str(e))
+    elif kind == "cursor":
+        if not args.plugin_dir:
+            die("kind 'cursor' requires --plugin-dir <lore-framework checkout> "
+                "(Lore skills load via cursor-agent --plugin-dir)")
+        try:
+            plugin_dir = require_plugin_dir(args.plugin_dir)
+        except ValueError as e:
+            die(str(e))
+        if args.session_cost_usd is not None:
+            try:
+                session_cost_usd = require_finite_nonnegative_float(
+                    args.session_cost_usd, "--session-cost-usd")
+            except ValueError as e:
+                die(str(e))
     elif args.session_cost_usd is not None:
-        die("--session-cost-usd only applies to kind 'codex' (kind %r reports its own cost)" % kind)
+        die("--session-cost-usd only applies to kind 'codex' or 'cursor' (kind %r reports "
+            "its own cost or uses optional flat fallback)" % kind)
+    if args.plugin_dir and kind != "cursor":
+        die("--plugin-dir only applies to kind 'cursor'")
     command = args.command or shutil.which(args.name)
     if not command:
         die("no command found for engine %r; pass --command" % args.name)
@@ -1591,11 +1674,14 @@ def cmd_engines_add(args):
     entry = {"command": command, "permission_mode": args.permission_mode, "kind": kind}
     if session_cost_usd is not None:
         entry["session_cost_usd"] = session_cost_usd
+    if plugin_dir is not None:
+        entry["plugin_dir"] = plugin_dir
     cfg.setdefault("engines", {})[args.name] = entry
     save_config(cfg)
-    print("lrb: engine %r added (%s, kind=%s, permission_mode=%s%s)" % (
+    print("lrb: engine %r added (%s, kind=%s, permission_mode=%s%s%s)" % (
         args.name, command, kind, args.permission_mode,
-        ", session_cost_usd=%s" % session_cost_usd if session_cost_usd is not None else ""))
+        ", session_cost_usd=%s" % session_cost_usd if session_cost_usd is not None else "",
+        ", plugin_dir=%s" % plugin_dir if plugin_dir is not None else ""))
 
 
 def cmd_engines_remove(args):
@@ -1721,7 +1807,9 @@ def build_parser():
                          "known kind, else 'claude')")
     s.add_argument("--session-cost-usd", dest="session_cost_usd", type=float,
                     help="flat USD charged per session for engines that report no cost "
-                         "(required for kind 'codex')")
+                         "(required for kind 'codex'; optional fallback for kind 'cursor')")
+    s.add_argument("--plugin-dir", dest="plugin_dir",
+                    help="lore-framework checkout path (required for kind 'cursor')")
     s.add_argument("--permission-mode", dest="permission_mode", choices=["default", "full"], default="default")
     s.set_defaults(func=cmd_engines_add)
     s = esub.add_parser("remove")

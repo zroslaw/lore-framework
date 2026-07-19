@@ -78,10 +78,11 @@ grace period; finished → read the engine's result JSON, record cost) → persi
 single-session cost) since cost is only known at session end — documented as designed, not a bug.
 
 **Engines are explicit configuration, never auto-detected** (`lrb engines add <name> --command
-<path> [--kind claude|codex] [--session-cost-usd N] [--permission-mode default|full]` — probes
-`<path> --version` as validation). Permission mode defaults to the engine's own default; `full`
-(`--dangerously-skip-permissions` on claude-kind, `--dangerously-bypass-approvals-and-sandbox` on
-codex-kind) only by explicit config — a being never chooses its own permission level.
+<path> [--kind claude|codex|cursor] [--plugin-dir PATH] [--session-cost-usd N]
+[--permission-mode default|full]` — probes `<path> --version` as validation). Permission mode
+defaults to the engine's own default; `full` only by explicit config (`--dangerously-skip-permissions`
+on claude-kind, `--dangerously-bypass-approvals-and-sandbox` on codex-kind, `--force --sandbox
+disabled` on cursor-kind) — a being never chooses its own permission level.
 
 **Engine kinds.** Each engine has a `kind` — its invocation + result contract. Kind defaults to
 the engine *name* when the name is itself a known kind, else `claude`:
@@ -95,14 +96,30 @@ the engine *name* when the name is itself a known kind, else `claude`:
   add`: that flat USD amount is charged per finished session, whatever its outcome (over-charging
   only trips the cap earlier — the safe direction; without it the `daily-usd` spawn gate would
   silently never trip for codex beings).
+- **`cursor`** — spawns `CMD -p PROMPT --output-format json --model M --plugin-dir D --workspace W
+  --trust` (plus `--force --sandbox disabled` when `permission_mode: full`). Lore skills require
+  `--plugin-dir` pointing at a `lore-framework` checkout — **required** at `engines add` via
+  `--plugin-dir`. Result JSON is claude-shaped (`total_cost_usd`/`is_error`/`result`/`usage`);
+  reported `total_cost_usd` is charged when present, otherwise an optional `--session-cost-usd` flat
+  fallback keeps the daily cap enforceable.
+
+Example:
+
+```bash
+lrb engines add cursor --command cursor-agent --kind cursor \
+  --plugin-dir /path/to/lore-framework
+# optional: --permission-mode full
+# optional: --session-cost-usd 0.05   # fallback when JSON omits total_cost_usd
+```
 
 **Result-capture contract:** the Keeper redirects the engine's stdout to a log file (stderr goes to
 a *sibling* `<log>.stderr.log`, never merged in — any stderr noise merged into the JSON stream
 would break the whole-content parse and silently zero out the cost, defeating the budget cap;
 observed for real: `codex` writes spurious ERROR lines to stderr on perfectly successful runs).
-For claude-kind, the final JSON object *is* the result (`total_cost_usd`, `is_error`, `result`);
-for codex-kind, the last JSONL event decides the outcome (`turn.completed` → ok, with `usage`
-tokens copied into the ledger; `turn.failed`/`error` → error). No separate result-file protocol.
+For claude-kind and cursor-kind, the final JSON object *is* the result (`total_cost_usd`,
+`is_error`, `result`; cursor may also carry `usage`); for codex-kind, the last JSONL event decides
+the outcome (`turn.completed` → ok, with `usage` tokens copied into the ledger; `turn.failed`/
+`error` → error). No separate result-file protocol.
 
 **Only one Keeper runs at a time, machine-wide.** `lrb daemon` takes an exclusive lock
 (`$LRB_HOME/daemon.lock`); a second concurrent daemon refuses to start rather than double-spawning
@@ -182,8 +199,7 @@ deferred until a real being needs a second behavior.
 ## Non-goals (MVP)
 
 Teams/hierarchy, delegation, retries/alerting, dashboards, full unattended autonomy, worktree-per-
-session, systemd/Windows, engine kinds beyond Claude Code and Codex, `lrb-*` skills (namespace
-reserved).
+session, systemd/Windows, `lrb-*` skills (namespace reserved).
 
 ## See Also
 - `scripts/lrb.py` — the implementation (single stdlib file, floor Python 3.9).
