@@ -41,4 +41,10 @@ Scaffold a new agent repository in the workspace.
 
 7. **Initialize git** — run `git init` and create an initial commit.
 
-8. **Report** what was created. Remind the user they can now add agents with `/lr:create-agent`.
+8. **Verify before reporting success.** Check that `<lore-agent-repo>/lore-repo.md`,
+   `<lore-agent-repo>/agents/`, `<lore-agent-repo>/.gitignore`,
+   `<lore-agent-repo>/README.md`, and `<lore-agent-repo>/.git/` exist. If any are
+   missing, create the missing item before continuing. Do not print "done" for a
+   no-op.
+
+9. **Report** what was created. Remind the user they can now add agents with `/lr:create-agent`.

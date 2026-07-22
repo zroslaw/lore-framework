@@ -60,9 +60,13 @@ VERSION = "0.1.0"
 #           would silently never trip for codex beings (prompt-theater trap).
 #   cursor: `CMD -p PROMPT --output-format json --model M --plugin-dir D
 #           --workspace W [--force --sandbox disabled]` → one JSON object on
-#           stdout (claude-shaped: result/total_cost_usd/is_error/usage); cost
-#           from total_cost_usd when present, else optional session-cost-usd
-#           flat fallback — plugin_dir is required at engines add (Lore skills).
+#           stdout (claude-shaped: result/total_cost_usd/is_error/usage); real
+#           cursor-agent responses have been observed to omit total_cost_usd
+#           entirely (token usage only), so session-cost-usd is REQUIRED for
+#           cursor too (same prompt-theater trap as codex) — cost falls back
+#           to it whenever total_cost_usd is absent, and to total_cost_usd
+#           when a future cursor-agent version does report it. plugin_dir is
+#           also required at engines add (Lore skills).
 ENGINE_KINDS = ("claude", "codex", "cursor")
 LABEL = "com.lore-beings.keeper"
 TICK_SECONDS = 30
@@ -71,6 +75,14 @@ DEFAULT_SCHEDULE_TIMEOUT_MINUTES = 30
 MAX_TIMEOUT_MINUTES = 24 * 60
 OUTBOX_HORIZON = timedelta(hours=24)
 KILL_GRACE_SECONDS = 60
+# An entry whose PID identity has been unverifiable (ps blocked/sandboxed —
+# see _pid_matches_entry) for longer than this, past its own timeout, is
+# force-reaped rather than left running forever: without this, a re-adopted
+# entry that can never be identity-confirmed permanently leaks its
+# concurrency slot (never billed, never logged, `lrb status` shows it as
+# running indefinitely). Set far past MAX_TIMEOUT_MINUTES (24h) + grace so it
+# never fires for a session that is genuinely still running normally.
+UNVERIFIABLE_REAP_AFTER_HOURS = 48
 LATE_THRESHOLD = timedelta(minutes=5)
 SAFE_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
@@ -717,6 +729,44 @@ def _parse_result_json(content):
     return None
 
 
+def _descendant_pids(root_pid):
+    """All PIDs whose ancestry traces back to root_pid, via a full-system
+    ppid-chain walk — NOT process-group membership. Real finding (B3,
+    2026-07-20): cursor-agent's sandboxed tool execution runs each shell
+    command inside a freshly setsid'd session (a NEW process group), which
+    escapes killpg(pgid-of-the-direct-child) entirely — the direct session
+    dies on SIGKILL, but its real Bash/tool grandchildren are silently
+    orphaned and keep running. Walking by ppid instead of pgid still finds
+    them, since a setsid() call changes the process's session/group but
+    never its parent. Returns [] (not None) on ps failure/sandbox block —
+    callers already have killpg as a first line of defense and must not
+    treat "couldn't enumerate descendants" as fatal."""
+    try:
+        r = subprocess.run(["ps", "-eo", "pid,ppid"], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if r.returncode != 0:
+        return []
+    children_of = {}
+    for line in r.stdout.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        try:
+            pid, ppid = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        children_of.setdefault(ppid, []).append(pid)
+    descendants = []
+    frontier = [root_pid]
+    while frontier:
+        current = frontier.pop()
+        for child in children_of.get(current, []):
+            descendants.append(child)
+            frontier.append(child)
+    return descendants
+
+
 def _ps_field(pid, field):
     """One ps field for one PID. Returns the stripped value, False for a
     dead/invisible PID (nonzero exit or empty output), None when the
@@ -1195,10 +1245,21 @@ class Keeper(object):
                 overdue = now - started > timedelta(minutes=entry["timeout_minutes"])
                 if alive and overdue:
                     if self._can_signal(pid, entry):
+                        entry.pop("kill_blocked_since", None)
                         self._kill(pid, entry, now)
                         alive = self._is_alive(pid, entry)
                     else:
                         entry["kill_blocked_reason"] = "pid identity check unavailable"
+                        entry.setdefault("kill_blocked_since", now.isoformat(timespec="seconds"))
+                        blocked_since = datetime.fromisoformat(entry["kill_blocked_since"])
+                        if now - blocked_since > timedelta(hours=UNVERIFIABLE_REAP_AFTER_HOURS):
+                            print(
+                                "lrb: %s: PID %d unverifiable for over %dh past its timeout — "
+                                "force-reaping the concurrency slot (identity never confirmed; "
+                                "outcome/cost below may be inaccurate)"
+                                % (being_id, pid, UNVERIFIABLE_REAP_AFTER_HOURS), file=sys.stderr)
+                            entry["force_reaped_unverifiable"] = True
+                            alive = False
                 if alive:
                     still_running.append(entry)
                     continue
@@ -1238,20 +1299,39 @@ class Keeper(object):
 
     def _kill(self, pid, entry, now):
         """Signals the whole process group (spawn_session uses
-        start_new_session=True), not just the direct child — otherwise a
-        session's own Bash/MCP-server grandchildren survive a 'hard kill'.
-        Only ever called on an entry _is_alive already verified (by identity,
-        for re-adopted PIDs) as this session's own process."""
+        start_new_session=True) AND every descendant found by a fresh ppid
+        walk (_descendant_pids) — killpg alone misses a descendant that
+        called its own setsid (real finding, cursor-agent's sandboxed tool
+        execution; see _descendant_pids). Descendants are re-enumerated at
+        each escalation step, not just once, since new ones can appear
+        between the SIGTERM and the SIGKILL.
+
+        MUST enumerate descendants BEFORE signaling the direct pid/pgid, not
+        after: once the direct process dies, the OS reparents any surviving
+        child to PID 1, overwriting the very ppid link _descendant_pids
+        walks — enumerate-then-kill in the other order can silently miss
+        the whole subtree on a fast-dying direct child (caught by
+        test_kill_reaches_a_grandchild_that_escaped_into_a_new_session,
+        which failed under the original enumerate-after-kill ordering).
+
+        Only ever called on an entry _is_alive already verified (by
+        identity, for re-adopted PIDs) as this session's own process."""
         kill_sent_at = entry.get("kill_sent_at")
         try:
             pgid = os.getpgid(pid)
         except OSError:
             pgid = None
+        descendants = _descendant_pids(pid)
         if kill_sent_at is None:
             try:
                 os.killpg(pgid, signal.SIGTERM) if pgid is not None else os.kill(pid, signal.SIGTERM)
             except OSError:
                 pass
+            for descendant in descendants:
+                try:
+                    os.kill(descendant, signal.SIGTERM)
+                except OSError:
+                    pass
             entry["kill_sent_at"] = now.isoformat(timespec="seconds")
             return
         sent = datetime.fromisoformat(kill_sent_at)
@@ -1260,6 +1340,11 @@ class Keeper(object):
                 os.killpg(pgid, signal.SIGKILL) if pgid is not None else os.kill(pid, signal.SIGKILL)
             except OSError:
                 pass
+            for descendant in descendants:
+                try:
+                    os.kill(descendant, signal.SIGKILL)
+                except OSError:
+                    pass
 
     def _finish(self, workspace, being_id, bstate, entry, now):
         self.live_procs.pop(entry["pid"], None)
@@ -1352,6 +1437,12 @@ class Keeper(object):
         }
         if usage is not None:
             ledger_entry["usage"] = usage  # tokens recorded too; dollars stay the budget unit
+        if entry.get("force_reaped_unverifiable"):
+            # See UNVERIFIABLE_REAP_AFTER_HOURS: identity was never confirmed
+            # for this entry, so the outcome/cost above are a best-effort
+            # read of whatever log content happened to exist, not a
+            # confirmed observation of this specific process's exit.
+            ledger_entry["force_reaped_unverifiable"] = True
         ledger_append(workspace, being_id, ledger_entry)
 
 
@@ -1649,15 +1740,18 @@ def cmd_engines_add(args):
             plugin_dir = require_plugin_dir(args.plugin_dir)
         except ValueError as e:
             die(str(e))
-        if args.session_cost_usd is not None:
-            try:
-                session_cost_usd = require_finite_nonnegative_float(
-                    args.session_cost_usd, "--session-cost-usd")
-            except ValueError as e:
-                die(str(e))
+        if args.session_cost_usd is None:
+            die("kind 'cursor' requires --session-cost-usd <flat USD charged per session> — "
+                "real cursor-agent responses omit total_cost_usd (token usage only), so "
+                "without a flat rate the daily-usd spawn gate never trips")
+        try:
+            session_cost_usd = require_finite_nonnegative_float(
+                args.session_cost_usd, "--session-cost-usd")
+        except ValueError as e:
+            die(str(e))
     elif args.session_cost_usd is not None:
-        die("--session-cost-usd only applies to kind 'codex' or 'cursor' (kind %r reports "
-            "its own cost or uses optional flat fallback)" % kind)
+        die("--session-cost-usd only applies to kind 'codex' or 'cursor' (kind %r is expected "
+            "to report its own cost)" % kind)
     if args.plugin_dir and kind != "cursor":
         die("--plugin-dir only applies to kind 'cursor'")
     command = args.command or shutil.which(args.name)
@@ -1807,7 +1901,7 @@ def build_parser():
                          "known kind, else 'claude')")
     s.add_argument("--session-cost-usd", dest="session_cost_usd", type=float,
                     help="flat USD charged per session for engines that report no cost "
-                         "(required for kind 'codex'; optional fallback for kind 'cursor')")
+                         "(required for kind 'codex' and 'cursor')")
     s.add_argument("--plugin-dir", dest="plugin_dir",
                     help="lore-framework checkout path (required for kind 'cursor')")
     s.add_argument("--permission-mode", dest="permission_mode", choices=["default", "full"], default="default")

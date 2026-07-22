@@ -99,17 +99,19 @@ the engine *name* when the name is itself a known kind, else `claude`:
 - **`cursor`** — spawns `CMD -p PROMPT --output-format json --model M --plugin-dir D --workspace W
   --trust` (plus `--force --sandbox disabled` when `permission_mode: full`). Lore skills require
   `--plugin-dir` pointing at a `lore-framework` checkout — **required** at `engines add` via
-  `--plugin-dir`. Result JSON is claude-shaped (`total_cost_usd`/`is_error`/`result`/`usage`);
-  reported `total_cost_usd` is charged when present, otherwise an optional `--session-cost-usd` flat
-  fallback keeps the daily cap enforceable.
+  `--plugin-dir`. Result JSON is claude-shaped (`total_cost_usd`/`is_error`/`result`/`usage`), but
+  real `cursor-agent` responses have been observed to omit `total_cost_usd` entirely (token `usage`
+  only) — so, like codex, `--session-cost-usd` is **required** at `engines add`: that flat USD
+  amount is charged whenever `total_cost_usd` is absent (and would still be used if a future
+  cursor-agent version reports `total_cost_usd`, in which case the reported figure wins instead).
+  Without this, the `daily-usd` spawn gate silently never trips for cursor beings.
 
 Example:
 
 ```bash
 lrb engines add cursor --command cursor-agent --kind cursor \
-  --plugin-dir /path/to/lore-framework
+  --plugin-dir /path/to/lore-framework --session-cost-usd 0.05
 # optional: --permission-mode full
-# optional: --session-cost-usd 0.05   # fallback when JSON omits total_cost_usd
 ```
 
 **Result-capture contract:** the Keeper redirects the engine's stdout to a log file (stderr goes to

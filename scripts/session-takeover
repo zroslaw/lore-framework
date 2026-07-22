@@ -31,20 +31,51 @@ import argparse
 import binascii
 import contextlib
 import glob
+import gzip
 import json
 import os
 import re
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 TRUNC_ARGS = 160     # max chars shown for tool-call arguments
 TRUNC_RESULT = 120   # max chars shown for tool-call results
 
+ARCHIVE_SCHEMA_VERSION = 1  # bump when the archive line/record shape changes
+
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-CLAUDE_PROJECTS = Path.home() / ".claude" / "projects"
+CLAUDE_PROJECTS = Path(
+    os.environ.get("CLAUDE_PROJECTS", Path.home() / ".claude" / "projects")
+)
 _CURSOR_GENERIC_TITLES = frozenset({"New Agent", "New Chat"})
+
+# --- Claude model pricing, USD per million tokens (per-token cost / 1e6) ------
+# Source: https://platform.claude.com/docs/en/about-claude/pricing
+# Fetched 2026-07-21. Tuple = (input, output, cache_read, cache_write_5m).
+# cache_write_5m (1.25x base input) is used because the transcript's
+# cache_creation_input_tokens does not distinguish 5-minute from 1-hour writes;
+# 5m is the documented default. Cost carrying this table is labelled
+# cost_source="computed" precisely to flag it as an estimate, not billed truth.
+# Sonnet 5 shows introductory pricing ($2/$10) in effect through 2026-08-31;
+# it rises to $3/$15 on 2026-09-01 — refresh this table then.
+CLAUDE_PRICING = {
+    "claude-fable-5": (10.0, 50.0, 1.0, 12.5),
+    "claude-mythos-5": (10.0, 50.0, 1.0, 12.5),
+    "claude-opus-4-8": (5.0, 25.0, 0.5, 6.25),
+    "claude-opus-4-7": (5.0, 25.0, 0.5, 6.25),
+    "claude-opus-4-6": (5.0, 25.0, 0.5, 6.25),
+    "claude-opus-4-5": (5.0, 25.0, 0.5, 6.25),
+    "claude-opus-4-1": (15.0, 75.0, 1.5, 18.75),
+    "claude-opus-4-0": (15.0, 75.0, 1.5, 18.75),
+    "claude-sonnet-5": (2.0, 10.0, 0.2, 2.5),
+    "claude-sonnet-4-6": (3.0, 15.0, 0.3, 3.75),
+    "claude-sonnet-4-5": (3.0, 15.0, 0.3, 3.75),
+    "claude-sonnet-4-0": (3.0, 15.0, 0.3, 3.75),
+    "claude-haiku-4-5": (1.0, 5.0, 0.1, 1.25),
+    "claude-haiku-3-5": (0.8, 4.0, 0.08, 1.0),
+}
 
 
 def _cursor_home():
@@ -62,6 +93,101 @@ def _cursor_projects():
 def _clip(text, limit):
     text = " ".join(str(text).split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+# --- usage / model aggregation helpers (Feature B) ---------------------------
+
+
+def _new_usage():
+    return {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0}
+
+
+def _add_usage(acc, other):
+    """Sum a normalized usage dict into an accumulator in place."""
+    for key in ("input", "output", "cache_read", "cache_creation"):
+        acc[key] += int(other.get(key) or 0)
+
+
+def _claude_usage_to_norm(u):
+    """Map a Claude message.usage dict to the normalized token shape."""
+    return {
+        "input": int(u.get("input_tokens") or 0),
+        "output": int(u.get("output_tokens") or 0),
+        "cache_read": int(u.get("cache_read_input_tokens") or 0),
+        "cache_creation": int(u.get("cache_creation_input_tokens") or 0),
+    }
+
+
+def _add_model(models, model):
+    """Append a model id to an ordered-unique list, in place."""
+    if model and model not in models:
+        models.append(model)
+
+
+def _normalize_model_id(model):
+    """Strip a trailing -YYYYMMDD date suffix so dated ids hit the price table."""
+    if not model:
+        return model
+    return re.sub(r"-\d{8}$", "", model)
+
+
+def _claude_model_cost(model, usage):
+    """USD cost for one model's normalized usage, or None if model unpriced."""
+    price = CLAUDE_PRICING.get(_normalize_model_id(model))
+    if price is None:
+        return None
+    in_rate, out_rate, cr_rate, cw_rate = price
+    return (
+        usage["input"] * in_rate
+        + usage["output"] * out_rate
+        + usage["cache_read"] * cr_rate
+        + usage["cache_creation"] * cw_rate
+    ) / 1_000_000
+
+
+def compute_stats(meta, messages=None):
+    """Build the Feature-B stats object (models, tokens, cost) from parse meta.
+
+    Cost is only computed for Claude and only when every model used is present
+    in CLAUDE_PRICING; any unknown model -> cost_source "unavailable" (never a
+    guessed number). Codex/Cursor are always cost "unavailable" in v1.
+    """
+    engine = meta.get("engine")
+    models = list(meta.get("models") or [])
+    if not models and meta.get("model"):
+        models = [meta["model"]]
+    models_source = meta.get("models_source")
+    if not models_source:
+        models_source = "per-message" if models else "unavailable"
+
+    tokens = meta.get("usage")  # normalized dict or None (unavailable)
+
+    cost_usd, cost_source = None, "unavailable"
+    by_model = meta.get("usage_by_model")
+    if engine == "claude" and by_model:
+        total = 0.0
+        priced_all = True
+        for model, usage in by_model.items():
+            c = _claude_model_cost(model, usage)
+            if c is None:
+                priced_all = False
+                break
+            total += c
+        if priced_all:
+            cost_usd, cost_source = round(total, 4), "computed"
+
+    stats = {
+        "engine": engine,
+        "models": models,
+        "models_source": models_source,
+        "tokens": tokens,
+        "cost_usd": cost_usd,
+        "cost_source": cost_source,
+    }
+    if messages is not None:
+        earliest = next((m["ts"] for m in messages if m.get("ts")), None)
+        stats["started"] = meta.get("started") or earliest
+    return stats
 
 
 # ------------------------------------------------------------ codex parsing
@@ -104,10 +230,13 @@ def parse_codex(path):
     meta = {"engine": "codex", "source": str(path)}
     messages = []
     pending = {}  # call_id -> tool message awaiting its result
+    models = []
+    token_usage = None  # cumulative; last token_count record wins
 
     for record in _iter_jsonl(path):
         rtype = record.get("type")
         payload = record.get("payload", {})
+        ts = record.get("timestamp")
 
         if rtype == "session_meta":
             meta.update(
@@ -119,7 +248,20 @@ def parse_codex(path):
             )
         elif rtype == "turn_context":
             meta.setdefault("model", payload.get("model"))
-            meta["ended"] = record.get("timestamp") or meta.get("ended")
+            _add_model(models, payload.get("model"))
+            meta["ended"] = ts or meta.get("ended")
+        elif rtype == "event_msg" and payload.get("type") == "token_count":
+            # Codex reports cumulative token usage; the last record is the total.
+            info = payload.get("info") or {}
+            total = info.get("total_token_usage") or {}
+            if total:
+                token_usage = {
+                    "input": int(total.get("input_tokens") or 0),
+                    "output": int(total.get("output_tokens") or 0)
+                    + int(total.get("reasoning_output_tokens") or 0),
+                    "cache_read": int(total.get("cached_input_tokens") or 0),
+                    "cache_creation": 0,
+                }
         elif rtype == "response_item":
             ptype = payload.get("type")
             if ptype == "message":
@@ -135,7 +277,7 @@ def parse_codex(path):
                 if role == "user" and re.match(r"^<[a-z_]+>", text):
                     continue
                 if text:
-                    messages.append({"role": role, "content": text})
+                    messages.append({"role": role, "content": text, "ts": ts})
             elif ptype in ("function_call", "custom_tool_call"):
                 name = payload.get("name", "?")
                 raw = payload.get("arguments") or payload.get("input") or ""
@@ -144,6 +286,9 @@ def parse_codex(path):
                     "tool": name,
                     "args": _codex_call_summary(name, raw),
                     "result": "",
+                    "raw_args": raw,
+                    "raw_result": "",
+                    "ts": ts,
                 }
                 messages.append(msg)
                 call_id = payload.get("call_id") or payload.get("id")
@@ -156,7 +301,13 @@ def parse_codex(path):
                 msg = pending.pop(payload.get("call_id"), None)
                 if msg is not None:
                     msg["result"] = _codex_result_summary(output)
+                    msg["raw_result"] = output
 
+    if models:
+        meta["models"] = models
+        meta["models_source"] = "per-message"
+    if token_usage:
+        meta["usage"] = token_usage
     return meta, messages
 
 
@@ -187,34 +338,53 @@ def _claude_call_summary(name, args):
     return _clip(json.dumps(args, ensure_ascii=False), TRUNC_ARGS)
 
 
-def _claude_result_text(item):
+def _claude_result_join(item):
+    """Full, unclipped text of a Claude tool_result content block."""
     content = item.get("content")
     if isinstance(content, list):
         content = " ".join(
             c.get("text", "") for c in content if isinstance(c, dict)
         )
     prefix = "error: " if item.get("is_error") else ""
-    return _clip(prefix + str(content or ""), TRUNC_RESULT)
+    return prefix + str(content or "")
+
+
+def _claude_result_text(item):
+    return _clip(_claude_result_join(item), TRUNC_RESULT)
 
 
 def parse_claude(path):
-    """Parse a Claude Code session JSONL file -> (meta, messages)."""
+    """Parse a Claude Code session JSONL file -> (meta, messages).
+
+    Sidechain (subagent/Task) records are parsed and emitted too, each tagged
+    ``sidechain: True``; the digest renderer (render_markdown) skips them so
+    the takeover digest is byte-identical to before, while the archive and the
+    usage totals include them — real tokens were spent on that work.
+    """
     meta = {"engine": "claude", "source": str(path)}
     messages = []
     pending = {}  # tool_use_id -> tool message awaiting its result
+    models = []
+    total_usage = None
+    usage_by_model = {}
 
     for record in _iter_jsonl(path):
         rtype = record.get("type")
         if rtype == "ai-title":
             meta["title"] = record.get("aiTitle") or meta.get("title")
             continue
-        if rtype not in ("user", "assistant") or record.get("isSidechain"):
+        if rtype not in ("user", "assistant"):
             continue
+        sidechain = bool(record.get("isSidechain"))
+        ts = record.get("timestamp")
 
-        meta.setdefault("session_id", record.get("sessionId"))
-        meta.setdefault("cwd", record.get("cwd"))
-        meta.setdefault("started", record.get("timestamp"))
-        meta["ended"] = record.get("timestamp") or meta.get("ended")
+        # Session-level meta reflects the main thread only, so the digest's
+        # Session block stays identical to before (sidechains were skipped then).
+        if not sidechain:
+            meta.setdefault("session_id", record.get("sessionId"))
+            meta.setdefault("cwd", record.get("cwd"))
+            meta.setdefault("started", ts)
+            meta["ended"] = ts or meta.get("ended")
 
         message = record.get("message") or {}
         content = message.get("content")
@@ -223,29 +393,49 @@ def parse_claude(path):
             if isinstance(content, str):
                 # engine-injected wrappers (<command-name>, caveats, reminders)
                 if not re.match(r"^\s*<[a-z-]+", content) and content.strip():
-                    messages.append({"role": "user", "content": content.strip()})
+                    messages.append({
+                        "role": "user", "content": content.strip(),
+                        "ts": ts, "sidechain": sidechain,
+                    })
                 continue
             for item in content or []:
                 itype = item.get("type")
                 if itype == "text":
                     text = item.get("text", "").strip()
                     if text and not re.match(r"^\s*<[a-z-]+", text):
-                        messages.append({"role": "user", "content": text})
+                        messages.append({
+                            "role": "user", "content": text,
+                            "ts": ts, "sidechain": sidechain,
+                        })
                 elif itype == "tool_result":
                     msg = pending.pop(item.get("tool_use_id"), None)
                     if msg is not None:
                         msg["result"] = _claude_result_text(item)
+                        msg["raw_result"] = _claude_result_join(item)
 
         else:  # assistant
             model = message.get("model")
             if model and model != "<synthetic>":
-                meta.setdefault("model", model)
+                if not sidechain:
+                    meta.setdefault("model", model)
+                _add_model(models, model)
+            usage = message.get("usage")
+            if usage and model and model != "<synthetic>":
+                norm = _claude_usage_to_norm(usage)
+                if total_usage is None:
+                    total_usage = _new_usage()
+                _add_usage(total_usage, norm)
+                acc = usage_by_model.setdefault(model, _new_usage())
+                _add_usage(acc, norm)
             for item in content or []:
                 itype = item.get("type")
                 if itype == "text":
                     text = item.get("text", "").strip()
                     if text and model != "<synthetic>":
-                        messages.append({"role": "assistant", "content": text})
+                        messages.append({
+                            "role": "assistant", "content": text,
+                            "ts": ts, "model": model, "sidechain": sidechain,
+                        })
                 elif itype == "tool_use":
                     name = item.get("name", "?")
                     msg = {
@@ -253,11 +443,22 @@ def parse_claude(path):
                         "tool": name,
                         "args": _claude_call_summary(name, item.get("input")),
                         "result": "",
+                        "raw_args": item.get("input"),
+                        "raw_result": "",
+                        "ts": ts,
+                        "model": model,
+                        "sidechain": sidechain,
                     }
                     messages.append(msg)
                     if item.get("id"):
                         pending[item["id"]] = msg
 
+    if models:
+        meta["models"] = models
+        meta["models_source"] = "per-message"
+    if total_usage is not None:
+        meta["usage"] = total_usage
+        meta["usage_by_model"] = usage_by_model
     return meta, messages
 
 
@@ -438,6 +639,7 @@ def _cursor_load_tool_results(store_db):
                 {
                     "name": item.get("toolName", "?"),
                     "result": _cursor_result_summary(item.get("result")),
+                    "raw_result": item.get("result"),
                 }
             )
     return results
@@ -469,7 +671,10 @@ def _cursor_pair_tool_batch(tool_uses, results, result_index):
                 match = item
                 used.add(idx)
                 break
-        paired.append(match["result"] if match else "")
+        if match:
+            paired.append((match["result"], match.get("raw_result")))
+        else:
+            paired.append(("", None))
     return paired, window_end
 
 
@@ -498,6 +703,8 @@ def parse_cursor(path):
     meta["title"] = _cursor_resolved_title(store_info, jsonl_path)
     if store_info.get("lastUsedModel"):
         meta["model"] = store_info["lastUsedModel"]
+        meta["models"] = [store_info["lastUsedModel"]]
+        meta["models_source"] = "session-level-last-used"
     if chat_meta.get("createdAtMs"):
         meta["started"] = _fmt_ts(chat_meta["createdAtMs"] / 1000)
     if chat_meta.get("updatedAtMs"):
@@ -541,7 +748,7 @@ def parse_cursor(path):
                 paired_results, result_index = _cursor_pair_tool_batch(
                     tool_uses, tool_results, result_index
                 )
-                for tool, result in zip(tool_uses, paired_results):
+                for tool, (result, raw_result) in zip(tool_uses, paired_results):
                     if result:
                         paired_tools += 1
                     messages.append(
@@ -552,6 +759,8 @@ def parse_cursor(path):
                                 tool.get("name"), tool.get("input")
                             ),
                             "result": result,
+                            "raw_args": tool.get("input"),
+                            "raw_result": raw_result,
                         }
                     )
 
@@ -788,6 +997,8 @@ def render_markdown(meta, messages):
 
     current = None  # role of the heading we're currently under
     for msg in messages:
+        if msg.get("sidechain"):
+            continue  # subagent turns are archived, not shown in the digest
         if "tool" in msg:
             if current != "assistant":
                 out += ["", "## Assistant", ""]
@@ -829,6 +1040,191 @@ def render_markdown(meta, messages):
     return "\n".join(out)
 
 
+# ------------------------------------------------------- archive (Feature A)
+
+
+def build_archive(meta, messages, lore_uuid=None):
+    """Build the archive as (header dict, list of per-message dicts).
+
+    Full-fidelity, engine-agnostic: one line per message or tool call, raw
+    (untruncated) args/results preserved. Flat rather than nesting tool calls
+    inside their assistant turn — a lossless 1:1 mapping of the parsed message
+    list that is simpler to stream and consume. Absent fields are omitted, not
+    null-padded, so a consumer can tell "engine didn't expose this" from "zero".
+    """
+    header = {
+        "schema_version": ARCHIVE_SCHEMA_VERSION,
+        "engine": meta.get("engine"),
+        "native_session_id": meta.get("session_id"),
+        "lore_uuid": lore_uuid,
+        "cwd": meta.get("cwd"),
+        "title": meta.get("title"),
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    header = {k: v for k, v in header.items() if v is not None}
+
+    lines = []
+    for seq, msg in enumerate(messages, 1):
+        if "tool" in msg:
+            rec = {
+                "seq": seq,
+                "type": "tool_call",
+                "role": msg.get("role", "assistant"),
+                "tool": msg.get("tool"),
+                "args": msg.get("raw_args", msg.get("args")),
+                "result": msg.get("raw_result", msg.get("result")),
+            }
+        else:
+            rec = {
+                "seq": seq,
+                "type": "message",
+                "role": msg.get("role"),
+                "text": msg.get("content"),
+            }
+            if msg.get("model"):
+                rec["model"] = msg["model"]
+        if msg.get("ts"):
+            rec["ts"] = msg["ts"]
+        if msg.get("sidechain"):
+            rec["sidechain"] = True
+        lines.append(rec)
+    return header, lines
+
+
+def write_archive(path, header, lines):
+    """Write header + per-message records as gzipped JSONL to path."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        fh.write(json.dumps(header, ensure_ascii=False) + "\n")
+        for rec in lines:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+# ------------------------------------------ session self-identification (A)
+
+
+def _candidate_logs(engine):
+    """(path, [files_to_grep]) for each candidate log of engine, newest first.
+
+    For claude/codex the log file itself carries tool output (where a printed
+    UUID lands). For cursor the printed output lives in store.db, not the
+    agent-transcript JSONL, so both are grep targets while the JSONL is the
+    path handed back for archiving.
+    """
+    entries = []
+    if engine == "claude":
+        for p in glob.glob(str(CLAUDE_PROJECTS / "*" / "*.jsonl")):
+            entries.append((os.path.getmtime(p), p, [p]))
+    elif engine == "codex":
+        for p in glob.glob(
+            str(CODEX_HOME / "sessions" / "**" / "rollout-*.jsonl"),
+            recursive=True,
+        ):
+            entries.append((os.path.getmtime(p), p, [p]))
+    elif engine == "cursor":
+        for jsonl in glob.glob(
+            str(_cursor_projects() / "*" / "agent-transcripts" / "*" / "*.jsonl")
+        ):
+            path = Path(jsonl)
+            if path.parent.name != path.stem:
+                continue
+            grep = [jsonl]
+            store = cursor_store_db_for_uuid(path.stem)
+            if store:
+                grep.append(str(store))
+            entries.append((os.path.getmtime(jsonl), jsonl, grep))
+    entries.sort(key=lambda e: e[0], reverse=True)
+    return [(p, g) for _mtime, p, g in entries]
+
+
+def _file_contains(path, needle):
+    try:
+        with open(path, "rb") as fh:
+            return needle.encode("utf-8") in fh.read()
+    except OSError:
+        return False
+
+
+def find_native_log_by_uuid(session_uuid, engine, limit=50):
+    """Resolve this session's native log by the lore UUID printed into it.
+
+    Returns (path, confidence) where confidence is "verified" (a candidate
+    contained the UUID) or "heuristic" (no match; most-recently-modified log
+    for this engine). Returns (None, None) when there are no candidates at all.
+    """
+    candidates = _candidate_logs(engine)[:limit]
+    for path, grep_files in candidates:
+        if any(_file_contains(gf, session_uuid) for gf in grep_files):
+            return path, "verified"
+    if candidates:
+        return candidates[0][0], "heuristic"
+    return None, None
+
+
+def _resolve_log_arg(session, engine=None):
+    """Turn a CLI session token/path into a concrete log path + engine."""
+    path = Path(session)
+    if path.suffix == ".db":
+        jsonl_path = cursor_jsonl_for_uuid(path.parent.name, strict=True)
+        if jsonl_path is None:
+            sys.exit(
+                f"error: no agent-transcript JSONL found for Cursor chat "
+                f"{path.parent.name}"
+            )
+        path = jsonl_path
+    if not path.is_file():
+        resolved = resolve_session(session)
+        if resolved is None:
+            sys.exit(
+                f"error: '{session}' is neither a file nor a known session id"
+            )
+        path = resolved
+    eng = engine or detect_engine(path)
+    if eng not in PARSERS:
+        sys.exit("error: could not detect log format; pass --engine")
+    return path, eng
+
+
+def cmd_archive(argv):
+    ap = argparse.ArgumentParser(prog="session-takeover archive")
+    ap.add_argument("session", help="session id (prefix ok) or path to a log")
+    ap.add_argument("-o", "--output", type=Path, required=True,
+                    help="write the gzipped JSONL archive here")
+    ap.add_argument("--stats", type=Path,
+                    help="also write the usage/cost/model stats JSON here")
+    ap.add_argument("--lore-uuid",
+                    help="lore session UUID to stamp into the archive header")
+    ap.add_argument("--engine", choices=sorted(PARSERS),
+                    help="force log format instead of auto-detecting")
+    a = ap.parse_args(argv)
+
+    path, engine = _resolve_log_arg(a.session, a.engine)
+    meta, messages = PARSERS[engine](path)
+    if not messages:
+        sys.exit("error: no conversation messages found in log")
+
+    header, lines = build_archive(meta, messages, a.lore_uuid)
+    write_archive(a.output, header, lines)
+    turns = sum(1 for m in messages if "tool" not in m)
+    print(
+        f"wrote {a.output} ({turns} messages, "
+        f"{len(messages) - turns} tool calls, engine: {engine})"
+    )
+
+    if a.stats:
+        stats = compute_stats(meta, messages)
+        # Include the archive locator so the summarize step can assemble the
+        # `archive:` frontmatter block straight from this one JSON.
+        stats["archive"] = {
+            "path": str(a.output),
+            "schema_version": ARCHIVE_SCHEMA_VERSION,
+        }
+        a.stats.write_text(json.dumps(stats, indent=2, ensure_ascii=False))
+        print(f"wrote {a.stats}")
+    return 0
+
+
 # -------------------------------------------------------------------- main
 
 
@@ -852,15 +1248,25 @@ def cmd_list(engines, limit, include_all=False):
 
 
 def main():
+    # `archive` is a sub-verb with its own argument grammar; dispatch before
+    # the main parser so the takeover flags don't collide with it.
+    if sys.argv[1:2] == ["archive"]:
+        sys.exit(cmd_archive(sys.argv[2:]))
+
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("session", nargs="?",
                     help="session id (prefix ok) or path to an engine log")
     ap.add_argument("--list", action="store_true",
                     help="list recent sessions across engines")
+    ap.add_argument("--find-by-uuid",
+                    help="resolve this session's native log by a UUID printed "
+                         "into its transcript (requires --engine); prints the "
+                         "path, or exits non-zero if no candidate logs exist")
     ap.add_argument("--engine", choices=sorted(LISTERS),
                     help="limit --list / force log format")
-    ap.add_argument("--limit", type=int, default=10,
-                    help="max sessions per engine in --list (default 10)")
+    ap.add_argument("--limit", type=int, default=None,
+                    help="max sessions per engine (--list default 10, "
+                         "--find-by-uuid default 50)")
     ap.add_argument("--all", action="store_true",
                     help="include temp-dir (test-fixture) sessions in --list")
     ap.add_argument("-o", "--output", type=Path,
@@ -869,9 +1275,25 @@ def main():
                     help="also dump the unified message list as JSON")
     args = ap.parse_args()
 
+    if args.find_by_uuid:
+        if not args.engine:
+            sys.exit("error: --find-by-uuid requires --engine")
+        path, confidence = find_native_log_by_uuid(
+            args.find_by_uuid, args.engine, args.limit or 50
+        )
+        if path is None:
+            sys.exit(1)  # no candidate logs at all — caller warns and skips
+        if confidence == "heuristic":
+            sys.stderr.write(
+                "warning: no candidate log contained the UUID; falling back "
+                "to the most-recently-modified log for this engine\n"
+            )
+        print(path)
+        return
+
     if args.list:
         cmd_list([args.engine] if args.engine else sorted(LISTERS),
-                 args.limit, args.all)
+                 args.limit or 10, args.all)
         return
     if not args.session:
         sys.exit("error: pass a session id/path, or --list")
@@ -910,10 +1332,12 @@ def main():
     digest = render_markdown(meta, messages)
     if args.output:
         args.output.write_text(digest)
-        turns = sum(1 for m in messages if "tool" not in m)
+        # Count only digest-visible messages (sidechains are archived, not shown)
+        shown = [m for m in messages if not m.get("sidechain")]
+        turns = sum(1 for m in shown if "tool" not in m)
         print(
             f"wrote {args.output} ({turns} conversation turns, "
-            f"{len(messages) - turns} tool calls, engine: {engine})"
+            f"{len(shown) - turns} tool calls, engine: {engine})"
         )
     else:
         print(digest)

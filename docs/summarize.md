@@ -55,6 +55,19 @@ artifacts:
   - { path: lore-framework/docs/summarize.md, kind: created }
   - { path: lore-framework/skills/summarize/SKILL.md, kind: created }
 consulted: []
+usage:
+  models: [claude-sonnet-5]
+  models_source: per-message   # per-message | session-level-last-used | unavailable
+  tokens:
+    input: 123456
+    output: 45678
+    cache_read: 90000
+    cache_creation: 12000
+  cost_usd: 4.32
+  cost_source: computed        # reported | computed | unavailable
+archive:
+  path: agents/lore-architect/archive/2026/07/2026-07-20-550e8400.jsonl.gz
+  schema_version: 1
 ---
 ```
 
@@ -67,8 +80,15 @@ Field notes:
 - **`topics`** — free-form kebab-case tags for later analysis. Reuse tags already seen in prior summaries rather than inventing synonyms.
 - **`artifacts`** — files created, modified, or deleted during the session. `kind` is `created`, `modified`, or `deleted`. Paths relative to the workspace root.
 - **`consulted`** — agents queried via `/lr:consult` during this session. List of `{ agent, repo }` entries. Empty array if no consults.
+- **`usage`** — token/cost/model totals for the session, from Step 1.5's stats JSON. Host schema only (guests follow `host_summary_path` to reach it — not duplicated). Sub-fields:
+  - **`models`** — ordered-unique list of model ids observed this session.
+  - **`models_source`** — how the list was gathered: `per-message` (Claude/Codex, full fidelity), `session-level-last-used` (Cursor, only a single session-level `lastUsedModel` is available — not per-message), or `unavailable`.
+  - **`tokens`** — `input` / `output` / `cache_read` / `cache_creation` sums. Omitted for engines with no token data (Cursor).
+  - **`cost_usd`** — total USD cost. Present only when `cost_source: computed`; omitted otherwise.
+  - **`cost_source`** — provenance of the cost: `reported` (engine reported an authoritative dollar figure), `computed` (derived from token totals × a confirmed, cited per-model price — Claude only in v1, and only for models with a known price), or `unavailable` (Codex/Cursor, or any Claude model whose price couldn't be confirmed — no number is guessed).
+- **`archive`** — pointer to the lossless session archive from Step 1.5. `path` is relative to the host's `<lore-agent-repo>` root (same `<short-uuid>` stem as this summary). `schema_version` is the archive format version.
 
-Unknown fields are tolerated by design — the schema is additive.
+Unknown fields are tolerated by design — the schema is additive. The `usage` and `archive` blocks are themselves additive and tolerant: they are **omitted entirely** when Step 1.5 was skipped or failed (never written half-populated), and a consumer that doesn't know them ignores them.
 
 ## Guest frontmatter schema
 
@@ -174,12 +194,47 @@ python3 -c "import uuid; print(uuid.uuid4())"
 
 Record the full UUID. Derive `<short-uuid>` = first 8 hex chars (before the first `-`).
 
+### Step 1.5: Resolve and archive the native session log
+
+This step captures a lossless archive of the raw session (every message and tool call with full args/results) and the session's token/cost/model usage, folding both into the summary. It is a **required attempt** in every summarize/finalize run, and **additive and non-blocking** only after the attempt has a concrete reason to stop. Every failure here is warn-and-continue, and summarize proceeds without the `usage`/`archive` frontmatter keys if anything goes wrong. This step must never be able to fail summarize or finalize, but it must not be silently skipped.
+
+Only the **host** agent gets an archive — there is exactly one native session log per running process, regardless of how many guests are attached. Guests are unaffected (no guest-schema change).
+
+1. **Resolve this session's native log.** The UUID generated in Step 1 has, by now, already appeared in the engine's transcript (the `python3` command that printed it *is* a recorded tool call). Use that to find which native log on disk is this session's:
+
+   ```bash
+   <framework-root>/scripts/session-takeover --find-by-uuid <full-uuid> --engine <engine>
+   ```
+
+   where `<framework-root>` is the framework root resolved at boot (the dir holding `VERSION`) and `<engine>` is the current engine (`claude`, `codex`, or `cursor`). This prints the resolved native log path on stdout.
+
+   **How to read the result — this is the one spot models get wrong, so follow it exactly:**
+   - **A path was printed on stdout → use it and continue to sub-step 2.** This is the success case. It stays the success case *even if a `warning:` line was also printed on stderr* — the warning only means the tool couldn't confirm the UUID and fell back to the most-recently-modified log for this engine (normal for Cursor, whose printed output isn't grep-able; and for any engine whose transcript hasn't flushed the UUID line yet). A stderr warning is **not** a skip signal.
+   - **Only skip the rest of this step (warn and continue to Step 2) if the command printed _no path at all_ on stdout, or exited non-zero** — that means there were genuinely no candidate logs to archive.
+
+2. **Archive the log and capture usage in one call.** Run the combined verb, writing the archive to its final path and the stats JSON to a scratch path:
+
+   ```bash
+   <framework-root>/scripts/session-takeover archive <resolved-log> \
+     -o <lore-agent-repo>/agents/<host-agent>/archive/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.jsonl.gz \
+     --stats <scratch>/session-stats.json \
+     --lore-uuid <full-uuid> --engine <engine>
+   ```
+
+   `<host-agent>` / `<lore-agent-repo>` are the host agent and its repo, known from the booted agent context (same source Step 2 uses). `--lore-uuid <full-uuid>` stamps the same session UUID from Step 1 into the archive header, so the archive correlates to its summary by content as well as by filename; `--engine <engine>` skips auto-detection. The archive shares the exact `<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>` stem as the paired host summary, so the two correlate 1:1 by filename with no extra bookkeeping. The archive script creates the `<YYYY>/<MM>/` directories on demand, so no `mkdir` is needed. Because the archive lives under `agents/<host-agent>/`, it rides finalize phase 4's existing `git add agents/` with no change to that phase. If the script errors, skip and continue (warn) — do not write partial `usage`/`archive` frontmatter.
+
+3. **Retain the stats JSON** for Step 8 (frontmatter assembly). It carries the models list and `models_source`, token totals (or `tokens: null` when the engine doesn't expose them), cost (`cost_usd` + `cost_source`, the latter one of `reported` / `computed` / `unavailable`), an `archive` block with the archive `path` and `schema_version`, and `started` — the archive's earliest message timestamp, which also feeds Step 2's `start` (see Step 2). The stats file's `archive.path` is the exact `-o` path passed to the script (often absolute). **When writing summary frontmatter, convert it to a path relative to `<lore-agent-repo>`** (for example `agents/lore-architect/archive/2026/07/2026-07-21-550e8400.jsonl.gz`) so summaries remain portable across checkout locations.
+
+**Inherent mid-finalize snapshot.** Step 1.5 runs before the remaining summarize/commit/push steps, so the archive necessarily cannot capture finalize's own tail end. This is a fundamental limitation of archiving from inside the live session, not a bug.
+
+**Idempotency.** Step 1 generates a fresh UUID on every run, so running finalize/summarize twice in one session already produces a second, independent summary today. The archive follows the same pattern: a second run produces a second archive under a different `<short-uuid>` stem, and both are retained. No dedup or detection logic — consistent with how repeat summaries already work.
+
 ### Step 2: Resolve host, participants, and timestamps
 
 - **Host agent and repo** — from the booted agent context. If running inside finalize after attach, the host is the originally-booted agent, not a guest.
 - **Participants** — host + any agents currently attached via `/lr:attach`. For each, record `agent`, `repo`, `role`.
 - **`end`** — now, ISO 8601 UTC: `date -u +%Y-%m-%dT%H:%M:%SZ`.
-- **`start`** — best-effort from session memory, rounded to nearest 5 minutes. If memory is unclear, estimate from observable artifacts (e.g., the earliest timestamp on a file you created this session).
+- **`start`** — if Step 1.5 succeeded, prefer the archive's earliest message timestamp from the stats JSON — it's the true session start, strictly more accurate and free (already computed). Otherwise, best-effort from session memory, rounded to nearest 5 minutes; if memory is unclear, estimate from observable artifacts (e.g., the earliest timestamp on a file you created this session).
 
 ### Step 3: Identify the user
 
@@ -227,6 +282,10 @@ Fresh repos with no prior summaries naturally introduce their own tag vocabulary
 ### Step 8: Assemble the host document
 
 Combine frontmatter + title + narrative + optional Consultations section.
+
+If Step 1.5 succeeded, add `usage:` and `archive:` from the stats JSON. Include `cost_usd` only
+when the stats JSON has a non-null value. For `archive.path`, store the `<lore-agent-repo>`-relative
+path, not an absolute local filesystem path.
 
 ### Step 9: Compose guest summaries (if applicable)
 
@@ -289,17 +348,27 @@ to find the raw session JSONL if they want to replay or inspect it. The same UUI
 | Disk write fails for any file | Report the failure with the composed text so the user can copy it manually; other files still get written |
 | `id -un` / `id -F` return empty | Omit the affected field, proceed |
 | Directory creation fails | Report error for that path, do not write there; other paths proceed |
+| Step 1.5 can't resolve the native log (no UUID match, script exits non-zero) | Print a one-line warning, skip the archive; omit `usage`/`archive` frontmatter; write the summary as normal |
+| `session-takeover archive` errors mid-run | Print a one-line warning, omit `usage`/`archive` frontmatter (no partial keys); the summary still gets written |
 | Early session hazy due to compaction | Narrative says so plainly; do not fabricate detail |
 
 Summarize failure never rolls back or poisons reflect or merge.
 
 ## Privacy
 
-Session summaries are committed (by `/lr:finalize`) to potentially public repos — and with guest summaries, **possibly multiple repos with different visibility settings**. A guest attached from a different repo may land in a repo with broader or narrower visibility than the host's.
+Session summaries and archives are committed (by `/lr:finalize`) to potentially public repos — and with guest summaries, **possibly multiple repos with different visibility settings**. A guest attached from a different repo may land in a repo with broader or narrower visibility than the host's.
+
+The archive is deliberately higher fidelity than the summary: it preserves raw message text and tool
+arguments/results that the summary would omit or paraphrase. If the session included credentials,
+private customer data, proprietary pasted documents, or other content that should not land in the
+agent repo, skip Step 1.5 or delete the archive before commit. Do not rely on the archive path being
+"internal" just because it is gzipped JSONL — it is still committed data.
 
 Defence relies on the **narrative guidance** baked into the composition prompt: public-audience aware, no secrets or sensitive specifics, ask the user mid-compose if unsure. Guest summaries inherit the same constraint — the one-line contribution summary should be as safe to publish as the host narrative. When writing guest summaries, consider each one **against its destination repo specifically** — content acceptable in the host's repo may not be acceptable in a differently-visible guest repo.
 
-The agent is the sole privacy filter at write time. Post-hoc review happens via git history — the user sees what was pushed after the fact and can amend or revert if something slipped through.
+The agent is the sole privacy filter at write time for summaries, and Step 1.5 has no semantic
+redaction pass in v1. Post-hoc review happens via git history — the user sees what was pushed after
+the fact and can amend or revert if something slipped through.
 
 ## Consult handling
 
@@ -313,3 +382,5 @@ If no consults happened, omit the section and use `consulted: []`.
 ## Standalone invocation
 
 `/lr:summarize` can be called on its own without running reflect or merge first. In that case, skip any references to "after merge" — write a summary of the session as it stands now. This is useful as a mid-session checkpoint or for sessions where no lore changes were produced but the work itself is worth recording.
+
+Step 1.5 (archive + usage) runs in standalone `/lr:summarize` too, not just under finalize — the mechanism lives in one place in this doc, so it behaves the same regardless of caller. A standalone summarize therefore also writes the `.jsonl.gz` archive and the `usage`/`archive` frontmatter; like the summary files themselves, the archive is left for the user to review and commit (see Step 11).

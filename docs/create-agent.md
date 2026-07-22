@@ -49,7 +49,13 @@ Add a new agent to an existing agent repo.
    Initial session. No accumulated lore yet.
    ```
 
-7. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>`.
+7. **Verify before reporting success.** Check that `<lore-agent-repo>/agents/<agent-name>/role.md`,
+   `<lore-agent-repo>/agents/<agent-name>/lore-context.md`,
+   `<lore-agent-repo>/agents/<agent-name>/lore/`, and
+   `<lore-agent-repo>/agents/<agent-name>/workdir/` exist. If any are missing, create
+   the missing item before continuing. Do not print "done" for a no-op.
+
+8. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>`.
 
    Shortcut options:
    - Register just this agent: `/lr:register-agent <lore-agent-repo> <agent-name>`

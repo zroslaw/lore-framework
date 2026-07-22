@@ -31,9 +31,11 @@ Merge is parallelizable precisely because it is file-driven (`reflections/` + `l
 
 Read `<framework-root>/docs/summarize.md` and follow it. Writes the canonical summary into the host agent's `sessions/YYYY/MM/` directory and — for every attached guest that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All summaries share the session UUID for JSONL correlation. Summarize is additive — its failure does not roll back reflect or merge.
 
+Phase 3 includes summarize Step 1.5: resolving the native session log and writing the host archive plus `usage`/`archive` frontmatter. This is a **required attempt before phase 4**, not an optional enhancement. Skip it only when Step 1.5's command-level rules say to skip (no resolved log path, non-zero archive command, privacy concern, or another explicit error). Before committing, verify the host summary either contains both `usage:` and `archive:` and the archive file exists, or that you have reported the exact Step 1.5 reason for omitting them.
+
 ## Phase 4 — Commit and Push
 
-Collect every repo touched by phases 1–3 — each active agent's repo (for its own lore updates), plus the host's repo (for the canonical summary), plus any guest repo that received a short guest summary from phase 3. When host and guests share a repo, their changes go into a single commit for that repo. Then, for each such repo:
+Collect every repo touched by phases 1–3 — each active agent's repo (for its own lore updates), plus the host's repo (for the canonical summary and archive), plus any guest repo that received a short guest summary from phase 3. When host and guests share a repo, their changes go into a single commit for that repo. Then, for each such repo:
 
 1. `git -C <repo> add agents/` — scoped to the agent tree so incidental untracked files elsewhere are not swept in.
 2. `git -C <repo> commit -m "Finalize session <short-uuid>"`.
