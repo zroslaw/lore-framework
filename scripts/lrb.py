@@ -21,6 +21,8 @@ CLI:
   lrb install                          copy self to $LRB_HOME, write launchd plist
                                         (--launchd to load it)
   lrb status [--json]                  beings, last runs, spend, failures
+  lrb validate                         static config/descriptor checks
+  lrb logs BEING                       ledger/log pointers for one being
   lrb pause / lrb resume                all-beings scheduling switch (dead-man file)
   lrb stop                             SIGTERM running sessions + pause
   lrb engines add|remove|list          explicit engine configuration (§7 of draft)
@@ -579,6 +581,24 @@ def ensure_ws_dirs(workspace):
 def ledger_path(workspace, being_id):
     safe = being_id.replace("/", "__")
     return os.path.join(ws_dir(workspace), "logs", safe, "ledger.jsonl")
+
+
+def read_ledger_entries(workspace, being_id):
+    p = ledger_path(workspace, being_id)
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            entries = []
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    entries.append({"outcome": "unparseable-ledger-line", "raw": line})
+            return entries
+    except OSError:
+        return []
 
 
 def ledger_append(workspace, being_id, entry):
@@ -1625,7 +1645,13 @@ def _daemon_status():
 def cmd_status(args):
     cfg = load_config()
     engines = cfg.get("engines", {})
-    out = {"version": VERSION, "paused": is_paused(), "daemon": _daemon_status(), "workspaces": {}}
+    out = {
+        "version": VERSION,
+        "paused": is_paused(),
+        "daemon": _daemon_status(),
+        "engines": sorted(engines.keys()),
+        "workspaces": {},
+    }
     for workspace in cfg.get("workspaces", []):
         beings, errors = discover_beings(workspace)
         errors = dict(errors)  # don't mutate discover_beings' own dict
@@ -1671,6 +1697,118 @@ def cmd_status(args):
             print("      logs: %s" % b["log_dir"])
         for being_id, err in ws_out["config_errors"].items():
             print("  %-30s CONFIG ERROR: %s" % (being_id, err))
+
+
+def cmd_validate(args):
+    cfg = load_config()
+    engines = cfg.get("engines", {})
+    issues = []
+    warnings = []
+    workspaces = cfg.get("workspaces", [])
+    if not workspaces:
+        warnings.append("no registered workspaces (lrb workspaces add <workspace>)")
+    if not engines:
+        warnings.append("no configured engines (lrb engines add <name> ...)")
+    for name, entry in sorted(engines.items()):
+        command = entry.get("command")
+        if not command:
+            issues.append("engine %s: missing command" % name)
+        elif os.sep in command or (os.altsep and os.altsep in command):
+            if not os.path.exists(command):
+                issues.append("engine %s: command does not exist: %s" % (name, command))
+        elif not shutil.which(command):
+            issues.append("engine %s: command not found on PATH: %s" % (name, command))
+        kind = entry.get("kind", "claude")
+        if kind not in ENGINE_KINDS:
+            issues.append("engine %s: unknown kind %r" % (name, kind))
+        if kind in ("codex", "cursor") and entry.get("session_cost_usd") is None:
+            issues.append("engine %s: kind %s requires session_cost_usd" % (name, kind))
+        if kind == "cursor":
+            try:
+                require_plugin_dir(entry.get("plugin_dir"), "plugin_dir")
+            except ValueError as e:
+                issues.append("engine %s: %s" % (name, e))
+    total_beings = 0
+    for workspace in workspaces:
+        if not os.path.isdir(workspace):
+            issues.append("workspace missing: %s" % workspace)
+            continue
+        beings, errors = discover_beings(workspace)
+        for being_id, err in sorted(errors.items()):
+            issues.append("%s: %s" % (being_id, err))
+        total_beings += len(beings)
+        for being_id, being in sorted(beings.items()):
+            if being["engine"] not in engines:
+                issues.append("%s: engine %r not configured" % (being_id, being["engine"]))
+            for task in being["existential_tasks"]:
+                prompt_path = agent_relative_path(being["_agent_dir"], task["prompt"])
+                if not os.path.isfile(prompt_path):
+                    issues.append("%s:%s: prompt file missing: %s" % (
+                        being_id, task["name"], prompt_path))
+    if args.json:
+        print(json.dumps({
+            "ok": not issues,
+            "version": VERSION,
+            "workspaces": len(workspaces),
+            "engines": sorted(engines.keys()),
+            "beings": total_beings,
+            "warnings": warnings,
+            "issues": issues,
+        }, indent=2, sort_keys=True))
+        return 0 if not issues else 1
+    print("lrb validate: %s" % ("ok" if not issues else "failed"))
+    print("  workspaces=%d engines=%d beings=%d" % (
+        len(workspaces), len(engines), total_beings))
+    for warning in warnings:
+        print("  WARNING: %s" % warning)
+    for issue in issues:
+        print("  ERROR: %s" % issue)
+    return 0 if not issues else 1
+
+
+def cmd_logs(args):
+    cfg = load_config()
+    matches = []
+    for workspace in cfg.get("workspaces", []):
+        beings, _errors = discover_beings(workspace)
+        if args.being in beings:
+            matches.append((workspace, args.being))
+    if not matches:
+        die("no such being in registered workspaces: %s" % args.being)
+    if len(matches) > 1:
+        die("being id is ambiguous across registered workspaces: %s" % args.being)
+    workspace, being_id = matches[0]
+    ledger = ledger_path(workspace, being_id)
+    log_dir = os.path.dirname(ledger)
+    entries = read_ledger_entries(workspace, being_id)
+    if args.json:
+        print(json.dumps({
+            "workspace": workspace,
+            "being": being_id,
+            "log_dir": log_dir,
+            "ledger": ledger,
+            "entries": entries[-args.tail:],
+        }, indent=2, sort_keys=True))
+        return
+    print("being: %s" % being_id)
+    print("workspace: %s" % workspace)
+    print("logs: %s" % log_dir)
+    print("ledger: %s" % ledger)
+    if not entries:
+        print("ledger: no entries yet")
+        return
+    print("recent ledger entries:")
+    for entry in entries[-args.tail:]:
+        bits = [
+            entry.get("finished_at") or entry.get("started_at") or entry.get("requested_at") or "-",
+            entry.get("task") or entry.get("kind") or "-",
+            "outcome=%s" % (entry.get("outcome") or "-"),
+        ]
+        if entry.get("cost_usd") is not None:
+            bits.append("cost=$%.4f" % entry["cost_usd"])
+        if entry.get("log_path"):
+            bits.append("log=%s" % entry["log_path"])
+        print("  " + "  ".join(bits))
 
 
 def cmd_pause(args):
@@ -1884,6 +2022,16 @@ def build_parser():
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_status)
 
+    s = sub.add_parser("validate", help="static-check beings, engines, and workspaces")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_validate)
+
+    s = sub.add_parser("logs", help="show ledger/log pointers for one being")
+    s.add_argument("being", help="being id, e.g. lore-chronicler/chronicler")
+    s.add_argument("--tail", type=int, default=5, help="ledger entries to show (default: 5)")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_logs)
+
     s = sub.add_parser("pause", help="pause scheduling for all beings")
     s.set_defaults(func=cmd_pause)
     s = sub.add_parser("resume", help="resume scheduling for all beings")
@@ -1936,7 +2084,9 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    args.func(args)
+    rc = args.func(args)
+    if isinstance(rc, int):
+        sys.exit(rc)
 
 
 if __name__ == "__main__":

@@ -138,6 +138,7 @@ Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engi
 | Skill | Purpose |
 |---|---|
 | `/lr:wait` | Pause until an external event arrives, or sleep — for background / `claude -p` agents |
+| `/lr:being [subcommand]` | **BETA** — Manage Lore Beings and the Being Keeper from one entry point |
 
 **Session lifecycle**
 | Skill | Purpose |

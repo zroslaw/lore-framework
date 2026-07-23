@@ -1,8 +1,9 @@
 # Lore Beings — Autonomous Agents & the Being Keeper (`lrb`)
 
-> **Audience note.** Reference doc for the Lore Beings module. There is no `/lr:` skill for this
-> yet — MVP is CLI-only (`lrb`). Read this when the user asks about autonomous/scheduled agents,
-> "beings," or the Being Keeper, or when authoring/debugging a `being.md`.
+> **Audience note.** Reference doc for the Lore Beings module. For normal use, prefer
+> `/lr:being` as the user-facing command surface. Read this reference when the user asks about
+> autonomous/scheduled agents, "beings," or the Being Keeper, or when authoring/debugging a
+> `being.md`.
 
 A **being** is an ordinary lore agent plus a `being.md` descriptor (`agents/<name>/being.md`)
 declaring a lifecycle of scheduled sessions. Being-ness is additive: the agent stays fully usable
@@ -162,13 +163,24 @@ whole workspace, since `cwd` is the workspace root) or a future scoped-`--allowe
 before it can actually complete its designed lifecycle unattended. This is an explicit per-engine
 user configuration decision (§7) — the framework does not choose it for you.
 
-## CLI
+## User command and substrate CLI
+
+`/lr:being` is the single user-facing entry point. With no arguments it shows a short machine
+status; `/lr:being help` lists the supported actions; subcommands cover guided setup (`init` for
+an existing agent, `create` for a new agent plus being), validation, logs, Keeper daemon controls,
+engine config, workspace registration, and pause/resume. The skill is intentionally a thin product
+layer over the deterministic Keeper: it may ask the user questions and write `being.md` files, but
+the Keeper remains the only scheduler/spawner/budget enforcer.
+
+The underlying substrate remains the `lrb` CLI:
 
 ```
 lrb install [--launchd]        copy self to $LRB_HOME, write the launchd plist
                                 (only bootstraps the real daemon with --launchd)
 lrb daemon [--once]            run the tick loop (what launchd invokes; --once for one tick)
 lrb status [--json]
+lrb validate [--json]          static-check descriptors, engine config, prompt paths
+lrb logs BEING [--tail N]      show ledger/log pointers for one being
 lrb pause / lrb resume         all-beings scheduling switch (dead-man file)
 lrb stop                       SIGTERM running sessions + pause
 lrb engines add|remove|list
@@ -201,7 +213,7 @@ deferred until a real being needs a second behavior.
 ## Non-goals (MVP)
 
 Teams/hierarchy, delegation, retries/alerting, dashboards, full unattended autonomy, worktree-per-
-session, systemd/Windows, `lrb-*` skills (namespace reserved).
+session, systemd/Windows, per-subcommand `lrb-*` skills.
 
 ## See Also
 - `scripts/lrb.py` — the implementation (single stdlib file, floor Python 3.9).
