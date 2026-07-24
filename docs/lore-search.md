@@ -2,6 +2,8 @@
 
 Read this when you need to find or recall topics from your lore. Covers both the agent-initiated case (you decide you need lore) and the user-triggered case (`/lr:recall`). Also covers the multi-agent case when guests are attached to the host session.
 
+Default scope is `agents/<agent>/lore/` only. Do not include `sessions/`, `archive/`, or other agent subdirectories in ordinary lore recall. Search/read `archive/` only when the user explicitly asks for full session logs or a particular session, or when the task specifically requires session-log evidence.
+
 ## Preferred Mechanism: Subagent Scan
 
 For any non-trivial search, **dispatch an `Explore` subagent** with a structured search brief. The subagent reads relevant lore topics directly, synthesizes findings, and returns a compact result. This keeps your main context clean and uses the LLM's own semantic understanding — stronger than keyword matching for finding topics by *meaning* rather than by *exact term*.

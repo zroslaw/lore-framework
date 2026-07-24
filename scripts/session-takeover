@@ -7,6 +7,7 @@ markdown digest that any agent on any engine (Claude Code, Codex, Cursor) can
 load into context to continue the work.
 
 Pipeline: <engine log> -> [parser] -> message list -> [renderer] -> digest
+                                      -> [archive] -> full Markdown log
 
 The unified message list uses the de facto API message shape:
     {"role": "user"|"assistant", "content": str}                     -- a turn
@@ -23,6 +24,8 @@ Engine support:
 Usage:
     session-takeover --list [--engine E] [--limit N]
     session-takeover <session-id | log-path> [-o digest.md] [--json out.json]
+    session-takeover stats <session-id | log-path> --stats stats.json
+    session-takeover archive <session-id | log-path> -o archive.md
 
 With no -o, the digest is written to stdout.
 """
@@ -31,7 +34,6 @@ import argparse
 import binascii
 import contextlib
 import glob
-import gzip
 import json
 import os
 import re
@@ -43,7 +45,11 @@ from pathlib import Path
 TRUNC_ARGS = 160     # max chars shown for tool-call arguments
 TRUNC_RESULT = 120   # max chars shown for tool-call results
 
-ARCHIVE_SCHEMA_VERSION = 1  # bump when the archive line/record shape changes
+ARCHIVE_SCHEMA_VERSION = 1  # bump when the archive markdown/frontmatter shape changes
+ARCHIVE_AGENTS_MD = """# Session Archive
+
+Full session logs live here. Do not search this directory by default; read it only when a human asks or when specific session-log evidence is needed.
+"""
 
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 CLAUDE_PROJECTS = Path(
@@ -188,6 +194,27 @@ def compute_stats(meta, messages=None):
         earliest = next((m["ts"] for m in messages if m.get("ts")), None)
         stats["started"] = meta.get("started") or earliest
     return stats
+
+
+def framework_version():
+    try:
+        return (Path(__file__).resolve().parents[1] / "VERSION").read_text().strip()
+    except OSError:
+        return None
+
+
+def archive_frontmatter_path(path):
+    """Return a portable archive path for summary/archive frontmatter.
+
+    Lore archives live under agents/<agent>/archive/... inside a lore-agent
+    repo. If a caller gives a workspace-relative or absolute path, trim the
+    checkout-specific prefix so committed metadata works across machines.
+    """
+    path = Path(path)
+    parts = path.parts
+    if "agents" in parts:
+        return str(Path(*parts[parts.index("agents"):]))
+    return str(path)
 
 
 # ------------------------------------------------------------ codex parsing
@@ -1043,62 +1070,159 @@ def render_markdown(meta, messages):
 # ------------------------------------------------------- archive (Feature A)
 
 
-def build_archive(meta, messages, lore_uuid=None):
-    """Build the archive as (header dict, list of per-message dicts).
+def _yaml_scalar(value):
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    text = str(value)
+    if (
+        text == ""
+        or re.match(r"^(null|true|false|[-+]?\d+(\.\d+)?)$", text, re.I)
+        or re.search(r"[:#\[\]\{\},&*?|\-<>=!%@`]|^\s|\s$", text)
+    ):
+        return json.dumps(text, ensure_ascii=False)
+    return text
 
-    Full-fidelity, engine-agnostic: one line per message or tool call, raw
-    (untruncated) args/results preserved. Flat rather than nesting tool calls
-    inside their assistant turn — a lossless 1:1 mapping of the parsed message
-    list that is simpler to stream and consume. Absent fields are omitted, not
-    null-padded, so a consumer can tell "engine didn't expose this" from "zero".
-    """
-    header = {
-        "schema_version": ARCHIVE_SCHEMA_VERSION,
-        "engine": meta.get("engine"),
-        "native_session_id": meta.get("session_id"),
-        "lore_uuid": lore_uuid,
-        "cwd": meta.get("cwd"),
-        "title": meta.get("title"),
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
-    header = {k: v for k, v in header.items() if v is not None}
 
+def _yaml_inline(value):
+    if isinstance(value, dict):
+        return "{ " + ", ".join(
+            f"{k}: {_yaml_inline(v)}" for k, v in value.items()
+        ) + " }"
+    if isinstance(value, list):
+        return "[" + ", ".join(_yaml_inline(v) for v in value) + "]"
+    return _yaml_scalar(value)
+
+
+def _yaml_lines(data, indent=0):
     lines = []
-    for seq, msg in enumerate(messages, 1):
-        if "tool" in msg:
-            rec = {
-                "seq": seq,
-                "type": "tool_call",
-                "role": msg.get("role", "assistant"),
-                "tool": msg.get("tool"),
-                "args": msg.get("raw_args", msg.get("args")),
-                "result": msg.get("raw_result", msg.get("result")),
-            }
+    pad = " " * indent
+    for key, value in data.items():
+        if value is None:
+            continue
+        if isinstance(value, dict):
+            lines.append(f"{pad}{key}:")
+            lines.extend(_yaml_lines(value, indent + 2))
+        elif isinstance(value, list):
+            if not value:
+                lines.append(f"{pad}{key}: []")
+            else:
+                lines.append(f"{pad}{key}:")
+                for item in value:
+                    if isinstance(item, dict):
+                        lines.append(f"{pad}  - {_yaml_inline(item)}")
+                    else:
+                        lines.append(f"{pad}  - {_yaml_scalar(item)}")
         else:
-            rec = {
-                "seq": seq,
-                "type": "message",
-                "role": msg.get("role"),
-                "text": msg.get("content"),
-            }
+            lines.append(f"{pad}{key}: {_yaml_scalar(value)}")
+    return lines
+
+
+def _fence(text, lang="text"):
+    text = "" if text is None else str(text)
+    fence = "```"
+    while fence in text:
+        fence += "`"
+    return f"{fence}{lang}\n{text}\n{fence}"
+
+
+def _raw_block(value):
+    if isinstance(value, (dict, list)):
+        return _fence(json.dumps(value, indent=2, ensure_ascii=False), "json")
+    return _fence("" if value is None else str(value), "text")
+
+
+def _archive_frontmatter(meta, output, lore_uuid=None, frontmatter=None):
+    fm = dict(frontmatter or {})
+    fw_version = framework_version()
+    fm.setdefault("uuid", lore_uuid)
+    fm.setdefault("framework_version", fw_version)
+    fm.setdefault("archive", {
+        "path": archive_frontmatter_path(output),
+        "schema_version": ARCHIVE_SCHEMA_VERSION,
+    })
+    fm.setdefault("native_session", {
+        "engine": meta.get("engine"),
+        "session_id": meta.get("session_id"),
+        "cwd": meta.get("cwd"),
+        "source": meta.get("source"),
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    })
+    if meta.get("title") and "title" not in fm:
+        fm["title"] = meta["title"]
+    return fm
+
+
+def render_archive_markdown(meta, messages, output, lore_uuid=None, frontmatter=None):
+    """Render a full, unified Markdown archive for a parsed engine session.
+
+    This is the searchable, git-friendly archive. It uses the same parser output
+    as takeover digests, but keeps sidechains and raw tool args/results instead
+    of collapsing them to one-line summaries.
+    """
+    fm = _archive_frontmatter(meta, output, lore_uuid, frontmatter)
+    out = ["---", *_yaml_lines(fm), "---", "", "# Full Session Log", ""]
+    out.append(
+        "This is a unified Markdown export of an engine-native session log. "
+        "It is not redacted; review before sharing."
+    )
+    out += ["", "## Transcript", ""]
+    for seq, msg in enumerate(messages, 1):
+        side = " sidechain" if msg.get("sidechain") else ""
+        ts = f" — {msg['ts']}" if msg.get("ts") else ""
+        if "tool" in msg:
+            out += [
+                f"### {seq}. Tool Call{side}: `{msg.get('tool', '?')}`{ts}",
+                "",
+                f"- role: `{msg.get('role', 'assistant')}`",
+            ]
             if msg.get("model"):
-                rec["model"] = msg["model"]
-        if msg.get("ts"):
-            rec["ts"] = msg["ts"]
-        if msg.get("sidechain"):
-            rec["sidechain"] = True
-        lines.append(rec)
-    return header, lines
+                out.append(f"- model: `{msg['model']}`")
+            out += [
+                "",
+                "#### Arguments",
+                "",
+                _raw_block(msg.get("raw_args", msg.get("args"))),
+                "",
+                "#### Result",
+                "",
+                _raw_block(msg.get("raw_result", msg.get("result"))),
+                "",
+            ]
+            continue
+        role = msg.get("role", "?").title()
+        out += [
+            f"### {seq}. {role}{side}{ts}",
+            "",
+        ]
+        if msg.get("model"):
+            out += [f"- model: `{msg['model']}`", ""]
+        out += [msg.get("content", ""), ""]
+    return "\n".join(out).rstrip() + "\n"
 
 
-def write_archive(path, header, lines):
-    """Write header + per-message records as gzipped JSONL to path."""
+def ensure_archive_agents_md(output):
+    """Place a short local caution in <agent>/archive/AGENTS.md when possible."""
+    output = Path(output)
+    if len(output.parents) < 3:
+        return
+    archive_root = output.parents[2]
+    if archive_root.name != "archive":
+        return
+    path = archive_root / "AGENTS.md"
+    if not path.exists():
+        path.write_text(ARCHIVE_AGENTS_MD, encoding="utf-8")
+
+
+def write_archive(path, text):
+    """Write the full Markdown archive to path."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(path, "wt", encoding="utf-8") as fh:
-        fh.write(json.dumps(header, ensure_ascii=False) + "\n")
-        for rec in lines:
-            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    path.write_text(text, encoding="utf-8")
+    ensure_archive_agents_md(path)
 
 
 # ------------------------------------------ session self-identification (A)
@@ -1190,11 +1314,13 @@ def cmd_archive(argv):
     ap = argparse.ArgumentParser(prog="session-takeover archive")
     ap.add_argument("session", help="session id (prefix ok) or path to a log")
     ap.add_argument("-o", "--output", type=Path, required=True,
-                    help="write the gzipped JSONL archive here")
+                    help="write the full Markdown archive here")
     ap.add_argument("--stats", type=Path,
                     help="also write the usage/cost/model stats JSON here")
     ap.add_argument("--lore-uuid",
                     help="lore session UUID to stamp into the archive header")
+    ap.add_argument("--frontmatter-json", type=Path,
+                    help="JSON object of frontmatter shared with the summary")
     ap.add_argument("--engine", choices=sorted(PARSERS),
                     help="force log format instead of auto-detecting")
     a = ap.parse_args(argv)
@@ -1204,8 +1330,19 @@ def cmd_archive(argv):
     if not messages:
         sys.exit("error: no conversation messages found in log")
 
-    header, lines = build_archive(meta, messages, a.lore_uuid)
-    write_archive(a.output, header, lines)
+    frontmatter = None
+    if a.frontmatter_json:
+        try:
+            frontmatter = json.loads(a.frontmatter_json.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            sys.exit(f"error: could not read --frontmatter-json: {e}")
+        if not isinstance(frontmatter, dict):
+            sys.exit("error: --frontmatter-json must contain a JSON object")
+
+    archive = render_archive_markdown(
+        meta, messages, a.output, a.lore_uuid, frontmatter
+    )
+    write_archive(a.output, archive)
     turns = sum(1 for m in messages if "tool" not in m)
     print(
         f"wrote {a.output} ({turns} messages, "
@@ -1217,11 +1354,42 @@ def cmd_archive(argv):
         # Include the archive locator so the summarize step can assemble the
         # `archive:` frontmatter block straight from this one JSON.
         stats["archive"] = {
-            "path": str(a.output),
+            "path": archive_frontmatter_path(a.output),
             "schema_version": ARCHIVE_SCHEMA_VERSION,
         }
+        stats["framework_version"] = framework_version()
+        a.stats.parent.mkdir(parents=True, exist_ok=True)
         a.stats.write_text(json.dumps(stats, indent=2, ensure_ascii=False))
         print(f"wrote {a.stats}")
+    return 0
+
+
+def cmd_stats(argv):
+    ap = argparse.ArgumentParser(prog="session-takeover stats")
+    ap.add_argument("session", help="session id (prefix ok) or path to a log")
+    ap.add_argument("--stats", type=Path, required=True,
+                    help="write the usage/cost/model stats JSON here")
+    ap.add_argument("--archive-output", type=Path,
+                    help="future Markdown archive path to include in stats")
+    ap.add_argument("--engine", choices=sorted(PARSERS),
+                    help="force log format instead of auto-detecting")
+    a = ap.parse_args(argv)
+
+    path, engine = _resolve_log_arg(a.session, a.engine)
+    meta, messages = PARSERS[engine](path)
+    if not messages:
+        sys.exit("error: no conversation messages found in log")
+
+    stats = compute_stats(meta, messages)
+    if a.archive_output:
+        stats["archive"] = {
+            "path": archive_frontmatter_path(a.archive_output),
+            "schema_version": ARCHIVE_SCHEMA_VERSION,
+        }
+    stats["framework_version"] = framework_version()
+    a.stats.parent.mkdir(parents=True, exist_ok=True)
+    a.stats.write_text(json.dumps(stats, indent=2, ensure_ascii=False))
+    print(f"wrote {a.stats}")
     return 0
 
 
@@ -1252,6 +1420,8 @@ def main():
     # the main parser so the takeover flags don't collide with it.
     if sys.argv[1:2] == ["archive"]:
         sys.exit(cmd_archive(sys.argv[2:]))
+    if sys.argv[1:2] == ["stats"]:
+        sys.exit(cmd_stats(sys.argv[2:]))
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("session", nargs="?",

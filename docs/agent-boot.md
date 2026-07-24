@@ -65,6 +65,8 @@ Lore topics reference each other by filename, forming a knowledge graph. Some to
 
 `lore-context.md` is a compressed index, not the full picture — treat it as a starting point, not the answer. At the start of any non-trivial task, scan your `lore/` directory for related topics before proceeding. Never act on assumptions about things you might have encountered in previous sessions without first confirming in your lore.
 
+Default lore search means `lore/` only. Do **not** search `sessions/` or `archive/` as part of ordinary recall: `sessions/` contains summaries, and `archive/` contains full session logs that can be overwhelmingly large. Search or read `archive/` only when a human explicitly asks about full session logs / a particular session, or when you have a concrete reason that session-log evidence is important for the task.
+
 When you need to search or recall lore, read `<framework-root>/docs/lore-search.md` and follow the procedure there.
 
 ## Your Workdir

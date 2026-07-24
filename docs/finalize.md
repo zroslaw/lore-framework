@@ -29,9 +29,9 @@ Merge is parallelizable precisely because it is file-driven (`reflections/` + `l
 
 ## Phase 3 — Summarize
 
-Read `<framework-root>/docs/summarize.md` and follow it. Writes the canonical summary into the host agent's `sessions/YYYY/MM/` directory and — for every attached guest that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All summaries share the session UUID for JSONL correlation. Summarize is additive — its failure does not roll back reflect or merge.
+Read `<framework-root>/docs/summarize.md` and follow it. Writes the canonical summary into the host agent's `sessions/YYYY/MM/` directory, the host full Markdown session log into `archive/YYYY/MM/`, and — for every attached guest that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All summaries and the full log share the session UUID. Summarize is additive — its failure does not roll back reflect or merge.
 
-Phase 3 includes summarize Step 1.5: resolving the native session log and writing the host archive plus `usage`/`archive` frontmatter. This is a **required attempt before phase 4**, not an optional enhancement. Skip it only when Step 1.5's command-level rules say to skip (no resolved log path, non-zero archive command, privacy concern, or another explicit error). Before committing, verify the host summary either contains both `usage:` and `archive:` and the archive file exists, or that you have reported the exact Step 1.5 reason for omitting them.
+Phase 3 includes summarize Step 1.5: resolving the native session log and writing the host full Markdown archive plus `usage`/`archive` frontmatter. This is a **required attempt before phase 4**, not an optional enhancement. Skip it only when Step 1.5's command-level rules say to skip (no resolved log path, non-zero stats/archive command, privacy concern, or another explicit error). Before committing, verify the host summary either contains both `usage:` and `archive:` and the archive Markdown file exists with matching frontmatter, or that you have reported the exact Step 1.5 reason for omitting them.
 
 ## Phase 4 — Commit and Push
 
