@@ -159,6 +159,11 @@ Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engi
 | `/lr:unregister-agent [repo] <agent>` | Remove one direct boot shortcut |
 | `/lr:unregister-repo <name>` | Remove direct boot shortcuts for every agent in a repo |
 
+**Reviewing changes**
+| Skill | Purpose |
+|---|---|
+| `/lr:trilens-loop [amendments]` | Review this session's changes from three independent perspectives, fix, and repeat until clean |
+
 **Maintenance**
 | Skill | Purpose |
 |---|---|
