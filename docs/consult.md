@@ -20,7 +20,7 @@ Use consult when a focused question will get you what you need. If you realize y
 ### Step 1: Preconditions
 
 1. **Host must be loaded.** Consult needs the current session as raw material for the brief. If no agent is booted, respond: `No agent loaded. Run /lr:boot <agent-name> first.` and stop.
-2. **Consultant must exist.** Standard discovery: scan directories for `lore-repo.md`, look for `agents/<name>/role.md`. If not found, list available agents and stop.
+2. **Consultant must exist.** Run `python3 <framework-root>/scripts/lr-core discover --workspace <cwd>` and check `data.agents` for the name. If absent, print the available agents from that same output and stop. (The consult subagent re-runs the full preflight when it boots — this check is only so the host fails fast on a typo instead of paying for a subagent. If the script fails to complete, apply the **Script Fallback Contract** in `<framework-root>/docs/conventions.md`: scan working-directory subdirectories for `lore-repo.md`, look for `agents/<name>/role.md`, list available agents if not found.)
 3. **Do not consult the host.** If the requested name equals the host, respond: `<name> is the host — use /lr:recall for its lore.` and stop.
 4. **If the consultant is already an attached guest**, point to recall: `<name> is already attached as a guest — use /lr:recall to search its lore alongside the host's.` and stop. Do not dispatch a consult subagent for an already-loaded agent; recall is strictly better.
 

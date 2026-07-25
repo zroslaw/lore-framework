@@ -140,6 +140,31 @@ Same shape as CWD Safety: a portability landmine hidden inside an emitted shell 
 
 Directly-runnable shipped scripts default to Bash-on-BSD (§ Tooling: Portable Shell). The exception is a **server component that must speak a protocol** where bash is impractical — most notably an **MCP stdio server** (newline-delimited JSON-RPC). Those may be written in **`python3`, standard library only** (no `pip install`), so they need no dependency install and run anywhere `python3` is present — any Linux, and any macOS with the Xcode Command Line Tools (a bare macOS may prompt to install them). `scripts/wait-server.py` is the first instance; it parallels the Node ULA module (`df/aiqa/workflows/ula-file-pass.js`) as a language-specific module the framework ships and drives, not a portable one-liner. Keep companion tooling in Bash where practical (e.g. `scripts/lr-emit`). Don't reach for `python3` for work a portable shell script can do.
 
+The second sanctioned class is a **deterministic substrate** with real data structures, structured output, and per-platform edge cases that bash handles badly: `scripts/lrb.py` (the Being Keeper) and `scripts/lr-core` (§ Script Fallback Contract below). Same rules — stdlib only, no `pip`, one file, Python 3.9 floor.
+
+## Script Fallback Contract
+
+A shipped script is one of two things, and which one decides what happens when it breaks.
+
+- **Accelerator** — the procedure is also specified in a `docs/` doc, and that doc, not the script, is normative. The script exists to spend one tool call where prose would spend six, and to encode platform traps once. `scripts/lr-core` is the reference case.
+- **Implementation** — the script *is* the specification; no prose procedure exists to execute by hand. `scripts/workspace-pull`, `scripts/session-takeover`, `scripts/sync-cursor-skills`, `scripts/lr-emit` + `scripts/wait-server.py`, and `scripts/lrb.py` are all this kind.
+
+**Take over manually only for an accelerator.** When a doc delegates a step to an accelerator script and the script **fails to complete** — a non-zero exit other than a documented result code, a missing interpreter, no output, or output you cannot parse:
+
+1. **Notify the user immediately**, in one line: which script failed and that you are proceeding manually. Never fail silently, and never let a script failure look like the underlying operation failing.
+2. **Take over and execute the canonical prose procedure** the doc points to, resolving what you reasonably can along the way (a missing directory, a repo that needs a different path). The flow must reach the same end state it would have reached had the script worked.
+3. **Diagnose briefly, don't stall.** If the cause is obvious (no `python3`, non-executable file, wrong path), say so in one line. Otherwise finish the flow and report the failure at the end for follow-up. **Never abort the surrounding flow because a script died.**
+
+**Distinguish failure from a reported degraded condition.** A script that exits 0 while reporting a problem in its output (`"pull": {"status": "failed"}`, `"teammate": {"verdict": "unknown"}`) has *succeeded* — it did its job and told you the truth about the world. That is data: handle it per the procedure doc's degraded-mode guidance. No takeover, no user-facing script-failure notice.
+
+Accelerator scripts state their exit-code contract in their own header. `scripts/lr-core` is the reference implementation: exit 0 = ran to completion (`ok: false` still means "ran fine, request could not be satisfied" — act on `errors`); exit 2 = could not complete, fall back.
+
+**Never improvise a substitute for an implementation script.** There is no prose procedure to fall back to, and hand-rolling one produces a partial, undocumented imitation whose divergence nobody can review. When one of these fails: report it to the user with the exact command and the error, stop *that operation*, and continue the surrounding session. Never report the operation as done.
+
+`scripts/lrb.py` (the Being Keeper) is the strictest case of that rule. The Keeper is substrate that must never be impersonated by a model — it enforces budget caps and kill-switches, and an LLM standing in for it would be exactly the prompt-theater the Lore Beings design forbids. Its failure mode is "Keeper down, beings do not run".
+
+Docs that delegate to a script carry **one line** pointing here, whichever kind it is — a pointer, not a restatement, so this contract has a single home.
+
 ## Migration / Release-Note Authoring
 
 Every `migrations/<N>.md` and `release-notes/<N>.md` whose changes touch **plugin-cached state** must include a **Clear Plugin Cache** section near the top — right after the Summary, before the detailed "What's New" / "What Changed" body. The reader has just learned *that* something changed; the cache-clear is the single mandatory action and must not be buried at the bottom of a long doc where it is easy to miss. (`release-notes/12.md` and `13.md` are worked examples — footer hoisted directly under the Summary.)
@@ -176,20 +201,20 @@ Rationale: the cache-stale failure mode is invisible until the user invokes a mi
 
 `/lr:spawn-teammate` creates teammates **for the express purpose of giving the user a parallel pane to work with that agent directly**. The framework codifies this as an asymmetric two-sided discipline; this section is a maintainer's index, not a restatement.
 
-- **Teammate-side rules** — canonical source: `docs/teammate-conventions.md`. Loaded by `agent-boot.md` Step 5 on detected teammate spawns and adopted as standing rules for the session.
+- **Teammate-side rules** — canonical source: `docs/teammate-conventions.md`. Loaded by `agent-boot.md` Step 2 on detected teammate spawns and adopted as standing rules for the session.
 - **Lead-side redirect protocol** — canonical source: `docs/spawn-teammate.md` § *Lead behavior — teammate-to-lead messages*. When a teammate sends the lead a request that should have gone to the user, the lead redirects via SendMessage rather than relaying or acting on it.
 
 The asymmetry is intentional: spawning is one-directional (lead spawns teammate, never the inverse), so the rules differ. Both sides need explicit framework-level guidance because the natural Agent Teams default biases everyone toward team-lead-as-hub, which is the opposite of what spawn-teammate is trying to achieve.
 
 **Single source of truth, three loading sites.** The teammate-side rules are stated **once** in `teammate-conventions.md`. They reach the teammate's working memory via three sites, none of which restate the rules in full:
 
-1. `agent-boot.md` Step 5 — Reads the canonical doc and instructs the teammate to adopt it as standing rules.
-2. `spawn-teammate.md` Step 6's spawn prompt — points to the boot-time load and includes a one-sentence recap as a fallback for the case where Step 5's load fails.
+1. `agent-boot.md` Step 2 — Reads the canonical doc and instructs the teammate to adopt it as standing rules.
+2. `spawn-teammate.md` Step 6's spawn prompt — points to the boot-time load and includes a one-sentence recap as a fallback for the case where Step 2's load fails.
 3. This § Teammate Discipline — pointers only.
 
 Drift hazard is bounded: only `teammate-conventions.md` carries the full RULE text, and the other sites only need updating if the *number* or *referencing* of rules changes, not their content.
 
-A maintainer reviewing or evolving any framework piece that touches the teammate boundary (`spawn-teammate.md`, `agent-boot.md` Step 5, `teammate-conventions.md`) should treat both sides as load-bearing and changes to one side as requiring a check on the other.
+A maintainer reviewing or evolving any framework piece that touches the teammate boundary (`spawn-teammate.md`, `agent-boot.md` Step 2, `teammate-conventions.md`) should treat both sides as load-bearing and changes to one side as requiring a check on the other.
 
 ## Migration Write Paths
 

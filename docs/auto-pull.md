@@ -4,12 +4,14 @@
 
 The shared procedure for refreshing one lore agent repo's git state mid-flow. Used by:
 
-- **`agent-boot.md` step 2** — auto-pull the host repo at boot time.
+- **`agent-boot.md` Step 1** — auto-pull the host repo at boot time (via `lr-core preflight`; the hand-executed equivalent is § Manual Boot Procedure step 2).
 - **`attach.md`** — auto-pull the guest repo before reading its role/lore-context.
 - **`process-merge.md` step 0** — defense-in-depth pull right before the merge subagent reads its lore.
 - **`docs/pull-lore.md`** — the user-invoked `/lr:pull-lore` skill iterates this procedure across active agents.
 
 The procedure is intentionally narrow: one `git pull --ff-only` against the agent's repo, with safety gates and a degraded-mode failure path. No clone logic (that's `/lr:workspace-pull`), no migration logic (that's `version-check.md`), no commit or push.
+
+> **Implemented by `scripts/lr-core preflight`.** Boot, attach, consult, and merge reach this procedure through the script, which also adds a TTL cache (a pull that succeeded within the window is reported `fresh` and skipped). **This doc remains normative**: the script implements it, and when the script cannot run, the caller executes the steps below by hand (`conventions.md` § Script Fallback Contract). Read on when you are that caller, when you are changing the procedure, or when you need the reasoning behind a gate.
 
 ## Inputs
 
@@ -21,11 +23,13 @@ Run all git invocations with `git -C <lore-agent-repo> ...` — never `cd` into 
 
 ### Step 1: Skip non-git or remote-less repos
 
-Run `git -C <lore-agent-repo> rev-parse --is-inside-work-tree`. If it fails (not a git repo), skip with a one-line note: `<lore-agent-repo>: not a git repo — skipping auto-pull` and return successfully (the rest of the flow continues in degraded mode).
+Run `git -C <lore-agent-repo> rev-parse --is-inside-work-tree`. If it exits non-zero (not a git repo), skip with a one-line note: `<lore-agent-repo>: not a git repo — skipping auto-pull` and return successfully (the rest of the flow continues in degraded mode). If it exits **zero but prints `false`**, you are inside a bare repo with no work tree — skip with `<lore-agent-repo>: bare repository (no work tree) — skipping auto-pull`.
 
-Run `git -C <lore-agent-repo> remote get-url origin`. If it fails (no `origin` remote configured), skip with: `<lore-agent-repo>: no origin remote — skipping auto-pull` and return successfully.
+Run `git -C <lore-agent-repo> remote get-url origin`. If it exits non-zero (no `origin` remote configured), skip with: `<lore-agent-repo>: no origin remote — skipping auto-pull` and return successfully.
 
 These are not failures — they're legitimate states (e.g., a brand-new local-only agent repo, or an unusual remote layout). Auto-pull simply has nothing to do.
+
+**A `git` that cannot run at all is a different outcome from either of those.** If the `git` invocation itself fails to execute — `command not found`, a broken `PATH`, or a hang you had to abort — do **not** report it as a skip. Skipping would let a broken toolchain masquerade as "this isn't a repo" or "there's no remote", which is the same command-not-found-reads-as-a-legitimate-result trap described in `conventions.md` § Tooling: Portable Shell. Report it as a **failure** instead: `<lore-agent-repo>: pull failed — could not run git: <error>`. The surrounding flow still continues in degraded mode.
 
 ### Step 2: Pull
 
@@ -54,8 +58,8 @@ The verbosity rule depends on the calling site. Boot/attach/merge are quiet on t
 |---|---|---|
 | Already up to date | silent | print `<lore-agent-repo>: already up to date` |
 | Fast-forwarded | print `<lore-agent-repo>: pulled <N> commit(s)` | print `<lore-agent-repo>: pulled <N> commit(s)` |
-| Skipped (not a git repo / no origin) | silent | print `<lore-agent-repo>: skipped — <reason>` |
-| Failed (non-FF, network, auth) | print `<lore-agent-repo>: pull failed — <error>` | print `<lore-agent-repo>: pull failed — <error>` |
+| Skipped (not a git repo / bare repo / no origin) | silent | print `<lore-agent-repo>: skipped — <reason>` |
+| Failed (non-FF, network, auth, **git could not run**) | print `<lore-agent-repo>: pull failed — <error>` | print `<lore-agent-repo>: pull failed — <error>` |
 
 For the commit count, `git rev-list HEAD@{1}..HEAD --count` works after a fast-forward; if it fails or returns 0 unexpectedly, just print `pulled` without a count.
 

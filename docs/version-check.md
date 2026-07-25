@@ -111,7 +111,7 @@ Match each dirty tracked file's repo-relative path against the write-set globs.
 
   **This deferral is NOT a boot failure.** Print the message above, then return to `agent-boot.md` and finish loading the agent in degraded mode — do not emit any boot-failed signal or stop the boot.
 
-In deferred cases: do NOT modify any files; continue boot in degraded mode. **A deferred upgrade is not a boot failure** — return to `agent-boot.md` step 3 and proceed to step 4; the agent still loads.
+In deferred cases: do NOT modify any files; continue boot in degraded mode. **A deferred upgrade is not a boot failure** — return to `agent-boot.md` Step 2 and proceed to Step 3; the agent still loads.
 
 ### Step 2: Walk versions from R+1 to F
 
@@ -139,7 +139,7 @@ Print a brief summary:
 - `<lore-agent-repo>: upgraded from R to F`
 - The changes are uncommitted and ready for `git diff` review
 
-Then return to `agent-boot.md` and continue with reading `role.md` and `lore-context.md`.
+Then return to `agent-boot.md` Step 3 and continue with reading `role.md` and `lore-context.md`.
 
 ## Invariants
 

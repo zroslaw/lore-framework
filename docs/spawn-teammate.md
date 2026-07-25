@@ -103,7 +103,7 @@ For each `(agent-name, repo-path)` in the spawn set:
   ```
   Read <framework-root>/docs/agent-boot.md and boot as agent <agent-name> from <abs-path-to-agent-dir>.
 
-  Step 5 of the boot procedure will detect that you were spawned as a teammate and load <framework-root>/docs/teammate-conventions.md — the four RULES declared there are standing rules for this entire session. Recap, in case the boot-time load fails: the user in YOUR own pane is your interlocutor. Talk to them there; SendMessage to the team lead is reserved for explicit user-requested coordination only.
+  Step 2 of the boot procedure will detect that you were spawned as a teammate and load <framework-root>/docs/teammate-conventions.md — the four RULES declared there are standing rules for this entire session. Recap, in case the boot-time load fails: the user in YOUR own pane is your interlocutor. Talk to them there; SendMessage to the team lead is reserved for explicit user-requested coordination only.
 
   After boot's Confirm step, stop and wait for the user's instructions in YOUR pane.
   ```
@@ -114,7 +114,7 @@ For each `(agent-name, repo-path)` in the spawn set:
 
   `<framework-root>` is left **literal** in the spawn prompt — the teammate's session resolves it via Claude Code (teammates load skills from project and user settings, per the Agent Teams documentation).
 
-  **Single source of truth.** The four RULES live in `teammate-conventions.md`. The spawn prompt above intentionally does NOT restate them in full — that would create three-way drift between the spawn prompt, the conventions doc, and the conventions.md summary. Instead, the prompt points the teammate at the boot-time load (which is the durable mechanism) and includes only a one-sentence recap as a fallback for the case where the boot-time load fails (e.g. `<framework-root>` doesn't resolve in the spawned environment). The boot-time load via `agent-boot.md` Step 5 is what actually anchors the rules; the spawn-prompt recap is a safety net, not a parallel statement.
+  **Single source of truth.** The four RULES live in `teammate-conventions.md`. The spawn prompt above intentionally does NOT restate them in full — that would create three-way drift between the spawn prompt, the conventions doc, and the conventions.md summary. Instead, the prompt points the teammate at the boot-time load (which is the durable mechanism) and includes only a one-sentence recap as a fallback for the case where the boot-time load fails (e.g. `<framework-root>` doesn't resolve in the spawned environment). The boot-time load via `agent-boot.md` Step 2 is what actually anchors the rules; the spawn-prompt recap is a safety net, not a parallel statement.
 
 ### Lead behavior — teammate-to-lead messages
 

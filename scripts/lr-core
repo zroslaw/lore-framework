@@ -1,0 +1,881 @@
+#!/usr/bin/env python3
+"""lr-core — deterministic substrate for the mechanical steps of lore skills.
+
+Part of the lore-framework plugin (`lr`). Pure Python 3 standard library, no
+pip install, one file — the same sanctioned-exception class as `scripts/lrb.py`
+and `scripts/wait-server.py` (see docs/conventions.md § Tooling: Non-Shell
+Runtimes).
+
+WHAT THIS IS. Boot, attach, consult, recall and finalize each carry a large
+mechanical half — scan the workspace, pull a repo, compare a version stamp,
+detect a teammate spawn, enumerate lore topics — that was historically executed
+as prose by the model, one tool call per step. That work needs no judgment, so
+it belongs in code: it runs in one round-trip instead of six, it can't drift
+between engines, and it encodes the platform traps (macOS `ps` field packing,
+missing GNU `timeout`, HTTPS credential prompts) once instead of in every doc.
+
+WHAT THIS IS NOT. The procedure docs remain the normative specification; this
+script is the fast path over them. Anything requiring judgment stays with the
+model: applying migrations, deciding what lore means, composing summaries,
+resolving conflicts. See docs/conventions.md § Script Fallback Contract — when
+this script cannot complete, the caller notifies the user and executes the
+prose procedure by hand.
+
+SUBCOMMANDS
+  discover    Enumerate lore agent repos and their agents in a workspace.
+  preflight   Boot/attach/consult preflight for one agent: resolve, pull
+              (TTL-cached), compare versions, detect teammate spawn.
+  scan        Manifest of an agent's lore topics with git dates and staleness.
+
+OUTPUT CONTRACT. Every subcommand prints exactly one JSON object:
+
+    {"ok": bool, "data": {...}, "warnings": [str], "errors": [str]}
+
+  `ok`   — was the request satisfied? A determinate negative answer (no such
+           agent) is ok:false with exit 0: the script functioned, the caller
+           acts on `errors`/`data` per its procedure doc. No takeover needed.
+
+EXIT CODES
+  0  The script ran to completion; `data` is authoritative. Degraded conditions
+     (pull failed, `ps` blocked) are reported *inside* data — they are results,
+     not failures, exactly as the prose procedures treat them.
+  2  The script could not complete. The caller must fall back to the prose
+     procedure per the Script Fallback Contract. Callers treat any unexpected
+     exit code, absent output, or unparsable output as 2 as well.
+
+Floor: Python 3.9. No `match`, no `X | Y` annotations.
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+# Bound every git subprocess. The Bash-tool timeout that bounds prose-driven
+# pulls does not exist here, so the script owns its own backstop.
+GIT_TIMEOUT_SEC = 60
+PS_TIMEOUT_SEC = 10
+# `run()` returns this when a command never executed — missing binary, broken
+# PATH, or a timeout. Distinct from any real exit status of the command itself.
+GIT_UNRUNNABLE = -1
+DEFAULT_PULL_TTL_SEC = 600
+DEFAULT_STALE_DAYS = 180
+# How far up the process tree to look for the Agent-Teams marker. The engine is
+# typically the grandparent (script -> shell -> engine); the extra headroom
+# covers wrapper scripts.
+ANCESTOR_SCAN_DEPTH = 6
+TEAMMATE_MARKER = "--agent-id"
+# Flag-boundary match, not a substring test: `--agent-idle-timeout=30` in some
+# unrelated ancestor must not read as the Agent-Teams marker.
+TEAMMATE_MARKER_RE = re.compile(r"(?:^|\s)--agent-id(?:[\s=]|$)")
+TITLE_MAX_CHARS = 120
+
+
+# --------------------------------------------------------------------------
+# Result plumbing
+# --------------------------------------------------------------------------
+
+class Result(object):
+    """Accumulates the single JSON object a subcommand prints."""
+
+    def __init__(self):
+        self.ok = True
+        self.data = {}
+        self.warnings = []
+        self.errors = []
+
+    def warn(self, msg):
+        self.warnings.append(msg)
+
+    def fail(self, msg):
+        """A determinate negative answer. Still exit 0 — the script functioned."""
+        self.ok = False
+        self.errors.append(msg)
+
+    def emit(self):
+        payload = {
+            "ok": self.ok,
+            "data": self.data,
+            "warnings": self.warnings,
+            "errors": self.errors,
+        }
+        sys.stdout.write(json.dumps(payload, indent=2, sort_keys=False) + "\n")
+        return 0
+
+
+def emit_fatal(msg):
+    """The script could not complete: exit 2, caller falls back to prose."""
+    payload = {"ok": False, "data": {}, "warnings": [], "errors": [msg]}
+    sys.stdout.write(json.dumps(payload, indent=2) + "\n")
+    return 2
+
+
+# --------------------------------------------------------------------------
+# Small helpers
+# --------------------------------------------------------------------------
+
+def read_text(path):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except (IOError, OSError):
+        return None
+
+
+def run(argv, timeout, env_extra=None, cwd=None):
+    """Run a command. Returns (rc, stdout, stderr); rc -1 on timeout/missing binary.
+
+    Never raises — a missing binary or a hung remote is data for the caller,
+    not an exception that aborts a boot.
+    """
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
+    try:
+        proc = subprocess.run(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            env=env,
+            cwd=cwd,
+        )
+        return (
+            proc.returncode,
+            proc.stdout.decode("utf-8", "replace"),
+            proc.stderr.decode("utf-8", "replace"),
+        )
+    except subprocess.TimeoutExpired:
+        return (-1, "", "timed out after %ss" % timeout)
+    except (OSError, ValueError) as exc:
+        return (-1, "", str(exc))
+
+
+def _git_unrunnable(err):
+    """The uniform result for a git call that never executed.
+
+    Applies at EVERY git call site, not just the first one. `git` failing to run
+    (absent binary, broken PATH, timeout) is not the same answer as git running
+    and saying no — collapsing the two lets a broken toolchain masquerade as a
+    legitimate "not a repo" / "no origin remote" skip, under an exit code that
+    promises the data is authoritative.
+    """
+    return {"status": "failed",
+            "detail": "could not run git: %s" % (err.strip()[:200] or "unknown")}
+
+
+def git(repo, args, timeout=GIT_TIMEOUT_SEC, env_extra=None):
+    """Run git against `repo` with -C. Never `cd` — the shell CWD is shared
+    with the caller's other tools (docs/conventions.md § Tooling: CWD Safety).
+
+    Every invocation is forced to the C locale: some outcomes are detected by
+    reading git's human-readable stdout, which is translated under an NLS-
+    enabled git in a non-English locale.
+    """
+    env = {"LC_ALL": "C", "LANGUAGE": "C"}
+    if env_extra:
+        env.update(env_extra)
+    return run(["git", "-C", repo] + args, timeout, env_extra=env)
+
+
+def parse_frontmatter(text):
+    """Parse the minimal YAML subset the framework uses in descriptor files.
+
+    Supports `key: value` (optionally quoted) and block sequences of the form
+    `key:` followed by `  - item` lines. Not a general YAML parser and does not
+    need to be — descriptor schemas are fixed by docs/conventions.md.
+    """
+    out = {}
+    if not text:
+        return out
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return out
+    body = []
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        body.append(line)
+    current_list_key = None
+    for line in body:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        item = re.match(r"^\s+-\s+(.*)$", line)
+        if item and current_list_key:
+            out[current_list_key].append(_unquote(item.group(1).strip()))
+            continue
+        kv = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", line)
+        if not kv:
+            continue
+        key, val = kv.group(1), kv.group(2).strip()
+        if val == "":
+            out[key] = []
+            current_list_key = key
+        else:
+            out[key] = _unquote(val)
+            current_list_key = None
+    return out
+
+
+def _unquote(val):
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+        return val[1:-1]
+    return val
+
+
+def resolve_framework_root(explicit):
+    """Framework root = the directory containing VERSION.
+
+    Defaults to this script's parent directory (scripts/ lives at the root).
+    Boot Step 0 resolves the root for the *engine*; this is the script's own
+    independent resolution so it can be run standalone.
+    """
+    if explicit:
+        return os.path.abspath(explicit)
+    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+
+def framework_version(root):
+    text = read_text(os.path.join(root, "VERSION"))
+    return text.strip() if text else None
+
+
+# --------------------------------------------------------------------------
+# Discovery
+# --------------------------------------------------------------------------
+
+def find_repos(workspace):
+    """Top-level dirs of `workspace` containing lore-repo.md.
+
+    Top-level only, deliberately: nested repos are invisible to the framework
+    (docs/conventions.md § Directory Structure). Hidden dirs are skipped, which
+    also excludes the .worktrees/ convention.
+    """
+    repos = []
+    try:
+        entries = sorted(os.listdir(workspace))
+    except (IOError, OSError):
+        return repos
+    for name in entries:
+        if name.startswith("."):
+            continue
+        path = os.path.join(workspace, name)
+        if not os.path.isdir(path):
+            continue
+        descriptor = os.path.join(path, "lore-repo.md")
+        if os.path.isfile(descriptor):
+            repos.append(path)
+    return repos
+
+
+def describe_repo(repo_path):
+    fm = parse_frontmatter(read_text(os.path.join(repo_path, "lore-repo.md")))
+    repos_field = fm.get("repos", [])
+    if isinstance(repos_field, str):
+        repos_field = [repos_field] if repos_field else []
+    return {
+        "path": repo_path,
+        "name": os.path.basename(repo_path),
+        "description": fm.get("description"),
+        "version": fm.get("version"),
+        "repos": repos_field,
+    }
+
+
+def repo_agents(repo_path):
+    """Agents in one repo: agents/<name>/ containing role.md."""
+    agents = []
+    agents_dir = os.path.join(repo_path, "agents")
+    if not os.path.isdir(agents_dir):
+        return agents
+    try:
+        names = sorted(os.listdir(agents_dir))
+    except (IOError, OSError):
+        return agents
+    for name in names:
+        if name.startswith("."):
+            continue
+        agent_dir = os.path.join(agents_dir, name)
+        role = os.path.join(agent_dir, "role.md")
+        if not os.path.isfile(role):
+            continue
+        fm = parse_frontmatter(read_text(role))
+        agents.append({
+            "name": name,
+            "dir": agent_dir,
+            "repo": repo_path,
+            "description": fm.get("description"),
+            "has_lore_context": os.path.isfile(
+                os.path.join(agent_dir, "lore-context.md")),
+        })
+    return agents
+
+
+def discover_workspace(workspace):
+    repos, agents = [], []
+    for repo_path in find_repos(workspace):
+        info = describe_repo(repo_path)
+        found = repo_agents(repo_path)
+        info["agents"] = [a["name"] for a in found]
+        repos.append(info)
+        agents.extend(found)
+    return repos, agents
+
+
+# --------------------------------------------------------------------------
+# Git: TTL-cached auto-pull
+# --------------------------------------------------------------------------
+
+def absolute_git_dir(repo):
+    rc, out, _ = git(repo, ["rev-parse", "--absolute-git-dir"], timeout=15)
+    if rc == 0 and out.strip():
+        return out.strip()
+    return None
+
+
+def _stamp_path(repo):
+    gd = absolute_git_dir(repo)
+    if not gd:
+        return None
+    # Inside the git dir: never committed, no .gitignore change needed, and it
+    # follows the checkout when the worktree convention moves it.
+    return os.path.join(gd, "lr-last-pull")
+
+
+def _read_stamp(repo):
+    path = _stamp_path(repo)
+    if not path:
+        return None
+    text = read_text(path)
+    if not text:
+        return None
+    try:
+        return float(text.strip())
+    except ValueError:
+        return None
+
+
+def _write_stamp(repo):
+    path = _stamp_path(repo)
+    if not path:
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("%d\n" % int(time.time()))
+    except (IOError, OSError):
+        pass  # A stamp we cannot write only costs us the TTL optimization.
+
+
+def pull_repo(repo, ttl=DEFAULT_PULL_TTL_SEC, fresh=False, do_pull=True):
+    """Auto-pull one repo per docs/auto-pull.md, with a TTL cache.
+
+    Returns a dict; never raises. Statuses:
+      disabled     — caller passed --no-pull
+      fresh        — skipped, pulled within the TTL window
+      up-to-date   — pull ran, nothing to fetch
+      pulled       — fast-forwarded (commits counted when derivable)
+      skipped      — not a git repo, or no origin remote (legitimate states)
+      failed       — network/auth/non-fast-forward; caller continues degraded
+    """
+    if not do_pull:
+        return {"status": "disabled", "detail": "pull suppressed by --no-pull"}
+
+    rc, out, err = git(repo, ["rev-parse", "--is-inside-work-tree"], timeout=15)
+    if rc == GIT_UNRUNNABLE:
+        return _git_unrunnable(err)
+    if rc != 0:
+        return {"status": "skipped", "detail": "not a git repo"}
+    if out.strip() == "false":
+        # Exits 0 inside a bare repo's own directory, but there is no work tree.
+        return {"status": "skipped", "detail": "bare repository (no work tree)"}
+
+    rc, _, err = git(repo, ["remote", "get-url", "origin"], timeout=15)
+    if rc == GIT_UNRUNNABLE:
+        return _git_unrunnable(err)
+    if rc != 0:
+        return {"status": "skipped", "detail": "no origin remote"}
+
+    if not fresh and ttl > 0:
+        stamp = _read_stamp(repo)
+        if stamp is not None:
+            age = time.time() - stamp
+            if 0 <= age < ttl:
+                return {
+                    "status": "fresh",
+                    "detail": "pulled %ds ago (ttl %ds)" % (int(age), ttl),
+                    "age_seconds": int(age),
+                }
+
+    # Per-transport fast-fail niceties over the subprocess-timeout backstop.
+    # GNU `timeout` is deliberately not used — it is absent on macOS/BSD
+    # (docs/conventions.md § Tooling: Portable Shell).
+    env = {
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=10",
+    }
+    rc, out, err = git(repo, ["pull", "--ff-only"], env_extra=env)
+    if rc != 0:
+        detail = (err or out or "unknown error").strip().split("\n")
+        return {"status": "failed", "detail": detail[-1][:400]}
+
+    _write_stamp(repo)
+
+    if "Already up to date" in out or "Already up-to-date" in out:
+        return {"status": "up-to-date", "detail": "already up to date"}
+
+    commits = None
+    crc, cout, _ = git(repo, ["rev-list", "HEAD@{1}..HEAD", "--count"], timeout=15)
+    if crc == 0 and cout.strip().isdigit():
+        commits = int(cout.strip())
+    result = {"status": "pulled", "detail": "fast-forwarded"}
+    if commits:
+        result["commits"] = commits
+        result["detail"] = "fast-forwarded %d commit(s)" % commits
+    return result
+
+
+# --------------------------------------------------------------------------
+# Version comparison (detection only — migrations stay with the model)
+# --------------------------------------------------------------------------
+
+def compare_versions(repo_version, fw_version):
+    """Detect skew. Applying migrations is judgment work: docs/version-check.md."""
+    out = {"repo": repo_version, "framework": fw_version}
+    if repo_version is None or fw_version is None:
+        out["verdict"] = "unknown"
+        out["detail"] = "missing or unreadable version stamp"
+        return out
+    if str(repo_version).strip() == str(fw_version).strip():
+        out["verdict"] = "match"
+        return out
+    try:
+        rv, fv = int(str(repo_version).strip()), int(str(fw_version).strip())
+    except ValueError:
+        out["verdict"] = "differs"
+        out["detail"] = "non-numeric version stamp(s); compare manually"
+        return out
+    out["verdict"] = "repo-behind" if rv < fv else "repo-ahead"
+    return out
+
+
+# --------------------------------------------------------------------------
+# Teammate detection
+# --------------------------------------------------------------------------
+
+def _ps_field(pid, field):
+    """Read one ps field for one pid.
+
+    One field per call, deliberately: `ps -o ppid=,args=` packs multiple fields
+    onto a single line, which has already produced a real parsing bug in this
+    codebase (lore: macos-ps-o-multi-field-single-line.md). Trailing `=`
+    suppresses the header.
+    """
+    rc, out, _ = run(["ps", "-o", field + "=", "-p", str(pid)], PS_TIMEOUT_SEC)
+    if rc != 0:
+        return None
+    val = out.strip()
+    return val if val else None
+
+
+def detect_teammate():
+    """Look for the Agent-Teams marker in this process's ancestry.
+
+    Returns verdict yes/no/unknown. `unknown` is a first-class answer: sandboxed
+    engines block `ps`, and the profiles' capability gates expect that.
+    """
+    pid = os.getppid()
+    depth = 0
+    scanned = 0
+    while pid and pid > 1 and depth < ANCESTOR_SCAN_DEPTH:
+        args = _ps_field(pid, "args")
+        if args is None:
+            break
+        scanned += 1
+        if TEAMMATE_MARKER_RE.search(args):
+            # Only the matching process is echoed back. The full ancestry is
+            # noise the caller pays input tokens for; brevity is the point of
+            # moving this off the prose path in the first place.
+            return {
+                "verdict": "yes",
+                "detail": "found %s in ancestor pid %d" % (TEAMMATE_MARKER, pid),
+                "matched": {"pid": pid, "args": args[:200]},
+                "scanned": scanned,
+            }
+        parent = _ps_field(pid, "ppid")
+        if not parent or not parent.strip().isdigit():
+            break
+        nxt = int(parent.strip())
+        if nxt == pid:
+            break
+        pid = nxt
+        depth += 1
+    if not scanned:
+        return {
+            "verdict": "unknown",
+            "detail": "ps unavailable or blocked; assume host session",
+            "scanned": 0,
+        }
+    return {
+        "verdict": "no",
+        "detail": "no %s in %d ancestor(s)" % (TEAMMATE_MARKER, scanned),
+        "scanned": scanned,
+    }
+
+
+# --------------------------------------------------------------------------
+# Lore topic scan
+# --------------------------------------------------------------------------
+
+def topic_title(path):
+    text = read_text(path)
+    if not text:
+        return None
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        stripped = re.sub(r"^#+\s*", "", stripped)
+        stripped = re.sub(r"^[*_]+|[*_]+$", "", stripped).strip()
+        if stripped:
+            return stripped[:TITLE_MAX_CHARS]
+    return None
+
+
+def git_last_modified(repo, rel_dir):
+    """Map repo-relative topic path -> last commit ISO date, in ONE git call.
+
+    Per-file `git log` would be one subprocess per topic (~175 today). The log
+    walks newest-first, so the first date seen for a path is its last change.
+
+    Returns (dates, error). `error` is non-None only when git could not be run —
+    the caller must not report committed topics as "undated" in that case, which
+    would explain a broken toolchain as missing commits.
+    """
+    dates = {}
+    rc, out, err = git(
+        repo,
+        ["log", "--format=%x1e%cI", "--name-only", "--", rel_dir],
+        timeout=GIT_TIMEOUT_SEC,
+    )
+    if rc == GIT_UNRUNNABLE:
+        return dates, "could not run git: %s" % (err.strip()[:200] or "unknown")
+    if rc != 0:
+        return dates, None
+    current = None
+    for line in out.split("\n"):
+        if line.startswith("\x1e"):
+            current = line[1:].strip()
+            continue
+        name = line.strip()
+        if name and current and name not in dates:
+            dates[name] = current
+    return dates, None
+
+
+def _age_days(iso_date):
+    if not iso_date:
+        return None
+    try:
+        # %cI is strict ISO-8601 with a numeric offset (e.g. +02:00). Python
+        # 3.9's fromisoformat does not accept the colon in the offset on all
+        # builds, so normalize before parsing.
+        import datetime
+        normalized = re.sub(r"([+-]\d{2}):(\d{2})$", r"\1\2", iso_date)
+        parsed = datetime.datetime.strptime(normalized, "%Y-%m-%dT%H:%M:%S%z")
+        delta = datetime.datetime.now(datetime.timezone.utc) - parsed
+        return max(0, int(delta.total_seconds() // 86400))
+    except (ValueError, ImportError):
+        return None
+
+
+def scan_lore(agent_dir, stale_days=DEFAULT_STALE_DAYS):
+    lore_dir = os.path.join(agent_dir, "lore")
+    if not os.path.isdir(lore_dir):
+        return None, "no lore/ directory at %s" % lore_dir
+
+    try:
+        names = sorted(
+            n for n in os.listdir(lore_dir)
+            if n.endswith(".md") and not n.startswith(".")
+            # A directory named `something.md` is not a topic. Without this the
+            # entry survives as a title-less, plausible-looking row.
+            and os.path.isfile(os.path.join(lore_dir, n)))
+    except (IOError, OSError) as exc:
+        return None, str(exc)
+
+    repo = _repo_root_for(agent_dir)
+    dates, git_error = {}, None
+    if repo:
+        rel_dir = os.path.relpath(lore_dir, repo)
+        dates, git_error = git_last_modified(repo, rel_dir)
+
+    topics, undated, stale_count = [], 0, 0
+    for name in names:
+        path = os.path.join(lore_dir, name)
+        rel = os.path.relpath(path, repo) if repo else name
+        iso = dates.get(rel)
+        age = _age_days(iso)
+        if iso is None:
+            undated += 1
+        is_stale = age is not None and age > stale_days
+        if is_stale:
+            stale_count += 1
+        try:
+            size = os.path.getsize(path)
+        except (IOError, OSError):
+            size = None
+        topics.append({
+            "file": name,
+            "title": topic_title(path),
+            "last_modified": iso,
+            "age_days": age,
+            "stale": is_stale,
+            "bytes": size,
+        })
+
+    return {
+        "lore_dir": lore_dir,
+        "git_error": git_error,
+        "count": len(topics),
+        "stale_days_threshold": stale_days,
+        "stale_count": stale_count,
+        "undated_count": undated,
+        "topics": topics,
+    }, None
+
+
+def _repo_root_for(agent_dir):
+    """agents/<name>/ -> repo root, verified by lore-repo.md."""
+    candidate = os.path.dirname(os.path.dirname(os.path.abspath(agent_dir)))
+    if os.path.isfile(os.path.join(candidate, "lore-repo.md")):
+        return candidate
+    return None
+
+
+# --------------------------------------------------------------------------
+# Subcommands
+# --------------------------------------------------------------------------
+
+def cmd_discover(args, res):
+    workspace = os.path.abspath(args.workspace)
+    if not os.path.isdir(workspace):
+        res.fail("workspace not found: %s" % workspace)
+        res.data = {"workspace": workspace, "repos": [], "agents": []}
+        return res
+
+    repos, agents = discover_workspace(workspace)
+    res.data = {
+        "workspace": workspace,
+        "repos": repos,
+        "agents": [{"name": a["name"], "repo": a["repo"], "dir": a["dir"],
+                    "description": a["description"]} for a in agents],
+    }
+    if not repos:
+        res.fail("no lore agent repos found in %s "
+                 "(no top-level directory contains lore-repo.md)" % workspace)
+    return res
+
+
+def _resolve_agent(args, res, workspace):
+    """Locate the target agent. Returns an agent dict, or None with res populated."""
+    if args.agent_dir:
+        agent_dir = os.path.abspath(args.agent_dir)
+        role = os.path.join(agent_dir, "role.md")
+        if not os.path.isfile(role):
+            res.fail("no role.md at %s — not an agent directory" % agent_dir)
+            return None
+        repo = _repo_root_for(agent_dir)
+        if not repo:
+            res.warn("agent dir %s is not two levels below a lore-repo.md; "
+                     "repo-scoped steps (pull, version) will be skipped" % agent_dir)
+        fm = parse_frontmatter(read_text(role))
+        return {
+            "name": os.path.basename(agent_dir),
+            "dir": agent_dir,
+            "repo": repo,
+            "description": fm.get("description"),
+            "has_lore_context": os.path.isfile(
+                os.path.join(agent_dir, "lore-context.md")),
+        }
+
+    _, agents = discover_workspace(workspace)
+    matches = [a for a in agents if a["name"] == args.agent]
+    if not matches:
+        res.fail("agent '%s' not found in %s" % (args.agent, workspace))
+        res.data["available_agents"] = [
+            {"name": a["name"], "repo": a["repo"], "description": a["description"]}
+            for a in agents
+        ]
+        return None
+    if len(matches) > 1:
+        res.warn("agent name '%s' is ambiguous across %d repos; using %s"
+                 % (args.agent, len(matches), matches[0]["repo"]))
+    return matches[0]
+
+
+def cmd_preflight(args, res):
+    workspace = os.path.abspath(args.workspace)
+    root = resolve_framework_root(args.framework_root)
+    fw_version = framework_version(root)
+    if fw_version is None:
+        res.warn("no readable VERSION at %s — version check will be inconclusive" % root)
+
+    res.data["framework_root"] = root
+    res.data["workspace"] = workspace
+
+    agent = _resolve_agent(args, res, workspace)
+    if agent is None:
+        return res
+
+    role_file = os.path.join(agent["dir"], "role.md")
+    lore_context_file = os.path.join(agent["dir"], "lore-context.md")
+    if not agent["has_lore_context"]:
+        res.warn("no lore-context.md at %s — agent has no compacted knowledge yet"
+                 % agent["dir"])
+
+    res.data["agent"] = {
+        "name": agent["name"],
+        "dir": agent["dir"],
+        "repo": agent["repo"],
+        "description": agent["description"],
+        "role_file": role_file,
+        "lore_context_file": lore_context_file if agent["has_lore_context"] else None,
+    }
+    # The files the caller must read into context next. Reading them is the
+    # caller's job: their content is judgment material, not script output.
+    res.data["read_next"] = [p for p in (role_file, lore_context_file if
+                                         agent["has_lore_context"] else None) if p]
+
+    if agent["repo"]:
+        res.data["pull"] = pull_repo(
+            agent["repo"], ttl=args.ttl, fresh=args.fresh, do_pull=not args.no_pull)
+        if res.data["pull"]["status"] == "failed":
+            res.warn("auto-pull failed for %s: %s — continue in degraded mode"
+                     % (agent["repo"], res.data["pull"]["detail"]))
+        repo_version = parse_frontmatter(
+            read_text(os.path.join(agent["repo"], "lore-repo.md"))).get("version")
+        res.data["version"] = compare_versions(repo_version, fw_version)
+        if res.data["version"]["verdict"] in ("repo-behind", "repo-ahead", "differs"):
+            res.warn("version skew: repo=%s framework=%s (%s) — see version-check.md"
+                     % (repo_version, fw_version, res.data["version"]["verdict"]))
+    else:
+        res.data["pull"] = {"status": "skipped", "detail": "no enclosing lore repo"}
+        res.data["version"] = {"verdict": "unknown", "repo": None,
+                               "framework": fw_version,
+                               "detail": "no enclosing lore repo"}
+
+    res.data["teammate"] = detect_teammate() if not args.no_teammate_check else {
+        "verdict": "unknown", "detail": "check suppressed by --no-teammate-check",
+        "ancestors": []}
+    return res
+
+
+def cmd_scan(args, res):
+    if args.agent_dir:
+        agent_dir = os.path.abspath(args.agent_dir)
+    else:
+        workspace = os.path.abspath(args.workspace)
+        agent = _resolve_agent(args, res, workspace)
+        if agent is None:
+            return res
+        agent_dir = agent["dir"]
+
+    if not os.path.isdir(agent_dir):
+        res.fail("agent directory not found: %s" % agent_dir)
+        return res
+
+    data, err = scan_lore(agent_dir, stale_days=args.stale_days)
+    if err:
+        res.fail(err)
+        res.data["agent_dir"] = agent_dir
+        return res
+    data["agent_dir"] = agent_dir
+    res.data = data
+    if data.get("git_error"):
+        # Dates are missing because git could not run, not because the topics
+        # are new. Saying "uncommitted or untracked" here would be a confident
+        # wrong explanation.
+        res.warn("could not read git history, so no topic dates or staleness "
+                 "flags are available: %s" % data["git_error"])
+    elif data["undated_count"]:
+        res.warn("%d topic(s) have no git date (uncommitted or untracked)"
+                 % data["undated_count"])
+    return res
+
+
+# --------------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------------
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="lr-core",
+        description="Deterministic substrate for the mechanical steps of lore skills.")
+    parser.add_argument("--framework-root", default=None,
+                        help="Override framework root (default: this script's parent).")
+    sub = parser.add_subparsers(dest="command")
+
+    p_disc = sub.add_parser("discover", help="Enumerate lore agent repos and agents.")
+    p_disc.add_argument("--workspace", default=".", help="Workspace root (default: cwd).")
+    p_disc.set_defaults(func=cmd_discover)
+
+    p_pre = sub.add_parser("preflight", help="Boot/attach preflight for one agent.")
+    p_pre.add_argument("--agent", default=None, help="Agent name to resolve.")
+    p_pre.add_argument("--agent-dir", default=None,
+                       help="Explicit agent directory (skips discovery).")
+    p_pre.add_argument("--workspace", default=".", help="Workspace root (default: cwd).")
+    p_pre.add_argument("--ttl", type=int, default=DEFAULT_PULL_TTL_SEC,
+                       help="Skip the pull if one succeeded within N seconds "
+                            "(default: %d; 0 disables the cache)." % DEFAULT_PULL_TTL_SEC)
+    p_pre.add_argument("--fresh", action="store_true",
+                       help="Bypass the TTL cache and always pull.")
+    p_pre.add_argument("--no-pull", action="store_true", help="Skip the pull entirely.")
+    p_pre.add_argument("--no-teammate-check", action="store_true",
+                       help="Skip process-ancestry inspection.")
+    p_pre.set_defaults(func=cmd_preflight)
+
+    p_scan = sub.add_parser("scan", help="Manifest of an agent's lore topics.")
+    p_scan.add_argument("--agent", default=None, help="Agent name to resolve.")
+    p_scan.add_argument("--agent-dir", default=None, help="Explicit agent directory.")
+    p_scan.add_argument("--workspace", default=".", help="Workspace root (default: cwd).")
+    p_scan.add_argument("--stale-days", type=int, default=DEFAULT_STALE_DAYS,
+                        help="Flag topics older than N days (default: %d)."
+                             % DEFAULT_STALE_DAYS)
+    p_scan.set_defaults(func=cmd_scan)
+
+    return parser
+
+
+def main(argv):
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        # argparse prints usage to stderr and exits. `--help` (code 0) keeps its
+        # normal behavior; a usage error must still honor the output contract,
+        # so a caller parsing stdout sees a well-formed failure rather than
+        # nothing at all.
+        if exc.code == 0:
+            raise
+        return emit_fatal("invalid invocation (run with --help for usage)")
+    if not getattr(args, "command", None):
+        parser.print_help(sys.stderr)
+        return emit_fatal("no subcommand given (run with --help for usage)")
+    if args.command in ("preflight", "scan") and not (args.agent or args.agent_dir):
+        return emit_fatal("%s requires --agent or --agent-dir" % args.command)
+
+    res = Result()
+    try:
+        args.func(args, res)
+    except Exception as exc:  # noqa: BLE001 - deliberate catch-all
+        # Any unexpected failure is exit 2: the caller falls back to the prose
+        # procedure rather than proceeding on partial data.
+        return emit_fatal("%s: %s" % (type(exc).__name__, exc))
+    return res.emit()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

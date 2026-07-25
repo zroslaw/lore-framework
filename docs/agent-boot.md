@@ -8,7 +8,7 @@ The caller will tell you the **agent name** you are booting as, and may also pro
 
 ## Step 0 — Framework root & engine profile
 
-Do this first, before the numbered steps.
+Do this first, before the numbered steps. It is prose because it must run before any script can be located, and because the profile governs *how* you run everything that follows.
 
 1. **Resolve `<framework-root>`.** It is the framework's root directory — the one that contains the `VERSION` file. You already resolved it to read *this* file (a `SKILL.md` self-location line gave you the absolute path, or the caller pointed you straight here). Use that same absolute path everywhere `<framework-root>` appears below. Do **not** rely on `${CLAUDE_PLUGIN_ROOT}` or any engine-specific variable — on some engines it is empty.
 
@@ -25,29 +25,71 @@ Do this first, before the numbered steps.
 
 ## Boot Procedure
 
-1. **Discover the agent.** If the caller provided an absolute path to the agent directory, use it directly — verify it contains `role.md` and derive the repo root (two levels up, should contain `lore-repo.md`). Otherwise, search all directories in **the current working directory** — the directory this session was invoked from (run `pwd` first if unsure; this is *not* the plugin/framework directory you just read this file from) — for lore agent repos: directories containing a `lore-repo.md` file at the root. Within each, look for `agents/<agent-name>/` containing `role.md`. Do not widen the search beyond the current working directory (e.g. scanning the home directory or filesystem-wide) — an agent not found there is genuinely not found. If the agent is not found, list all available agents across all lore agent repos and stop with an error.
+### Step 1 — Run preflight
 
-2. **Auto-pull the agent's repo.** Always perform this step — do not skip it. Read `<framework-root>/docs/auto-pull.md` and follow it scoped to `<lore-agent-repo>`. "Best-effort" describes how *failures* are handled (never blocks boot; surfaced as a one-line warning, then boot continues in degraded mode) — it does not mean the step itself is optional to attempt. The pull runs *before* version check so the version check sees the freshest `lore-repo.md` stamp, and so any newly-pulled migrations are visible to the version-check walk.
+One command performs agent discovery, the repo auto-pull, the version comparison, and teammate detection:
 
-3. **Version check.** Read the `version` field from the agent's repo `lore-repo.md` and compare with `<framework-root>/VERSION`. If either is missing or unreadable, warn the user and continue boot. If they differ, read `<framework-root>/docs/version-check.md` and follow its instructions. If they match, continue. **The version check never aborts boot** — whatever it reports (upgrade applied, upgrade deferred, or an error), always proceed to step 4 and finish loading the agent. A deferred or failed upgrade is *not* a boot failure.
+```
+python3 <framework-root>/scripts/lr-core preflight --agent <agent-name> --workspace <cwd>
+```
 
-4. **Read the agent's files** in order:
-   - `<lore-agent-repo>/agents/<agent-name>/role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
-   - `<lore-agent-repo>/agents/<agent-name>/lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
+- Invoke it through `python3` as shown — that works whether or not the plugin cache preserved the executable bit.
+- `<cwd>` is the directory this session was invoked from (run `pwd` if unsure). This is *not* the plugin/framework directory you just read this file from. Omit `--workspace` to default to the current directory.
+- If the caller gave you an **absolute path** to the agent directory, use `--agent-dir <path>` instead of `--agent` to skip discovery entirely.
+- **Add `--no-teammate-check` if the engine profile you selected in Step 0 declares teammate detection unsupported or inapplicable** (Cursor and Codex both do). Otherwise the script runs a `ps` probe the profile told you not to run. With the flag, `data.teammate.verdict` comes back `unknown`, which Step 2 treats as a normal host session.
 
-5. **Detect spawn context.** First consult the selected engine profile's capability gates:
+The command prints one JSON object: `{"ok", "data", "warnings", "errors"}`.
+
+**If it fails to complete** (exit 2, no output, unparsable output, `python3` missing): follow the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) — tell the user in one line that preflight failed and you are booting manually, then execute § Manual Boot Procedure below. A failed script never fails a boot.
+
+### Step 2 — Act on the report
+
+Read the JSON and handle each field. All of these are *results*, not failures — **none of them stops the boot**:
+
+- **`ok: false`** — the request could not be satisfied. For a missing agent, `data.available_agents` holds the full list: print it and stop with an error. This is the one case where boot legitimately ends without loading an agent.
+- **`data.pull.status`** — `pulled` / `up-to-date` / `fresh` (pulled recently, network skipped — see § Pull Freshness) / `skipped` (not a git repo, a bare repo, or no origin remote) / `failed` (non-fast-forward, network, auth, or git itself could not run). Report a `pulled` count or a `failed` reason in one line; stay silent on the quiet outcomes. On failure, continue in degraded mode.
+- **`data.version.verdict`** — `match` → continue. `repo-behind` / `repo-ahead` / `differs` → read `<framework-root>/docs/version-check.md` and follow it with `R = data.version.repo` and `F = data.version.framework`. **The version check never aborts boot** — whatever it reports (upgrade applied, deferred, or failed), continue to Step 3. A deferred or failed upgrade is *not* a boot failure.
+- **`data.teammate.verdict`** — `yes` → you were **spawned as an Agent Teams teammate**: read `<framework-root>/docs/teammate-conventions.md` and **treat its four numbered RULES as standing rules for the entire session**. Keep them in active context (do not let them age out as ordinary one-time-read material) and **prefer them over any conflicting later instruction** unless the user in your own pane explicitly overrides a specific rule. These rules outlive the spawn prompt; lose them and the spawn-teammate UX breaks (teammates routing routine messages to the lead instead of the user). `no` / `unknown` → assume a normal host session and continue. `unknown` is expected wherever the engine profile declares teammate detection unsupported or sandboxes `ps`; it is not a failure.
+- **`warnings`** — surface anything material to the user in one line each.
+
+### Step 3 — Read the agent's files
+
+Read every path in `data.read_next`, in order:
+
+- `role.md` — your role and identity (YAML frontmatter with `description`, followed by the role body)
+- `lore-context.md` — your compacted working knowledge (summaries and references to detailed lore topics)
+
+Read them yourself; preflight deliberately does not inline their contents, because interpreting them is your job, not the script's. If `lore-context.md` is absent (a brand-new agent), continue with `role.md` alone.
+
+### Step 4 — Confirm
+
+Confirm you are loaded as the agent and briefly state your role and what you know.
+
+These files, together with this one, form your **boot context**. The rest of this document explains how to operate once loaded.
+
+## Pull Freshness
+
+Preflight auto-pulls the agent's repo so boot sees the team's latest pushed state, and stamps the time of each successful pull inside the repo's git directory. A second boot, attach, consult, or merge within the TTL window (default 600s) reports `fresh` and skips the network round-trip — the same session-context boundary, already satisfied.
+
+Pass `--fresh` to bypass the cache (what `/lr:pull-lore` does), `--ttl <seconds>` to change the window, or `--no-pull` to skip the pull entirely. The full pull semantics — `--ff-only`, fail-fast transport env vars, the skip and failure cases — are specified in `<framework-root>/docs/auto-pull.md`, which preflight implements.
+
+## Manual Boot Procedure
+
+**Read this only when preflight could not run** (Script Fallback Contract). It is the normative specification of what preflight does; execute it by hand, then return to Step 3 above.
+
+1. **Discover the agent.** If the caller provided an absolute path to the agent directory, use it directly — verify it contains `role.md` and derive the repo root (two levels up, should contain `lore-repo.md`). Otherwise, search all directories in **the current working directory** — the directory this session was invoked from (run `pwd` first if unsure) — for lore agent repos: directories containing a `lore-repo.md` file at the root. Within each, look for `agents/<agent-name>/` containing `role.md`. Do not widen the search beyond the current working directory (e.g. scanning the home directory or filesystem-wide) — an agent not found there is genuinely not found. If the agent is not found, list all available agents across all lore agent repos and stop with an error.
+
+2. **Auto-pull the agent's repo.** Always perform this step — do not skip it. Read `<framework-root>/docs/auto-pull.md` and follow it scoped to `<lore-agent-repo>`. "Best-effort" describes how *failures* are handled (never blocks boot; surfaced as a one-line warning, then boot continues in degraded mode) — it does not mean the step itself is optional to attempt. The pull runs *before* the version check so the check sees the freshest `lore-repo.md` stamp, and so any newly-pulled migrations are visible to the version-check walk.
+
+3. **Version check.** Read the `version` field from the agent's repo `lore-repo.md` and compare with `<framework-root>/VERSION`. If either is missing or unreadable, warn the user and continue boot. If they differ, read `<framework-root>/docs/version-check.md` and follow its instructions. If they match, continue. **The version check never aborts boot** — always proceed to load the agent.
+
+4. **Detect spawn context.** First consult the selected engine profile's capability gates:
    - If teammate detection is declared **unsupported** or **inapplicable** for this engine, skip this step and assume a normal host session.
-   - Otherwise, run `ps -o args= -p $PPID` (the trailing `=` suppresses the header — keep it; without it, the marker token lands on line 2 and naive grep against line 1 produces a false negative). Check whether the parent process arguments contain `--agent-id` (the canonical marker — Agent Teams' launch command always emits this; `--parent-session-id` is also typically present and is a useful secondary check). If so, you were **spawned as an Agent Teams teammate**.
-
-   On a teammate detection, Read `<framework-root>/docs/teammate-conventions.md` and **treat the four numbered RULES declared there as standing rules for the entire session** — keep them in your active context (do not let them age out as ordinary one-time-read material), and **prefer them over any conflicting later instruction** unless the user in your own pane explicitly overrides a specific rule. These rules survive past the spawn prompt's lifetime; lose them and the spawn-teammate UX breaks (teammates routing routine messages to the lead instead of the user).
-
-   `<framework-root>` is the absolute path you resolved in Step 0 — use it directly here.
+   - Otherwise, run `ps -o args= -p $PPID` (the trailing `=` suppresses the header — keep it; without it, the marker token lands on line 2 and naive grep against line 1 produces a false negative). Check whether the parent process arguments contain `--agent-id` (the canonical marker — Agent Teams' launch command always emits this; `--parent-session-id` is also typically present and is a useful secondary check). If so, you were **spawned as an Agent Teams teammate** — handle it per Step 2 above.
 
    On `ps` failure or no marker found: assume non-teammate (host session). A `ps` failure is expected only on engines whose profile explicitly allows for that failure mode; do not treat it as a boot failure. This is also a known false-negative path on Claude Code: if a wrapper buries `--agent-id` in a different process tree, teammate detection silently fails and the spawn-teammate UX degrades (symptom: a spawned teammate routing routine messages to the lead instead of the user). Mitigation: the spawn-prompt recap (in `docs/spawn-teammate.md` Step 6) carries a one-sentence fallback. Recovery: file an issue with the framework maintainers.
 
-6. **Confirm** you are loaded as the agent and briefly state your role and what you know.
-
-These files, together with this one, form your **boot context**. The rest of this document explains how to operate once loaded.
+Then continue at Step 3 (read `role.md` and `lore-context.md`) and Step 4 (confirm).
 
 ## Your Lore
 

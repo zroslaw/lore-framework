@@ -31,13 +31,27 @@ If `$ARGUMENTS` is empty:
 ### Step 1: Preconditions
 
 1. **Host must be loaded.** If no agent was booted in this session, respond: `No agent loaded. Run /lr:boot <agent-name> first, then /lr:attach.` and stop.
-2. **Target must exist.** Run the standard agent discovery: scan all directories in the working directory for `lore-repo.md` files; within each, look for `agents/<target>/role.md`. If not found, list all available agents across all lore agent repos and stop with an error.
-3. **Target must not be the host.** If the requested name equals the host, respond: `<name> is already the host — use /lr:recall to search its lore.` and stop.
-4. **Target must not already be a guest.** If the requested name is already attached, respond: `<name> is already attached.` and stop (idempotent).
+2. **Target must not be the host.** If the requested name equals the host, respond: `<name> is already the host — use /lr:recall to search its lore.` and stop.
+3. **Target must not already be a guest.** If the requested name is already attached, respond: `<name> is already attached.` and stop (idempotent).
 
-### Step 2: Auto-pull the guest repo
+### Step 2: Preflight the guest
 
-Run the procedure in `<framework-root>/docs/auto-pull.md` scoped to `<guest-lore-agent-repo>`. Best-effort — a pull failure never blocks the attach. Pull before version-reconcile so the reconcile sees the freshest `lore-repo.md`.
+Discovery, auto-pull, and the version comparison are one command — the same preflight boot runs, pointed at the guest:
+
+```
+python3 <framework-root>/scripts/lr-core preflight --agent <guest-name> --workspace <cwd>
+```
+
+Read the JSON it prints:
+
+- **`ok: false`** — the guest does not exist. Print `data.available_agents` and stop with an error.
+- **`data.pull`** — best-effort; a `failed` pull never blocks the attach, just warn. A `fresh` status means the repo was already pulled within the TTL window (e.g. at boot moments ago) — that is a success, not a skipped safety step.
+- **`data.version`** — `match` → skip to Step 4. Anything else → Step 3, using `R = data.version.repo` and `F = data.version.framework`.
+- **`data.agent`** — carries the guest's directory, `role_file`, and `lore_context_file` for Step 4.
+
+Pass `--no-teammate-check` if you like; the host already established spawn context at boot and the guest's answer is irrelevant.
+
+**If the script fails to complete:** apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) — tell the user, then do it by hand: standard agent discovery (scan working-directory subdirectories for `lore-repo.md`, then `agents/<target>/role.md`; if not found, list available agents and stop), then `<framework-root>/docs/auto-pull.md` scoped to `<guest-lore-agent-repo>`, then read the guest's `lore-repo.md` `version` and compare with `<framework-root>/VERSION`. Pull before version-reconcile so the reconcile sees the freshest stamp.
 
 ### Step 3: Version reconcile in a subagent
 
@@ -46,10 +60,10 @@ Run the procedure in `<framework-root>/docs/auto-pull.md` scoped to `<guest-lore
 > too — e.g. on Cursor, run the version reconcile **inline in the host context**, scoped to the
 > guest repo, rather than dispatching a general-purpose subagent.
 
-Read the target repo's `lore-repo.md` and extract its `version` field. Compare with the contents of `<framework-root>/VERSION` (trimmed).
+Step 2 already produced the comparison in `data.version` (or you did it by hand under the fallback contract).
 
-- If they match, skip to Step 4.
-- If they differ, dispatch a general-purpose subagent to reconcile. The subagent works in the filesystem — its output stays in its own context; the host only sees the subagent's summary return.
+- If the verdict is `match`, skip to Step 4.
+- Otherwise, dispatch a general-purpose subagent to reconcile. The subagent works in the filesystem — its output stays in its own context; the host only sees the subagent's summary return.
 
 Subagent prompt shape:
 

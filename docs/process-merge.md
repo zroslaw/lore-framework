@@ -34,7 +34,7 @@ The steps below are what **each subagent** runs once booted as its target agent.
 
 ### Step 0: Refresh the Repo
 
-Before reading the lore for integration, run the auto-pull procedure in `<framework-root>/docs/auto-pull.md` against the agent's repo. The boot procedure already auto-pulls — this step is defense-in-depth, both because the freshness contract belongs at the merge site explicitly (the moment when stale lore is most damaging) and to cover any boot-pull skip (no remote, network blip) that may have left the repo behind.
+Before reading the lore for integration, auto-pull the agent's repo — `python3 <framework-root>/scripts/lr-core preflight --agent-dir <agent-dir> --fresh --no-teammate-check`, reading `data.pull` for the outcome (`--fresh` because merge is exactly the moment where the TTL shortcut is not worth taking). If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) and run the procedure in `<framework-root>/docs/auto-pull.md` against the agent's repo by hand. The boot procedure already auto-pulls — this step is defense-in-depth, both because the freshness contract belongs at the merge site explicitly (the moment when stale lore is most damaging) and to cover any boot-pull skip (no remote, network blip) that may have left the repo behind.
 
 `--ff-only` is safe even though the merge subagent's working tree is dirty (the `reflections/` from phase 1, or any merge-in-progress edits): git refuses to fast-forward if the operation would clobber uncommitted edits, and otherwise advances `HEAD` cleanly leaving the working tree untouched. See `docs/auto-pull.md` § Invariants.
 

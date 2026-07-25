@@ -6,6 +6,8 @@ Take over a session recorded by another coding engine (or an earlier session on 
 
 The mechanical work lives in `<framework-root>/scripts/session-takeover` (python3, stdlib-only — same dependency footprint as `lr-wait`). It parses an engine-native session log into a unified message list and renders the digest. The skill's job is orchestration: discover sessions, ask the user, load the digest, and resume the work faithfully.
 
+> **If the script fails to run**, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`): this is an *implementation* script, so report the failure with the command and error rather than improvising a manual substitute, and never report the operation as done.
+
 ## Engine support
 
 | Engine | Discover | Convert |

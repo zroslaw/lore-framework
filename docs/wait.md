@@ -88,6 +88,11 @@ a cron job, a CI step, a webhook receiver, or you by hand. For real-world source
 email), put a one-line adapter in front that writes the payload into the inbox; the server only ever
 sees files.
 
+> **If `lr-emit` or the wait server fails to run**, apply the **Script Fallback Contract**
+> (`<framework-root>/docs/conventions.md`): these are *implementation* scripts, so report the failure
+> with the command and error rather than improvising a manual substitute. Writing the inbox file by
+> hand is a legitimate user action, but never claim an event was delivered when it was not.
+
 ## Headless / background use
 
 Under `claude -p` the agent holds the foreground `wait_for_event` call open for the whole wait and

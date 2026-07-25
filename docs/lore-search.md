@@ -15,6 +15,23 @@ Why a subagent:
 - The synthesis can be inlined cheaply (a few hundred words)
 - `Explore` is fast and tool-restricted (Read/Grep/Glob, no edit/agent tools) — exactly what's needed for a search
 
+### Give the subagent a topic manifest
+
+Before dispatching, generate the reading map:
+
+```
+python3 <framework-root>/scripts/lr-core scan --agent-dir <agent-dir>
+```
+
+It returns every topic with its title line, last-commit date, age in days, and a staleness flag — one git call for the whole directory, rather than the subagent globbing and sampling files to work out what exists. Pass the output to the subagent as part of its brief (write it to a temp file and give the path if it is large; a 150-topic manifest is sizeable, and it belongs in the *subagent's* context, not yours).
+
+Two things this buys beyond speed:
+
+- **Search by title, not just by filename.** The manifest exposes what each topic actually claims, so the subagent picks what to read on meaning rather than guessing from the name.
+- **Age-awareness.** Lore accumulates for years; a topic last touched 14 months ago may describe a superseded design. Tell the subagent to **note the age of anything it surfaces, and flag findings from `stale: true` topics as needing verification** before they are acted on. Age is a caution flag, not a disqualifier — plenty of old topics are still exactly right.
+
+If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`): dispatch the subagent without a manifest — it will list and read the directory itself, which is the historical behavior and still works.
+
 ## Active Agents: Fan Out When Guests Are Attached
 
 If guests are attached to the host session (via `/lr:attach`), the search runs across **all active agents' lore directories** — host + every attached guest. Execute this by dispatching **one `Explore` subagent per active agent in parallel** (all subagent calls in a single message), each scoped to one agent's `lore/` directory.

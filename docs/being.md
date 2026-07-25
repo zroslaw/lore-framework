@@ -18,6 +18,13 @@ python3 <framework-root>/scripts/lrb.py
 
 Do not assume `lrb` is on `PATH`.
 
+> **If the Keeper fails to run**, apply the **Script Fallback Contract**
+> (`<framework-root>/docs/conventions.md`). `lrb.py` is the strictest *implementation* script in the
+> framework: **never** stand in for it. It enforces budget caps, wall-clock kills, and scheduling —
+> a model imitating any of that is prompt-theater, not enforcement. Report the failure with the
+> command and the error, state plainly that the Keeper is down and beings are not running, and stop
+> that operation. Never report a being as spawned, scheduled, paused, or killed on the Keeper's behalf.
+
 ## Status
 
 Subcommands: none, `status`, `list`.
@@ -73,8 +80,11 @@ Goal: create `agents/<agent-name>/being.md` and the first task prompt
 
 Procedure:
 
-1. Discover lore agent repos exactly like `agent-boot.md` Step 1: scan direct children of the
-   current working directory for `lore-repo.md`; do not walk the whole filesystem.
+1. Discover lore agent repos with `python3 <framework-root>/scripts/lr-core discover --workspace <cwd>`,
+   reading `data.repos` / `data.agents` from its JSON. If it fails to complete, apply the Script
+   Fallback Contract and do it by hand as `agent-boot.md` § Manual Boot Procedure step 1 specifies:
+   scan direct children of the current working directory for `lore-repo.md`; do not walk the whole
+   filesystem.
 2. Resolve the target agent. If the user supplied `agent-name`, use the matching existing agent.
    If omitted and there is one obvious existing agent, use it. Otherwise ask the user which agent.
 3. If `being.md` already exists, do not overwrite it. Offer to add a task instead; if the user

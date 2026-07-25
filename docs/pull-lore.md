@@ -52,7 +52,17 @@ Resolve each active agent's `<lore-agent-repo>` path. Deduplicate repos: if host
 
 ### Step 3: Auto-pull each repo
 
-For each unique repo, follow `<framework-root>/docs/auto-pull.md` scoped to that repo. Print verbose output (one-line per repo, even on `already up to date`) — `/lr:pull-lore` is user-invoked, so it's the place to be communicative about what happened.
+For each unique repo, run:
+
+```
+python3 <framework-root>/scripts/lr-core preflight --agent-dir <agent-dir> --fresh --no-teammate-check
+```
+
+`<agent-dir>` is **any one** active agent's directory inside that repo — the script derives the repo root from it, so when a host and a guest share a repo either directory produces the same pull. Pick the first and move on.
+
+`--fresh` is mandatory here: it bypasses the TTL cache so an explicit user-invoked refresh always hits the network. Read `data.pull` from the JSON for the outcome. If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) and follow `<framework-root>/docs/auto-pull.md` scoped to that repo by hand.
+
+Print verbose output (one line per repo, even on `already up to date`) — `/lr:pull-lore` is user-invoked, so it's the place to be communicative about what happened.
 
 When pulling multiple repos, dispatch them in parallel — auto-pull is independent per repo. A single message with multiple Bash invocations is sufficient; a subagent fan-out is overkill for what is mostly `git pull`.
 

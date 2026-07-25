@@ -148,6 +148,8 @@ working directory. All logic lives in the script — Bash 3.2+ compatible (no as
 parallel clone and pull phases, output captured per-repo for clean reporting. Pulls use `--ff-only`
 so divergent local branches surface as failures rather than silent merge commits.
 
+> **If the script fails to run**, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`): this is an *implementation* script, so report the failure with the command and error rather than improvising a manual substitute, and never report the operation as done.
+
 ## Relationship to Other Skills
 
 - **`/lr:workspace-init`** is the producer companion: the setup wizard writes `lore-workspace.md`,
