@@ -13,9 +13,9 @@ Use this when you suspect another contributor (or a parallel session, or your ow
 ## What It Does
 
 1. **Enumerates active agents** — host (whichever agent was booted) plus any guests attached via `/lr:attach`.
-2. **Auto-pulls each agent's repo** — runs the procedure in `<framework-root>/docs/auto-pull.md` per repo. When two active agents share a repo, that repo is pulled once.
+2. **Auto-pulls each agent's repo** — runs `lr-core preflight --fresh` per repo, which executes the procedure in `pull_repo()`'s comments in `scripts/lr-core` (`<framework-root>/docs/auto-pull.md` carries the reporting policy). When two active agents share a repo, that repo is pulled once.
 3. **Re-reads each active agent's `role.md` and `lore-context.md`** — so any changes pulled in actually take effect in working memory. Without this step, the pulled files are on disk but the host is still operating from the pre-pull context.
-4. **Reports a one-line summary per repo** — pulled / already up to date / failed / skipped (no origin), so the user can see what changed.
+4. **Reports a one-line summary per repo** — pulled / already up to date / failed / skipped (no origin, not a git repo, or not the root of its own git repo), so the user can see what changed.
 
 `/lr:pull-lore` does not run `/lr:workspace-pull` — that's a separate workspace-wide tool. `/lr:pull-lore` is scoped narrowly to the agents currently loaded.
 
@@ -60,7 +60,7 @@ python3 <framework-root>/scripts/lr-core preflight --agent-dir <agent-dir> --fre
 
 `<agent-dir>` is **any one** active agent's directory inside that repo — the script derives the repo root from it, so when a host and a guest share a repo either directory produces the same pull. Pick the first and move on.
 
-`--fresh` is mandatory here: it bypasses the TTL cache so an explicit user-invoked refresh always hits the network. Read `data.pull` from the JSON for the outcome. If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) and follow `<framework-root>/docs/auto-pull.md` scoped to that repo by hand.
+`--fresh` is mandatory here: it bypasses the TTL cache so an explicit user-invoked refresh always hits the network. Read `data.pull` from the JSON for the outcome. If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) and read `pull_repo`'s comments in `<framework-root>/scripts/lr-core` (`docs/auto-pull.md` points to the same place) to run the pull scoped to that repo by hand.
 
 Print verbose output (one line per repo, even on `already up to date`) — `/lr:pull-lore` is user-invoked, so it's the place to be communicative about what happened.
 

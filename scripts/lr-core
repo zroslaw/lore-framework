@@ -14,12 +14,18 @@ it belongs in code: it runs in one round-trip instead of six, it can't drift
 between engines, and it encodes the platform traps (macOS `ps` field packing,
 missing GNU `timeout`, HTTPS credential prompts) once instead of in every doc.
 
-WHAT THIS IS NOT. The procedure docs remain the normative specification; this
-script is the fast path over them. Anything requiring judgment stays with the
-model: applying migrations, deciding what lore means, composing summaries,
-resolving conflicts. See docs/conventions.md § Script Fallback Contract — when
-this script cannot complete, the caller notifies the user and executes the
-prose procedure by hand.
+WHAT THIS IS NOT. This is not a fast path over a separate prose specification.
+The step comments inside each cmd_* function below (and the helpers they call —
+pull_repo, compare_versions, detect_teammate, _resolve_agent) ARE the normative
+procedure: read them in order and you have the full hand-executable spec, not
+a summary of one. docs/*.md files carry short pointers into specific functions
+here, not restated procedures — a restated copy is exactly the drift risk this
+avoids. Anything requiring judgment still stays with the model: applying
+migrations, deciding what lore means, composing summaries, resolving
+conflicts. See docs/conventions.md § Script Fallback Contract (the "literate
+accelerator" pattern) — when this script cannot complete, the caller notifies
+the user, reads the relevant function's comments below, and executes those
+steps by hand.
 
 SUBCOMMANDS
   discover    Enumerate lore agent repos and their agents in a workspace.
@@ -59,8 +65,11 @@ import time
 GIT_TIMEOUT_SEC = 60
 PS_TIMEOUT_SEC = 10
 # `run()` returns this when a command never executed — missing binary, broken
-# PATH, or a timeout. Distinct from any real exit status of the command itself.
-GIT_UNRUNNABLE = -1
+# PATH, or a timeout. Deliberately not an int: `subprocess` encodes death by
+# signal as a *negative* returncode (SIGKILL -> -9, SIGHUP -> -1), so any
+# integer sentinel would collide with a real outcome. -1 in particular used to
+# mean both "never ran" and "killed by SIGHUP".
+GIT_UNRUNNABLE = None
 DEFAULT_PULL_TTL_SEC = 600
 DEFAULT_STALE_DAYS = 180
 # How far up the process tree to look for the Agent-Teams marker. The engine is
@@ -107,8 +116,15 @@ class Result(object):
 
 
 def emit_fatal(msg):
-    """The script could not complete: exit 2, caller falls back to prose."""
-    payload = {"ok": False, "data": {}, "warnings": [], "errors": [msg]}
+    """The script could not complete: exit 2, caller falls back to prose.
+
+    `fatal: true` is the in-band discriminator. Without it this payload is
+    shape-identical to a determinate `ok:false` (exit 0, "no such agent"),
+    whose documented handling is the opposite — stop the boot rather than take
+    over by hand — leaving the exit code as the only thing telling them apart.
+    """
+    payload = {"ok": False, "fatal": True, "data": {},
+               "warnings": [], "errors": [msg]}
     sys.stdout.write(json.dumps(payload, indent=2) + "\n")
     return 2
 
@@ -119,17 +135,24 @@ def emit_fatal(msg):
 
 def read_text(path):
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        # utf-8-sig, not utf-8: a leading BOM would otherwise survive into the
+        # first line, so `lines[0] == "---"` fails and the whole frontmatter
+        # block is silently read as absent (no version, no description).
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
             return fh.read()
     except (IOError, OSError):
         return None
 
 
 def run(argv, timeout, env_extra=None, cwd=None):
-    """Run a command. Returns (rc, stdout, stderr); rc -1 on timeout/missing binary.
+    """Run a command. Returns (rc, stdout, stderr); rc is None if it never ran.
 
     Never raises — a missing binary or a hung remote is data for the caller,
     not an exception that aborts a boot.
+
+    `rc is None` means the command did not execute at all. A *negative* rc means
+    it executed and was killed by a signal (rc == -signum) — also not an answer
+    about the world, which is why `git_answered()` below rejects both.
     """
     env = os.environ.copy()
     if env_extra:
@@ -149,22 +172,60 @@ def run(argv, timeout, env_extra=None, cwd=None):
             proc.stderr.decode("utf-8", "replace"),
         )
     except subprocess.TimeoutExpired:
-        return (-1, "", "timed out after %ss" % timeout)
+        return (GIT_UNRUNNABLE, "", "timed out after %ss" % timeout)
     except (OSError, ValueError) as exc:
-        return (-1, "", str(exc))
+        return (GIT_UNRUNNABLE, "", str(exc))
 
 
-def _git_unrunnable(err):
-    """The uniform result for a git call that never executed.
+def git_answered(rc):
+    """Did git actually run to completion and give us an answer about the world?
 
-    Applies at EVERY git call site, not just the first one. `git` failing to run
-    (absent binary, broken PATH, timeout) is not the same answer as git running
-    and saying no — collapsing the two lets a broken toolchain masquerade as a
-    legitimate "not a repo" / "no origin remote" skip, under an exit code that
-    promises the data is authoritative.
+    False when it never executed (`rc is None`) and when it was killed by a
+    signal (`rc < 0`: OOM killer, sandbox reaper, a `git` shim that suicides).
+    Neither case is an answer, and both must stay distinguishable from git
+    running and saying no.
+
+    Apply this at EVERY git call site, not just the first one. Collapsing
+    "could not run" into "ran and said no" lets a broken toolchain masquerade
+    as a legitimate "not a repo" / "no origin remote" skip, under an exit code
+    that promises the data is authoritative.
     """
-    return {"status": "failed",
-            "detail": "could not run git: %s" % (err.strip()[:200] or "unknown")}
+    return rc is not None and rc >= 0
+
+
+def _git_unrunnable(err, rc=None):
+    """The uniform result for a git call that never gave an answer.
+
+    A signal kill leaves stderr empty, so name the signal explicitly — a bare
+    "unknown" tells a degraded-mode reader nothing they can act on.
+    """
+    reason = err.strip()[:200] if err and err.strip() else ""
+    if not reason:
+        reason = ("killed by signal %d" % -rc) if isinstance(rc, int) and rc < 0 \
+            else "unknown"
+    return {"status": "failed", "detail": "could not run git: %s" % reason}
+
+
+def _git_error_line(text, default):
+    """Pull the line that names the cause out of git's multi-line diagnostics.
+
+    Not the last line: git prints the cause first and then an indented hint
+    block, so `.split("\\n")[-1]` yields a fragment of the suggested remedy
+    ("    git pull <remote> <branch>") and discards the actual reason ("You are
+    not currently on a branch"). Both of those are ordinary states of the
+    worktree/feature-branch convention, so this is the common case, not an
+    exotic one. Prefer git's own `fatal:`/`error:` line, else the first
+    non-indented, non-hint line.
+    """
+    lines = [ln.rstrip() for ln in (text or "").split("\n") if ln.strip()]
+    for line in lines:
+        low = line.strip().lower()
+        if low.startswith("fatal:") or low.startswith("error:"):
+            return line.strip()[:400]
+    for line in lines:
+        if not line.startswith((" ", "\t")) and not line.strip().lower().startswith("hint:"):
+            return line.strip()[:400]
+    return (lines[0].strip()[:400] if lines else default)
 
 
 def git(repo, args, timeout=GIT_TIMEOUT_SEC, env_extra=None):
@@ -229,7 +290,8 @@ def _unquote(val):
 def resolve_framework_root(explicit):
     """Framework root = the directory containing VERSION.
 
-    Defaults to this script's parent directory (scripts/ lives at the root).
+    Defaults to this script's grandparent directory — the script lives at
+    <framework-root>/scripts/lr-core, so the root is two levels up, not one.
     Boot Step 0 resolves the root for the *engine*; this is the script's own
     independent resolution so it can be run standalone.
     """
@@ -336,6 +398,23 @@ def absolute_git_dir(repo):
     return None
 
 
+def git_toplevel(repo):
+    """The root of the git repo that `repo` belongs to, or None.
+
+    Load-bearing: `git -C <dir>` walks UP to the enclosing repository when
+    <dir> is merely inside one. A lore repo that was never `git init`ed but
+    sits in a git workspace (the workspace-meta-repo layout is a supported
+    one) would otherwise have every git operation silently retargeted at the
+    workspace — pulling it, stamping it, and reading its history — while the
+    output still names the lore repo. Callers compare this against the path
+    they were given and refuse to act when they differ.
+    """
+    rc, out, _ = git(repo, ["rev-parse", "--show-toplevel"], timeout=15)
+    if rc == 0 and out.strip():
+        return os.path.realpath(out.strip())
+    return None
+
+
 def _stamp_path(repo):
     gd = absolute_git_dir(repo)
     if not gd:
@@ -370,31 +449,97 @@ def _write_stamp(repo):
 
 
 def pull_repo(repo, ttl=DEFAULT_PULL_TTL_SEC, fresh=False, do_pull=True):
-    """Auto-pull one repo per docs/auto-pull.md, with a TTL cache.
+    """Manual fallback: the exact TTL-cached auto-pull procedure for one repo.
+
+    Step 1: if `do_pull` is False (--no-pull), do nothing — report "disabled".
+
+    Step 2: `git -C <repo> rev-parse --is-inside-work-tree`. A git that never
+    gave an answer — missing binary, broken PATH, timeout, or killed by a
+    signal — is a "failed" result, never a "skipped" one; see git_answered
+    above for why that distinction matters. If it ran and printed `false`,
+    that is a bare repo with no work tree: "skipped". If it ran and exited
+    non-zero, read the message: git's own "not a git repository" wording means
+    a genuine non-repo ("skipped", the ordinary case for a repo not under git
+    at all); any *other* error means git ran but could not answer — report
+    "failed" and carry its message, rather than asserting a non-repo we did
+    not actually establish.
+
+    Step 3: `git -C <repo> rev-parse --show-toplevel` and require it to equal
+    <repo>. `git -C` silently walks UP to the enclosing repository, so a lore
+    repo that is merely a directory *inside* someone else's git repo would
+    otherwise have this whole procedure retargeted at that outer repo — we
+    would pull it, stamp it, and read its history while reporting the lore
+    repo's path. Not equal — "skipped", and do not run any further git
+    command against this path.
+
+    Step 4: `git -C <repo> remote get-url origin`. No origin remote — again
+    "skipped", not a failure. Stop here.
+
+    Step 5 (TTL check): unless `fresh` or `ttl<=0`, read the timestamp at
+    `<absolute-git-dir>/lr-last-pull` (never committed, resolved via
+    `git rev-parse --absolute-git-dir` so it follows a worktree checkout). If
+    it exists and is younger than `ttl` seconds, report "fresh" and stop —
+    skip the network round-trip entirely.
+
+    Step 6 (the pull itself): run `git -C <repo> pull --ff-only` with
+    `GIT_TERMINAL_PROMPT=0` and `GIT_SSH_COMMAND='ssh -o BatchMode=yes -o
+    ConnectTimeout=10'` so an unauthenticated HTTPS/SSH remote fails fast
+    instead of hanging on a prompt, and bound the whole call to ~60s.
+    Executing this by hand: apply that bound with your engine profile's
+    **runtime-bounding** binding (`docs/engines/<engine>.md`) — on Claude Code
+    the Bash tool's own timeout parameter. Do NOT wrap it in a `timeout`/
+    `gtimeout` binary: GNU coreutils, absent on stock macOS/BSD, where it
+    fails with `command not found` and silently disables the pull. The bound
+    is the transport-agnostic backstop that stops a boot hanging on any remote
+    type; the env vars above are per-transport fast-fail niceties on top of
+    it. Non-zero exit — "failed", with git's own error line as detail; the
+    surrounding flow continues in degraded mode, this is not fatal.
+
+    Step 7: on success, write the current time into the TTL stamp file (a
+    write failure here only costs the TTL optimization, not correctness).
+    Report "up-to-date" if the output says so, else "pulled" — try to count
+    commits via `git rev-list HEAD@{1}..HEAD --count` and include the count
+    when it parses.
 
     Returns a dict; never raises. Statuses:
       disabled     — caller passed --no-pull
       fresh        — skipped, pulled within the TTL window
       up-to-date   — pull ran, nothing to fetch
       pulled       — fast-forwarded (commits counted when derivable)
-      skipped      — not a git repo, or no origin remote (legitimate states)
-      failed       — network/auth/non-fast-forward; caller continues degraded
+      skipped      — not a git repo, a bare repo, not the root of its own git
+                     repo, or no origin remote (all legitimate states)
+      failed       — network/auth/non-fast-forward, or git could not answer;
+                     caller continues degraded
     """
     if not do_pull:
         return {"status": "disabled", "detail": "pull suppressed by --no-pull"}
 
     rc, out, err = git(repo, ["rev-parse", "--is-inside-work-tree"], timeout=15)
-    if rc == GIT_UNRUNNABLE:
-        return _git_unrunnable(err)
+    if not git_answered(rc):
+        return _git_unrunnable(err, rc)
     if rc != 0:
-        return {"status": "skipped", "detail": "not a git repo"}
+        # Only git's own "not a git repository" wording establishes a non-repo.
+        # Anything else (a broken `git` shim, a dangling worktree, a permission
+        # error) is git failing to answer — say so instead of inventing a reason.
+        if "not a git repository" in err.lower():
+            return {"status": "skipped",
+                    "detail": _git_error_line(err, "not a git repo")}
+        return {"status": "failed",
+                "detail": "git could not determine repo status: %s"
+                          % _git_error_line(err, "unknown error")}
     if out.strip() == "false":
         # Exits 0 inside a bare repo's own directory, but there is no work tree.
         return {"status": "skipped", "detail": "bare repository (no work tree)"}
 
+    top = git_toplevel(repo)
+    if top and top != os.path.realpath(repo):
+        # Every later git call would silently act on `top`, not `repo`.
+        return {"status": "skipped",
+                "detail": "not the root of its own git repo (encloses under %s)" % top}
+
     rc, _, err = git(repo, ["remote", "get-url", "origin"], timeout=15)
-    if rc == GIT_UNRUNNABLE:
-        return _git_unrunnable(err)
+    if not git_answered(rc):
+        return _git_unrunnable(err, rc)
     if rc != 0:
         return {"status": "skipped", "detail": "no origin remote"}
 
@@ -417,9 +562,11 @@ def pull_repo(repo, ttl=DEFAULT_PULL_TTL_SEC, fresh=False, do_pull=True):
         "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=10",
     }
     rc, out, err = git(repo, ["pull", "--ff-only"], env_extra=env)
+    if not git_answered(rc):
+        return _git_unrunnable(err, rc)
     if rc != 0:
-        detail = (err or out or "unknown error").strip().split("\n")
-        return {"status": "failed", "detail": detail[-1][:400]}
+        return {"status": "failed",
+                "detail": _git_error_line(err or out, "unknown error")}
 
     _write_stamp(repo)
 
@@ -442,7 +589,19 @@ def pull_repo(repo, ttl=DEFAULT_PULL_TTL_SEC, fresh=False, do_pull=True):
 # --------------------------------------------------------------------------
 
 def compare_versions(repo_version, fw_version):
-    """Detect skew. Applying migrations is judgment work: docs/version-check.md."""
+    """Manual fallback: how to read repo_version against fw_version by hand.
+
+    Either missing/unreadable -> "unknown". Equal as strings -> "match". Else
+    try both as integers: equal as integers -> "match" too (`031` and `31` are
+    the same version differently spelled; without this check they fall through
+    to a skew verdict and the caller tells the user to go reinstall a plugin
+    that is already correct). Lower repo version -> "repo-behind", higher ->
+    "repo-ahead". If either isn't a plain integer -> "differs" ("compare
+    manually" — some agent repos may use a non-numeric scheme).
+
+    This function only detects skew; it never decides what to do about it.
+    Applying migrations is judgment work: docs/version-check.md.
+    """
     out = {"repo": repo_version, "framework": fw_version}
     if repo_version is None or fw_version is None:
         out["verdict"] = "unknown"
@@ -456,6 +615,9 @@ def compare_versions(repo_version, fw_version):
     except ValueError:
         out["verdict"] = "differs"
         out["detail"] = "non-numeric version stamp(s); compare manually"
+        return out
+    if rv == fv:
+        out["verdict"] = "match"
         return out
     out["verdict"] = "repo-behind" if rv < fv else "repo-ahead"
     return out
@@ -481,10 +643,38 @@ def _ps_field(pid, field):
 
 
 def detect_teammate():
-    """Look for the Agent-Teams marker in this process's ancestry.
+    """Manual fallback: walk process ancestry for the Agent-Teams marker.
 
-    Returns verdict yes/no/unknown. `unknown` is a first-class answer: sandboxed
-    engines block `ps`, and the profiles' capability gates expect that.
+    Step 1: start at `os.getppid()` (this process's immediate parent).
+
+    Step 2: for each ancestor pid, up to ANCESTOR_SCAN_DEPTH (6) hops or until
+    pid 1: run `ps -o args= -p <pid>` (one field per call — packing multiple
+    `-o` fields onto one line has already caused a real parsing bug here, see
+    lore macos-ps-o-multi-field-single-line.md). If `ps` returns nothing
+    (blocked/unavailable), stop climbing and fall through to "unknown" below.
+
+    Step 3: test that process's args against `--agent-id` using a
+    flag-boundary regex, not a substring search — `--agent-idle-timeout=30`
+    in some unrelated ancestor must not false-positive. A match is an
+    immediate "yes": report only that one matching pid/args (truncated to 200
+    chars), not the full ancestry — the point of doing this in code instead
+    of prose is exactly to avoid spending tokens on the whole chain.
+
+    Step 4: no match — fetch that process's ppid via another single-field
+    `ps` call and climb to it; stop if the parent is unreadable/non-numeric or
+    would loop back to the same pid.
+
+    Step 5: if the loop climbed zero ancestors -> "unknown" ("ps unavailable
+    or blocked; assume host session"). If it read at least one ancestor
+    without a match -> "no", even if `ps` then failed partway up: we saw real
+    process args and none matched. (Zero ancestors also covers an orphaned
+    process whose parent is already pid 1, where `ps` is fine and there is
+    simply nothing above us to inspect — "unknown" is still the honest answer,
+    since we did not rule the marker out.)
+
+    Returns verdict yes/no/unknown. `unknown` is a first-class answer:
+    sandboxed engines block `ps`, and the profiles' capability gates expect
+    that.
     """
     pid = os.getppid()
     depth = 0
@@ -533,7 +723,15 @@ def topic_title(path):
     text = read_text(path)
     if not text:
         return None
-    for line in text.split("\n"):
+    lines = text.split("\n")
+    # Lore topics carry no frontmatter by convention, but if one does, "---"
+    # is not its title — skip the block rather than reporting the fence.
+    if lines and lines[0].strip() == "---":
+        for idx in range(1, len(lines)):
+            if lines[idx].strip() == "---":
+                lines = lines[idx + 1:]
+                break
+    for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
@@ -555,12 +753,17 @@ def git_last_modified(repo, rel_dir):
     would explain a broken toolchain as missing commits.
     """
     dates = {}
+    # core.quotepath=false: with the default (true) git C-quotes any non-ASCII
+    # path in --name-only ("caf\303\251.md"), which never matches the raw
+    # filename we look up, so every such topic reads as never committed.
+    # LC_ALL=C does not affect quotepath — this has to be set explicitly.
     rc, out, err = git(
         repo,
-        ["log", "--format=%x1e%cI", "--name-only", "--", rel_dir],
+        ["-c", "core.quotepath=false",
+         "log", "--format=%x1e%cI", "--name-only", "--", rel_dir],
         timeout=GIT_TIMEOUT_SEC,
     )
-    if rc == GIT_UNRUNNABLE:
+    if not git_answered(rc):
         return dates, "could not run git: %s" % (err.strip()[:200] or "unknown")
     if rc != 0:
         return dates, None
@@ -608,14 +811,27 @@ def scan_lore(agent_dir, stale_days=DEFAULT_STALE_DAYS):
 
     repo = _repo_root_for(agent_dir)
     dates, git_error = {}, None
+    # `git log --name-only` prints paths relative to the git TOPLEVEL, which is
+    # not the lore repo when that repo is merely a directory inside a larger
+    # git repo. Key the lookup off the toplevel or none of the paths match and
+    # every topic reads as never committed.
+    path_base = repo
     if repo:
-        rel_dir = os.path.relpath(lore_dir, repo)
-        dates, git_error = git_last_modified(repo, rel_dir)
+        # realpath both sides before any relpath: git reports the toplevel with
+        # symlinks resolved (on macOS /var/... is a symlink to /private/var/...),
+        # so mixing a resolved base with an unresolved path yields a nonsense
+        # `../../..`-style relative path that matches no git output at all.
+        path_base = git_toplevel(repo) or os.path.realpath(repo)
+        rel_dir = os.path.relpath(os.path.realpath(lore_dir), path_base)
+        # Run git FROM the toplevel too: `git -C <dir> log -- <pathspec>`
+        # resolves the pathspec against <dir>, so a toplevel-relative path
+        # handed to a `-C <lore-repo>` call matches nothing at all.
+        dates, git_error = git_last_modified(path_base, rel_dir)
 
     topics, undated, stale_count = [], 0, 0
     for name in names:
         path = os.path.join(lore_dir, name)
-        rel = os.path.relpath(path, repo) if repo else name
+        rel = os.path.relpath(os.path.realpath(path), path_base) if repo else name
         iso = dates.get(rel)
         age = _age_days(iso)
         if iso is None:
@@ -660,6 +876,25 @@ def _repo_root_for(agent_dir):
 # --------------------------------------------------------------------------
 
 def cmd_discover(args, res):
+    """Manual fallback (§ Script Fallback Contract): enumerate agents by hand.
+
+    Step 1: resolve <workspace> to an absolute path. If it isn't a directory,
+    stop — report "workspace not found" and return empty repos/agents.
+
+    Step 2: list top-level entries of <workspace> (skip dotfiles/dirs — this
+    also skips the .worktrees/ convention) and keep the ones that are
+    directories containing a lore-repo.md file. Each one is a lore agent repo
+    (see find_repos above for the exact listing logic).
+
+    Step 3: for each repo found, read lore-repo.md's frontmatter for
+    description/version/repos (see describe_repo), then list agents/*/ and
+    keep the subdirectories that contain a role.md (see repo_agents) — read
+    each role.md's frontmatter for its description.
+
+    Step 4: report the combined repos + agents list. If zero repos were found,
+    that is a failure (ok:false), not silence — the caller needs to know no
+    lore agent repos exist at this workspace root.
+    """
     workspace = os.path.abspath(args.workspace)
     if not os.path.isdir(workspace):
         res.fail("workspace not found: %s" % workspace)
@@ -680,8 +915,27 @@ def cmd_discover(args, res):
 
 
 def _resolve_agent(args, res, workspace):
-    """Locate the target agent. Returns an agent dict, or None with res populated."""
+    """Manual fallback: locate the target agent by hand.
+
+    Step 1: if --agent-dir was given, use it directly. Require a role.md
+    inside it (else fail: "not an agent directory"). Derive the repo root by
+    walking up two directories and checking for lore-repo.md there; if that
+    check fails, warn (don't fail) that repo-scoped steps (pull, version) will
+    be skipped for this agent. Read role.md's frontmatter for description.
+
+    Step 2: otherwise, discover every repo under <workspace> (see
+    discover_workspace above) and filter its agents to the one(s) named
+    --agent. Zero matches -> fail "agent not found", and report the full
+    available_agents list so the caller can show it to the user. More than
+    one match (same agent name in two repos) -> warn about the ambiguity and
+    use the first one, arbitrarily.
+
+    Returns an agent dict, or None with res populated.
+    """
     if args.agent_dir:
+        if args.agent and os.path.basename(os.path.abspath(args.agent_dir)) != args.agent:
+            res.warn("--agent-dir overrides --agent; resolving %s and ignoring "
+                     "--agent %s" % (args.agent_dir, args.agent))
         agent_dir = os.path.abspath(args.agent_dir)
         role = os.path.join(agent_dir, "role.md")
         if not os.path.isfile(role):
@@ -717,6 +971,46 @@ def _resolve_agent(args, res, workspace):
 
 
 def cmd_preflight(args, res):
+    """The boot/attach/consult/merge preflight. This function's steps ARE the
+    normative procedure (docs/conventions.md § Script Fallback Contract) — if
+    this script cannot run, read the six steps below (and the referenced
+    helper functions for their own exact commands) and execute them by hand.
+
+    Step 1: resolve <framework-root> (this script's grandparent dir, or
+    --framework-root) and read its VERSION file. Missing/unreadable VERSION is
+    a warning, not a failure — the version check below just becomes
+    inconclusive.
+
+    Step 2: resolve the target agent. If --agent-dir was given, use it
+    directly: require a role.md there, and derive the repo root by walking up
+    two directories and checking for lore-repo.md (warn, don't fail, if that
+    check comes up empty — repo-scoped steps 4-5 below are skipped for a
+    repo-less agent). Otherwise, discover every repo under <workspace> and
+    match --agent by name; no match is a failure (report available_agents);
+    more than one match is a warning (use the first, arbitrarily). See
+    _resolve_agent below for the exact logic.
+
+    Step 3: record the agent's role.md and lore-context.md paths as
+    `read_next`. Reading and interpreting those files is the caller's job —
+    their content is judgment material, not something this script parses.
+
+    Step 4: if the agent sits under a real lore repo, auto-pull it (TTL-cached
+    — see pull_repo below for the exact `git pull --ff-only` invocation, the
+    fast-fail env vars, and the `.git/lr-last-pull` TTL stamp file), then
+    compare the repo's lore-repo.md version stamp against the framework
+    VERSION read in Step 1 (see compare_versions below for the exact match/
+    skew rules). A failed pull is a warning ("continue in degraded mode"), not
+    a stopping condition. Version skew other than an exact match is also a
+    warning pointing at docs/version-check.md.
+
+    Step 5: otherwise (no enclosing repo — the warning from Step 2), skip both
+    of those: report pull as "skipped" and version as "unknown", and run no
+    git subprocess at all.
+
+    Step 6: detect an Agent-Teams teammate spawn (see detect_teammate below for
+    the exact `ps -o args= -p <ppid>` walk and the `--agent-id` flag-boundary
+    match), unless --no-teammate-check suppressed it.
+    """
     workspace = os.path.abspath(args.workspace)
     root = resolve_framework_root(args.framework_root)
     fw_version = framework_version(root)
@@ -750,6 +1044,7 @@ def cmd_preflight(args, res):
                                          agent["has_lore_context"] else None) if p]
 
     if agent["repo"]:
+        # Step 4 (repo branch): TTL-cached pull, then version compare.
         res.data["pull"] = pull_repo(
             agent["repo"], ttl=args.ttl, fresh=args.fresh, do_pull=not args.no_pull)
         if res.data["pull"]["status"] == "failed":
@@ -758,15 +1053,25 @@ def cmd_preflight(args, res):
         repo_version = parse_frontmatter(
             read_text(os.path.join(agent["repo"], "lore-repo.md"))).get("version")
         res.data["version"] = compare_versions(repo_version, fw_version)
-        if res.data["version"]["verdict"] in ("repo-behind", "repo-ahead", "differs"):
+        verdict = res.data["version"]["verdict"]
+        if verdict in ("repo-behind", "repo-ahead", "differs"):
             res.warn("version skew: repo=%s framework=%s (%s) — see version-check.md"
-                     % (repo_version, fw_version, res.data["version"]["verdict"]))
+                     % (repo_version, fw_version, verdict))
+        elif verdict == "unknown":
+            # Not a skew, but not a clean match either: we could not read a
+            # stamp. Silence here reads as "versions agree", which is a
+            # different and unearned claim.
+            res.warn("could not read a version stamp (repo=%s framework=%s) — "
+                     "version state unverified; see version-check.md"
+                     % (repo_version, fw_version))
     else:
+        # Step 5 (no-repo branch): hardcode skipped/unknown, no subprocess runs.
         res.data["pull"] = {"status": "skipped", "detail": "no enclosing lore repo"}
         res.data["version"] = {"verdict": "unknown", "repo": None,
                                "framework": fw_version,
                                "detail": "no enclosing lore repo"}
 
+    # Step 6: teammate detection, unless suppressed.
     res.data["teammate"] = detect_teammate() if not args.no_teammate_check else {
         "verdict": "unknown", "detail": "check suppressed by --no-teammate-check",
         "ancestors": []}
@@ -774,6 +1079,31 @@ def cmd_preflight(args, res):
 
 
 def cmd_scan(args, res):
+    """Manual fallback: build a lore-topic manifest by hand.
+
+    Step 1: resolve the agent directory — either --agent-dir directly, or
+    discover-and-match --agent by name against the workspace (see
+    _resolve_agent below, same resolution as preflight Step 2).
+
+    Step 2: list <agent-dir>/lore/*.md (skip dotfiles, and skip anything that
+    is a directory rather than a file, since a dir named `x.md` is not a
+    topic).
+
+    Step 3: for each topic, take the first non-blank line, strip leading `#`
+    markdown-heading markers and surrounding `*`/`_` emphasis, and truncate to
+    120 chars — that's its title (see topic_title below).
+
+    Step 4: get each topic's last-modified date in ONE `git log
+    --format=%x1e%cI --name-only -- <lore-dir>` call scoped to the agent's
+    enclosing repo (see git_last_modified below) rather than one `git log`
+    per topic. If git could not run at all, record that as `git_error` and do
+    not claim the topics are undated — say the dates are unavailable, not that
+    the files are new/untracked.
+
+    Step 5: flag a topic `stale` when its age in days exceeds --stale-days
+    (default 180). Report topic count, stale count, and undated count
+    alongside the per-topic list.
+    """
     if args.agent_dir:
         agent_dir = os.path.abspath(args.agent_dir)
     else:
@@ -815,7 +1145,8 @@ def build_parser():
         prog="lr-core",
         description="Deterministic substrate for the mechanical steps of lore skills.")
     parser.add_argument("--framework-root", default=None,
-                        help="Override framework root (default: this script's parent).")
+                        help="Override framework root (default: the script's grandparent, "
+                             "i.e. the dir containing VERSION).")
     sub = parser.add_subparsers(dest="command")
 
     p_disc = sub.add_parser("discover", help="Enumerate lore agent repos and agents.")

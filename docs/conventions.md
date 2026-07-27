@@ -130,7 +130,7 @@ The agent's shell working directory is shared across Bash, Glob, Grep, and subse
 
 Framework-authored shell commands run in whatever environment the agent booted in — and the primary dev platform is macOS (BSD userland), not GNU/Linux. Commands that silently assume GNU coreutils break there, and the failure is often invisible: a `command not found` (exit 127) inside a best-effort flow reads as the underlying operation failing, not as a portability bug.
 
-- **No GNU-only binaries.** Most notably `timeout` / `gtimeout` — absent on a stock macOS. To bound a command's runtime, use your Bash tool's own timeout parameter, not a `timeout` wrapper. (This exact trap silently disabled v13 auto-pull on macOS; see `auto-pull.md` § Step 2.) Inside a **standalone script** there is no Bash-tool timeout and no portable one-liner for a hard wall-clock cap — prevent hangs at the source with fail-fast env vars (`GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with `BatchMode`/`ConnectTimeout`), or implement a bash watchdog (background the job, then `sleep`+`kill`). `scripts/workspace-pull` takes the fail-fast-env-vars route.
+- **No GNU-only binaries.** Most notably `timeout` / `gtimeout` — absent on a stock macOS. To bound a command's runtime, use your Bash tool's own timeout parameter, not a `timeout` wrapper. (This exact trap silently disabled v13 auto-pull on macOS; see `pull_repo()`'s Step 6 comment in `scripts/lr-core`.) Inside a **standalone script** there is no Bash-tool timeout and no portable one-liner for a hard wall-clock cap — prevent hangs at the source with fail-fast env vars (`GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with `BatchMode`/`ConnectTimeout`), or implement a bash watchdog (background the job, then `sleep`+`kill`). `scripts/workspace-pull` takes the fail-fast-env-vars route.
 - **Watch BSD-vs-GNU flag differences** on tools present in both userlands: `sed -i` (BSD needs `-i ''`), `date -d` (GNU-only), `readlink -f` / `realpath` (not always present), `grep -P`, `xargs -r`. Prefer a portable invocation or a short Bash/`git` equivalent.
 - **Prefer git's own knobs over external wrappers** for git operations: `GIT_TERMINAL_PROMPT=0` (suppress HTTP(S) auth prompts), `GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=<n>'` (fail-fast SSH), `git -C <repo>` (see § Tooling: CWD Safety above).
 
@@ -146,14 +146,46 @@ The second sanctioned class is a **deterministic substrate** with real data stru
 
 A shipped script is one of two things, and which one decides what happens when it breaks.
 
-- **Accelerator** — the procedure is also specified in a `docs/` doc, and that doc, not the script, is normative. The script exists to spend one tool call where prose would spend six, and to encode platform traps once. `scripts/lr-core` is the reference case.
-- **Implementation** — the script *is* the specification; no prose procedure exists to execute by hand. `scripts/workspace-pull`, `scripts/session-takeover`, `scripts/sync-cursor-skills`, `scripts/lr-emit` + `scripts/wait-server.py`, and `scripts/lrb.py` are all this kind.
+- **Accelerator** — a **literate** one: the procedure lives in the script's own instructional
+  comments (its docstrings and inline `# Step N:` blocks), not in a separate `docs/` doc. The
+  running code is normative, and so are its comments — there is exactly one artifact, not a
+  prose copy and a code copy that can drift apart. A doc that delegates to it carries only a
+  short pointer: what to call, what the output fields mean, and — on failure — *which function*
+  to go read. `scripts/lr-core` is the reference case: `docs/agent-boot.md`,
+  `docs/auto-pull.md`, `docs/attach.md`, `docs/consult.md`, `docs/lore-search.md`,
+  `docs/process-merge.md`, `docs/pull-lore.md`, and `docs/being.md` all point into specific
+  functions in it rather than restating what those functions do.
+- **Implementation** — the script *is* the specification; there is no prose procedure and no
+  comment-as-procedure to execute by hand either. `scripts/workspace-pull`,
+  `scripts/session-takeover`, `scripts/sync-cursor-skills`, `scripts/lr-emit` +
+  `scripts/wait-server.py`, and `scripts/lrb.py` are all this kind.
 
-**Take over manually only for an accelerator.** When a doc delegates a step to an accelerator script and the script **fails to complete** — a non-zero exit other than a documented result code, a missing interpreter, no output, or output you cannot parse:
+**Take over manually only for a literate accelerator.** When a doc delegates a step to one and
+the script **fails to complete** — an exit code the script's own header does not define as a
+completed run (for `lr-core`, anything but 0), a missing interpreter, no output, or output you
+cannot parse:
 
-1. **Notify the user immediately**, in one line: which script failed and that you are proceeding manually. Never fail silently, and never let a script failure look like the underlying operation failing.
-2. **Take over and execute the canonical prose procedure** the doc points to, resolving what you reasonably can along the way (a missing directory, a repo that needs a different path). The flow must reach the same end state it would have reached had the script worked.
-3. **Diagnose briefly, don't stall.** If the cause is obvious (no `python3`, non-executable file, wrong path), say so in one line. Otherwise finish the flow and report the failure at the end for follow-up. **Never abort the surrounding flow because a script died.**
+1. **Notify the user immediately**, in one line: which script failed and that you are proceeding
+   manually. Never fail silently, and never let a script failure look like the underlying
+   operation failing.
+2. **Read the relevant function(s) in the script** — the doc's pointer names them — and **execute
+   the steps described in their comments**, in order, resolving what you reasonably can along the
+   way (a missing directory, a repo that needs a different path). The flow must reach the same end
+   state it would have reached had the script worked.
+3. **Diagnose briefly, don't stall.** If the cause is obvious (no `python3`, non-executable file,
+   wrong path), say so in one line. Otherwise finish the flow and report the failure at the end for
+   follow-up. **Never abort the surrounding flow because a script died.**
+
+**The floor: when the script itself is gone.** Step 2 presumes the script is *readable* — a
+literate accelerator carries its own fallback, so a script that merely misbehaves still specifies
+what to do instead. A script that is **missing, truncated, or unreadable** takes its spec with it,
+and that is the one case the pattern cannot self-serve. Then, in order: recover the procedure from
+git (`git -C <framework-root> show <last-release-tag>:<path>`) or from another install of the
+plugin; failing that, say plainly which operation you cannot perform and why, and continue the
+session without it. **Never improvise the procedure from the function name alone** — a boot that
+skipped the pull and the version check while reporting success is a worse outcome than one that
+reported it could not run them. This is the price the literate pattern pays for having one
+artifact instead of two: name it rather than leaving the executor to discover it mid-failure.
 
 **Distinguish failure from a reported degraded condition.** A script that exits 0 while reporting a problem in its output (`"pull": {"status": "failed"}`, `"teammate": {"verdict": "unknown"}`) has *succeeded* — it did its job and told you the truth about the world. That is data: handle it per the procedure doc's degraded-mode guidance. No takeover, no user-facing script-failure notice.
 
@@ -164,6 +196,19 @@ Accelerator scripts state their exit-code contract in their own header. `scripts
 `scripts/lrb.py` (the Being Keeper) is the strictest case of that rule. The Keeper is substrate that must never be impersonated by a model — it enforces budget caps and kill-switches, and an LLM standing in for it would be exactly the prompt-theater the Lore Beings design forbids. Its failure mode is "Keeper down, beings do not run".
 
 Docs that delegate to a script carry **one line** pointing here, whichever kind it is — a pointer, not a restatement, so this contract has a single home.
+
+**The literate-accelerator pattern, generalized.** Writing an accelerator's procedure as
+instructions-shaped comments *inside* the script — rather than as prose in a companion doc — closes
+the gap a plain "accelerator" leaves open: if the fallback lives in a separate file, nothing stops
+it from silently drifting out of sync with what the code actually does the next time either one is
+edited alone. Collapsing procedure and implementation into one artifact means the fallback is
+exactly as current as the code that just failed, by construction. The bar for a comment to count:
+it must read as a freestanding instruction a reader could execute *without running the code*
+("run `git -C <repo> pull --ff-only` with these two env vars"), not as an annotation of what the
+adjacent line does ("call git pull"). Reach for this pattern for any future accelerator script. First instance: `scripts/lr-core`
+(v31). (A fuller writeup lives in the lore-architect's own lore, in the separate
+`lore-framework-dev` repo — not part of this plugin, so treat this section as the canonical
+statement of the pattern.)
 
 ## Migration / Release-Note Authoring
 

@@ -4,53 +4,36 @@
 
 The shared procedure for refreshing one lore agent repo's git state mid-flow. Used by:
 
-- **`agent-boot.md` Step 1** — auto-pull the host repo at boot time (via `lr-core preflight`; the hand-executed equivalent is § Manual Boot Procedure step 2).
+- **`agent-boot.md` Step 1** — auto-pull the host repo at boot time (via `lr-core preflight`).
 - **`attach.md`** — auto-pull the guest repo before reading its role/lore-context.
 - **`process-merge.md` step 0** — defense-in-depth pull right before the merge subagent reads its lore.
 - **`docs/pull-lore.md`** — the user-invoked `/lr:pull-lore` skill iterates this procedure across active agents.
 
 The procedure is intentionally narrow: one `git pull --ff-only` against the agent's repo, with safety gates and a degraded-mode failure path. No clone logic (that's `/lr:workspace-pull`), no migration logic (that's `version-check.md`), no commit or push.
 
-> **Implemented by `scripts/lr-core preflight`.** Boot, attach, consult, and merge reach this procedure through the script, which also adds a TTL cache (a pull that succeeded within the window is reported `fresh` and skipped). **This doc remains normative**: the script implements it, and when the script cannot run, the caller executes the steps below by hand (`conventions.md` § Script Fallback Contract). Read on when you are that caller, when you are changing the procedure, or when you need the reasoning behind a gate.
+## Normative source
+
+**The procedure lives in `pull_repo()`'s own comments in `scripts/lr-core`** (a literate
+accelerator, `docs/conventions.md` § Script Fallback Contract) — this doc is a pointer into it,
+not a second copy. Boot/attach/consult/merge reach it through `lr-core preflight`, which also adds
+a TTL cache on top (a pull that succeeded within the window is reported `fresh` and skipped — see
+`_read_stamp`/`_write_stamp` next to `pull_repo`).
+
+**When the script cannot run:** notify the user, then read `pull_repo()`'s docstring in
+`scripts/lr-core` and execute **its numbered steps, all of them**, by hand against
+`<lore-agent-repo>` — the exact `git` invocations, the runtime bound and why not `timeout`, the
+fail-fast env vars, the bare-repo / not-its-own-git-root / no-origin skip cases, and the
+git-could-not-answer-is-a-failure-not-a-skip distinction are all spelled out there. Do not trust a
+count quoted from memory; read to the end of the docstring, because the last step (writing the TTL
+stamp and classifying the outcome) is the one a hurried reader drops. One thing
+stays here because it's caller-side policy the script doesn't decide, not implementation detail it
+duplicates — how verbose to be about the outcome, below.
 
 ## Inputs
 
 - `<lore-agent-repo>` — absolute path to the lore agent repo to refresh.
 
-## Procedure
-
-Run all git invocations with `git -C <lore-agent-repo> ...` — never `cd` into the repo (other tools share the shell working directory; see `conventions.md` § Tooling: CWD Safety).
-
-### Step 1: Skip non-git or remote-less repos
-
-Run `git -C <lore-agent-repo> rev-parse --is-inside-work-tree`. If it exits non-zero (not a git repo), skip with a one-line note: `<lore-agent-repo>: not a git repo — skipping auto-pull` and return successfully (the rest of the flow continues in degraded mode). If it exits **zero but prints `false`**, you are inside a bare repo with no work tree — skip with `<lore-agent-repo>: bare repository (no work tree) — skipping auto-pull`.
-
-Run `git -C <lore-agent-repo> remote get-url origin`. If it exits non-zero (no `origin` remote configured), skip with: `<lore-agent-repo>: no origin remote — skipping auto-pull` and return successfully.
-
-These are not failures — they're legitimate states (e.g., a brand-new local-only agent repo, or an unusual remote layout). Auto-pull simply has nothing to do.
-
-**A `git` that cannot run at all is a different outcome from either of those.** If the `git` invocation itself fails to execute — `command not found`, a broken `PATH`, or a hang you had to abort — do **not** report it as a skip. Skipping would let a broken toolchain masquerade as "this isn't a repo" or "there's no remote", which is the same command-not-found-reads-as-a-legitimate-result trap described in `conventions.md` § Tooling: Portable Shell. Report it as a **failure** instead: `<lore-agent-repo>: pull failed — could not run git: <error>`. The surrounding flow still continues in degraded mode.
-
-### Step 2: Pull
-
-Run `GIT_TERMINAL_PROMPT=0 git -C <lore-agent-repo> pull --ff-only`, bounded to roughly 60 seconds.
-
-> **Engine note.** The bounding mechanism below is Claude Code's Bash-tool timeout. On other engines, follow your profile's **runtime-bounding** binding (`docs/engines/<engine>.md`) — e.g. on Codex there is no Bash-tool timeout flag; the sandbox / `job_max_runtime_seconds` bounds it, and the "set the Bash-tool timeout" prose is ignored.
-
-**Apply the timeout via your Bash tool's own timeout parameter — do *not* wrap the command in a `timeout`/`gtimeout` binary.** Those are GNU coreutils tools, absent by default on macOS/BSD (the primary dev platform); `timeout 60 git …` fails with `command not found` (exit 127), which aborts the pull and drops boot into degraded mode for an entirely spurious reason — silently disabling auto-pull on every macOS boot. See `conventions.md` § Tooling: Portable Shell.
-
-The **Bash-tool timeout is the transport-agnostic backstop** — it kills any stall (SSH, HTTPS, or a future remote type) so boot can never hang indefinitely, however the remote authenticates. The env vars below are per-transport *fast-fail* niceties layered on top, so a stall errors out in seconds rather than waiting out the full timeout:
-
-- **`GIT_TERMINAL_PROMPT=0`** — stops Git prompting on the terminal for **HTTP(S)** credentials, so an HTTPS pull without cached credentials fails fast (~0.5s) instead of blocking on a username prompt. It governs only Git's *own* terminal prompt — a separate GUI credential helper (e.g. Git Credential Manager) or the `ssh` binary is unaffected and falls to the backstop.
-- **`GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=10'`** (**SSH** only) — `BatchMode=yes` turns an unknown host key or passphrase prompt into an immediate failure; `ConnectTimeout` bounds the TCP connect. No effect on HTTPS remotes.
-- *(optional, **HTTPS**)* add `-c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15` **before the `pull` subcommand** (e.g. `git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15 -C <lore-agent-repo> pull --ff-only`) — aborts a connected-but-stalled transfer after ~15s under ~1 KB/s, the rough analog of SSH's `ConnectTimeout`. The backstop already covers this case; add it only if you want a faster, cleaner abort.
-- **`--ff-only`** ensures divergent local branches surface as failures rather than producing silent merge commits.
-
-**Why we don't gate on a dirty working tree:** `git pull --ff-only` is non-writing in spirit — it advances `HEAD`, but it refuses cleanly if the fast-forward would clobber any uncommitted edits in the working tree. So uncommitted edits are either preserved through the pull or the pull fails with a clear error. Either outcome is safe. Gating on dirty would defeat the most useful invocation site (pre-merge auto-pull, where `reflections/` from phase 1 is intentionally uncommitted).
-
-This is **different** from the version-check upgrade gate (`docs/version-check.md`), which *does* refuse on dirty — because version-check *writes* to `lore-repo.md`. Auto-pull doesn't write to file contents.
-
-### Step 3: Report
+## Report
 
 The verbosity rule depends on the calling site. Boot/attach/merge are quiet on the no-op case (the common path) so the surrounding flow stays uncluttered; `/lr:pull-lore` is always verbose because it's user-invoked.
 
@@ -58,7 +41,9 @@ The verbosity rule depends on the calling site. Boot/attach/merge are quiet on t
 |---|---|---|
 | Already up to date | silent | print `<lore-agent-repo>: already up to date` |
 | Fast-forwarded | print `<lore-agent-repo>: pulled <N> commit(s)` | print `<lore-agent-repo>: pulled <N> commit(s)` |
-| Skipped (not a git repo / bare repo / no origin) | silent | print `<lore-agent-repo>: skipped — <reason>` |
+| Fresh (pulled within the TTL window, network skipped) | silent | print `<lore-agent-repo>: already up to date (cached)` |
+| Disabled (`--no-pull`) | silent | print `<lore-agent-repo>: skipped — pull disabled` |
+| Skipped (not a git repo / bare repo / not its own git root / no origin) | silent | print `<lore-agent-repo>: skipped — <reason>` |
 | Failed (non-FF, network, auth, **git could not run**) | print `<lore-agent-repo>: pull failed — <error>` | print `<lore-agent-repo>: pull failed — <error>` |
 
 For the commit count, `git rev-list HEAD@{1}..HEAD --count` works after a fast-forward; if it fails or returns 0 unexpectedly, just print `pulled` without a count.
@@ -79,7 +64,7 @@ The lore framework's worktree convention (see `worktrees.md`) keeps top-level re
 - **Best-effort.** A pull failure never blocks boot, attach, merge, or any user-visible flow. The surrounding flow continues in degraded mode with a visible warning.
 - **No destructive actions.** Never `--force`, never `git reset`, never `git checkout` away from the user's branch. If a fast-forward isn't possible, the failure surfaces and the user resolves manually.
 - **Uncommitted changes are preserved.** `--ff-only` either advances `HEAD` cleanly past the dirty tree or refuses with a clear error — both outcomes are safe. Auto-pull never stashes, resets, or otherwise touches the working tree.
-- **Per-repo scope.** Auto-pull operates on a single repo at a time. Multi-repo flows (e.g., `/lr:pull-lore` over host + guests) iterate this procedure per repo.
+- **Per-repo scope.** Auto-pull operates on a single repo at a time, and only on a repo that is the root of its own git repository. A lore repo nested inside a larger git repo is `skipped`, never pulled — `git -C` would otherwise walk up and fast-forward the enclosing repo while the report named the inner one. Multi-repo flows (e.g., `/lr:pull-lore` over host + guests) iterate this procedure per repo.
 - **Idempotent.** Running auto-pull twice in a row on a clean repo produces no observable difference past the first run.
 
 ## Distinct From

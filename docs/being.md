@@ -82,7 +82,7 @@ Procedure:
 
 1. Discover lore agent repos with `python3 <framework-root>/scripts/lr-core discover --workspace <cwd>`,
    reading `data.repos` / `data.agents` from its JSON. If it fails to complete, apply the Script
-   Fallback Contract and do it by hand as `agent-boot.md` § Manual Boot Procedure step 1 specifies:
+   Fallback Contract and do it by hand as `agent-boot.md` § Manual Boot Procedure specifies (via `_resolve_agent`'s comments in `scripts/lr-core`):
    scan direct children of the current working directory for `lore-repo.md`; do not walk the whole
    filesystem.
 2. Resolve the target agent. If the user supplied `agent-name`, use the matching existing agent.

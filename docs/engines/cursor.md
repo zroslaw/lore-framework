@@ -137,7 +137,10 @@ validated on a given CLI build.
 
 ## Host-Side Override Rules
 
-Apply these substitutions anywhere a shared doc expects Claude `Agent` fan-out.
+Apply these substitutions where a shared doc expects Claude `Agent` fan-out **as an optimization** —
+that is, to the procedures enumerated below. They do **not** apply to semantics-class procedures
+(currently `trilens-loop.md`), which use native `Task` per the `subagent-spawn` binding above and
+have no serial fallback at all.
 
 ### Read-only search work (`lore-search.md`, `recall.md`)
 
@@ -180,7 +183,16 @@ one agent subtree at a time. Keep the 3-attempt cap and all existing scope limit
 
 ## Notes
 
-- This profile is intentionally conservative. It favors a verified host-side path over unverified
-  claims about Cursor-native subagents.
-- Once a real Cursor-native subagent mechanism is validated end-to-end against Lore's procedures,
-  this profile can be upgraded from serial host execution to true fan-out.
+- This profile is intentionally conservative, but **not because Cursor lacks subagents** — it has
+  them (`Task`, shipped in 2.4; see § Native subagents, confirmed against Cursor's own docs and
+  changelog). The serial default is retained because it is the path Lore has actually validated,
+  and `trilens-loop.md` already runs through `Task` as the standing exception — subject to the
+  free-text-brief caveat in § Native subagents, including the throwaway-definition workaround if
+  `Task` turns out to dispatch by name only.
+- What remains unvalidated is narrower than "does the mechanism exist": whether `Task` accepts a
+  free-text brief, and whether a `Task`-based fan-out satisfies the serial-default procedures
+  end-to-end. Note that a green lifecycle run does **not** settle the first question — scenarios
+  28–29 (`tests/lifecycle/test_trilens_loop.py` in the `lore-framework-dev` repo) assert the lenses
+  and the file edits, not which tool dispatched the reviewers. Upgrade the
+  serial-default procedures to fan-out only on evidence from tool-call logs, not from a passing
+  scenario or a model's self-report.

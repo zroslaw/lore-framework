@@ -46,12 +46,12 @@ Read the JSON it prints:
 
 - **`ok: false`** — the guest does not exist. Print `data.available_agents` and stop with an error.
 - **`data.pull`** — best-effort; a `failed` pull never blocks the attach, just warn. A `fresh` status means the repo was already pulled within the TTL window (e.g. at boot moments ago) — that is a success, not a skipped safety step.
-- **`data.version`** — `match` → skip to Step 4. Anything else → Step 3, using `R = data.version.repo` and `F = data.version.framework`.
+- **`data.version`** — `match` → skip to Step 4. `repo-behind` / `repo-ahead` / `differs` → Step 3, using `R = data.version.repo` and `F = data.version.framework`. `unknown` (a stamp could not be read) → warn in one line and skip to Step 4; Step 3 needs two comparable versions and `data.version.repo` may be `null`.
 - **`data.agent`** — carries the guest's directory, `role_file`, and `lore_context_file` for Step 4.
 
 Pass `--no-teammate-check` if you like; the host already established spawn context at boot and the guest's answer is irrelevant.
 
-**If the script fails to complete:** apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) — tell the user, then do it by hand: standard agent discovery (scan working-directory subdirectories for `lore-repo.md`, then `agents/<target>/role.md`; if not found, list available agents and stop), then `<framework-root>/docs/auto-pull.md` scoped to `<guest-lore-agent-repo>`, then read the guest's `lore-repo.md` `version` and compare with `<framework-root>/VERSION`. Pull before version-reconcile so the reconcile sees the freshest stamp.
+**If the script fails to complete:** apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) — tell the user, then read `_resolve_agent`, `pull_repo`, and `compare_versions` in `<framework-root>/scripts/lr-core` and execute their commented steps by hand, in that order (pull before version-compare, so the reconcile sees the freshest stamp), against `<guest-lore-agent-repo>`.
 
 ### Step 3: Version reconcile in a subagent
 
@@ -135,7 +135,7 @@ If a `/lr:consult <agent>` surfaces that you actually need sustained engagement 
 - `<framework-root>/docs/consult.md` — the one-shot sibling (subagent boots, answers, exits; no host-side loading)
 - `<framework-root>/docs/recall.md` — lore search across active agents
 - `<framework-root>/docs/lore-search.md` — search brief structure, fan-out mechanics
-- `<framework-root>/docs/auto-pull.md` — the per-repo refresh procedure invoked at Step 2
+- `<framework-root>/docs/auto-pull.md` — caller-side reporting policy for the per-repo refresh at Step 2 (the procedure itself lives in `pull_repo()`'s comments in `scripts/lr-core`)
 - `<framework-root>/docs/version-check.md` — migration procedure used by the Step 3 subagent
 - `<framework-root>/docs/pull-lore.md` — `/lr:pull-lore` does the same auto-pull mid-session for already-attached agents
 - `<framework-root>/docs/process-reflection.md` and `process-merge.md` — per-agent iteration when guests are attached

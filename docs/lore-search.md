@@ -30,7 +30,7 @@ Two things this buys beyond speed:
 - **Search by title, not just by filename.** The manifest exposes what each topic actually claims, so the subagent picks what to read on meaning rather than guessing from the name.
 - **Age-awareness.** Lore accumulates for years; a topic last touched 14 months ago may describe a superseded design. Tell the subagent to **note the age of anything it surfaces, and flag findings from `stale: true` topics as needing verification** before they are acted on. Age is a caution flag, not a disqualifier — plenty of old topics are still exactly right.
 
-If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`): dispatch the subagent without a manifest — it will list and read the directory itself, which is the historical behavior and still works.
+If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`). Unlike the other call sites, there's no hand-executed equivalent worth running here (read `cmd_scan`'s docstring (the numbered steps; `scan_lore` below it is the implementation) in `<framework-root>/scripts/lr-core` if you want the exact manifest logic) — simply dispatch the subagent without a manifest; it will list and read the directory itself, which is the historical behavior and still works.
 
 ## Active Agents: Fan Out When Guests Are Attached
 

@@ -17,8 +17,11 @@ differ.
 
 ## Capability gates
 
-- **teammate-detection** — supported. `ps -o args= -p $PPID` reads the parent args for
-  `--agent-id`; Agent-Teams / `spawn-teammate` features are available.
+- **teammate-detection** — supported. `lr-core preflight` walks up to six process ancestors,
+  reading each one's args with a single-field `ps -o args= -p <pid>` call and matching `--agent-id`
+  on a flag boundary (so `--agent-idle-timeout` does not false-positive); the engine is often the
+  grandparent rather than the immediate parent. Agent-Teams / `spawn-teammate` features are
+  available.
 
 ## Notes
 

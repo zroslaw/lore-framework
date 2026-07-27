@@ -1,6 +1,6 @@
 # Teammate Conventions — Standing Rules for Spawned Teammates
 
-> **Audience note.** This is a **shared procedure doc**, not a skill — there is no `/lr:teammate-conventions` slash command. It is loaded implicitly by `agent-boot.md` Step 2 when boot detects that the current Claude Code process was started as an Agent Teams teammate (parent process has `--agent-id` — the canonical marker — and typically `--parent-session-id` in its args). It is **not** loaded for normal `/lr:boot` sessions or for the team lead. The rules below are the durable replacement for a one-shot spawn-prompt paragraph that empirically does not stick past the first few turns.
+> **Audience note.** This is a **shared procedure doc**, not a skill — there is no `/lr:teammate-conventions` slash command. It is loaded implicitly by `agent-boot.md` Step 2 when boot detects that the current Claude Code process was started as an Agent Teams teammate (one of its process ancestors carries `--agent-id` — the canonical marker — and typically `--parent-session-id` in its args). It is **not** loaded for normal `/lr:boot` sessions or for the team lead. The rules below are the durable replacement for a one-shot spawn-prompt paragraph that empirically does not stick past the first few turns.
 
 ## Why these rules exist
 
