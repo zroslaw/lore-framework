@@ -180,8 +180,9 @@ cannot parse:
 literate accelerator carries its own fallback, so a script that merely misbehaves still specifies
 what to do instead. A script that is **missing, truncated, or unreadable** takes its spec with it,
 and that is the one case the pattern cannot self-serve. Then, in order: recover the procedure from
-git (`git -C <framework-root> show <last-release-tag>:<path>`) or from another install of the
-plugin; failing that, say plainly which operation you cannot perform and why, and continue the
+git (`git -C <framework-root> show <last-release-tag>:<path>` — release tags are named
+`lr--v1.<VERSION>.0`, so substitute the version before the current one) or from another install of
+the plugin; failing that, say plainly which operation you cannot perform and why, and continue the
 session without it. **Never improvise the procedure from the function name alone** — a boot that
 skipped the pull and the version check while reporting success is a worse outcome than one that
 reported it could not run them. This is the price the literate pattern pays for having one
@@ -198,14 +199,19 @@ an accelerator, so a doc that invokes one need only name the value, not re-argue
   agent name otherwise splits into extra argv entries and the script rejects the call — a
   self-inflicted fallback for a path that was never actually a problem.
 - **Give a network-touching call at least 180 seconds** via your engine profile's
-  **runtime-bounding** binding. `lr-core preflight` bounds each git call internally, but its
-  worst-case legitimate (not hung) sequential budget is ~120s — the same as Claude Code's default
-  Bash timeout, i.e. zero margin. Killing it mid-run yields empty stdout, which this contract
+  **runtime-bounding** binding. `lr-core preflight` bounds each git call internally, but those
+  ceilings add up: `pull_repo`'s worst-case legitimate (not hung) sequential budget is ~135s with
+  `--fresh` and ~150s on the default path, which additionally reads the TTL stamp. Both already
+  exceed Claude Code's 120s default Bash timeout, so the default is not merely tight — it is
+  under the worst case. Killing the call mid-run yields empty stdout, which this contract
   correctly reads as a failure, except the `git pull` may already have succeeded — so the manual
-  fallback then redoes work that was already done. `--fresh` removes the TTL shortcut and so
-  guarantees the network round-trip, making the worst case likelier, not rarer. Where a profile
-  disclaims any caller-side timeout (Cursor, Codex), the script's internal per-call ceilings are
-  the only bound and there is nothing to set.
+  fallback then redoes work that was already done. `--fresh` skips the TTL shortcut and so
+  guarantees the network round-trip, making the slow path likelier. Where a profile disclaims any
+  caller-side timeout (Cursor, Codex), the script's internal per-call ceilings are the only bound
+  and there is nothing to set.
+
+  *(The budget is the sum of `git()` call timeouts along `pull_repo`'s path — read the function
+  when you need the current figure rather than trusting this one.)*
 
 **Never improvise a substitute for an implementation script.** There is no prose procedure to fall back to, and hand-rolling one produces a partial, undocumented imitation whose divergence nobody can review. When one of these fails: report it to the user with the exact command and the error, stop *that operation*, and continue the surrounding session. Never report the operation as done.
 

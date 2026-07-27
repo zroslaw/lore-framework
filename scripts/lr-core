@@ -1079,7 +1079,7 @@ def cmd_preflight(args, res):
     # Step 6: teammate detection, unless suppressed.
     res.data["teammate"] = detect_teammate() if not args.no_teammate_check else {
         "verdict": "unknown", "detail": "check suppressed by --no-teammate-check",
-        "ancestors": []}
+        "scanned": 0}
     return res
 
 

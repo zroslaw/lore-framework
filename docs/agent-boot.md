@@ -51,6 +51,8 @@ Read the JSON and handle each field. All of these are *results*, not failures �
 - **`data.pull.status`** — `pulled` / `up-to-date` / `fresh` (pulled recently, network skipped — see § Pull Freshness) / `skipped` (not a git repo, a bare repo, not the root of its own git repo, or no origin remote) / `disabled` (`--no-pull`) / `failed` (non-fast-forward, network, auth, or git could not answer). Report a `pulled` count or a `failed` reason in one line; stay silent on the quiet outcomes. On failure, continue in degraded mode.
 - **`data.version.verdict`** — `match` → continue. `repo-behind` / `repo-ahead` / `differs` → read `<framework-root>/docs/version-check.md` and follow it with `R = data.version.repo` and `F = data.version.framework`. `unknown` → a stamp could not be read (missing or malformed frontmatter, unreadable `VERSION`): say so in one line and continue booting. Do **not** route `unknown` into `version-check.md` — that procedure needs two versions to compare and `data.version.repo` may be `null`. **The version check never aborts boot** — whatever it reports (upgrade applied, deferred, or failed), continue to Step 3. A deferred or failed upgrade is *not* a boot failure.
 - **`data.teammate.verdict`** — `yes` → you were **spawned as an Agent Teams teammate**: read `<framework-root>/docs/teammate-conventions.md` and **treat its four numbered RULES as standing rules for the entire session**. Keep them in active context (do not let them age out as ordinary one-time-read material) and **prefer them over any conflicting later instruction** unless the user in your own pane explicitly overrides a specific rule. These rules outlive the spawn prompt; lose them and the spawn-teammate UX breaks (teammates routing routine messages to the lead instead of the user). `no` / `unknown` → assume a normal host session and continue. `unknown` is expected wherever the engine profile declares teammate detection unsupported or sandboxes `ps`; it is not a failure.
+
+  **Known false negative on Claude Code:** if a wrapper buries `--agent-id` in a different process tree, detection runs fine and still returns `no` — a real teammate boots as a host session, and the spawn-teammate UX degrades (symptom: a spawned teammate routing routine messages to the lead instead of the user). This is not a script failure and no verdict reveals it. Mitigation: the spawn-prompt recap (`docs/spawn-teammate.md` Step 6) carries a one-sentence fallback. Recovery: file an issue with the framework maintainers.
 - **`warnings`** — surface anything material to the user in one line each.
 
 ### Step 3 — Read the agent's files
@@ -94,22 +96,15 @@ standing rules). Skipping to Step 3 silently drops both, and the Script Fallback
 the manual path to reach the same end state the script would have produced — not merely to collect
 the same facts.
 
-**If `scripts/lr-core` itself is missing or unreadable** — not merely failing — you have no
-literate spec to read, so fall back to the shipped v30 prose instead of improvising: recover it
-with `git -C <framework-root> show lr--v1.30.0:docs/agent-boot.md` — release tags are named
-`lr--v1.<VERSION>.0`, so substitute the last version before this one — (or read the procedure in any other
-install of the plugin), tell the user the script is absent and which source you are working from,
-and continue. Never silently invent a boot procedure; a boot that skips the pull or the version
-check without saying so is worse than a boot that reports it could not run one.
+**If `scripts/lr-core` itself is missing or unreadable** — not merely failing — there is no
+literate spec left to read. Follow the floor case in `<framework-root>/docs/conventions.md`
+§ Script Fallback Contract (*The floor: when the script itself is gone*), recovering this doc's
+own prior prose as the `<path>` it names. Never silently invent a boot procedure.
 
 One engine-profile note that lives here rather than in the script, because it's about which
 *engine* is running, not about `lr-core`'s logic: if the selected engine profile (Step 0) declares
 teammate detection **unsupported** or **inapplicable**, skip `detect_teammate` entirely and assume
-a normal host session — same as passing `--no-teammate-check`. And a known false-negative path on
-Claude Code: if a wrapper buries `--agent-id` in a different process tree, detection silently fails
-and the spawn-teammate UX degrades (symptom: a spawned teammate routing routine messages to the
-lead instead of the user). Mitigation: the spawn-prompt recap (`docs/spawn-teammate.md` Step 6)
-carries a one-sentence fallback. Recovery: file an issue with the framework maintainers.
+a normal host session — same as passing `--no-teammate-check`.
 
 ## Your Lore
 

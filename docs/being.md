@@ -200,9 +200,9 @@ python3 <framework-root>/scripts/lrb.py resume
 
 Subcommands: `engine list`, `engine add`, `engine remove`.
 
-- `list`: run `lrb engines list`.
-- `remove <name>`: run `lrb engines remove <name>`.
-- `add`: gather missing values, then run `lrb engines add`.
+- `list`: run `python3 <framework-root>/scripts/lrb.py engines list`.
+- `remove <name>`: run `python3 <framework-root>/scripts/lrb.py engines remove <name>`.
+- `add`: gather missing values, then run `python3 <framework-root>/scripts/lrb.py engines add`.
 
 For `engine add`, default to a safe Codex config when the user gives no details:
 
@@ -221,9 +221,9 @@ include it explicitly and name the workspace-wide blast radius.
 
 Subcommands: `workspace list`, `workspace add`, `workspace remove`.
 
-- `list`: run `lrb workspaces list`.
-- `add [path]`: default to the current working directory; run `lrb workspaces add <path>`.
-- `remove <path>`: run `lrb workspaces remove <path>`.
+- `list`: run `python3 <framework-root>/scripts/lrb.py workspaces list`.
+- `add [path]`: default to the current working directory; run `python3 <framework-root>/scripts/lrb.py workspaces add <path>`.
+- `remove <path>`: run `python3 <framework-root>/scripts/lrb.py workspaces remove <path>`.
 
 ## Design constraints
 
