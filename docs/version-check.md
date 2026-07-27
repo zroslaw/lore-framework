@@ -28,13 +28,26 @@ The repo is stamped at a version newer than the installed framework. The plugin 
 
 The repo is behind. Run the upgrade procedure below.
 
+### Neither — `R` and `F` are not both numeric
+
+`lr-core preflight` reports this as `data.version.verdict == "differs"`: the two stamps are
+unequal, but at least one is not an integer, so there is no ordering between them and none of the
+cases above applies. **Do not guess a direction** — picking `R > F` or `R < F` here is a coin flip
+that either skips a needed migration or tells the user to reinstall a perfectly current plugin.
+
+- Print one line: `<lore-agent-repo>: version stamp R does not compare with framework version F — reconcile manually.`
+- Do NOT modify any files and do NOT run the upgrade procedure.
+- Continue boot in degraded mode.
+
 ## Upgrade Procedure
 
 ### Step 1: Pre-flight collision check
 
 A blanket "any uncommitted change blocks the upgrade" rule was the historical gate, but it overfired in normal use: lore agent repos routinely carry uncommitted runtime state (other agents' `workdir/*` files — pulse logs, watch markers, scratch artifacts) that cannot collide with what the upgrade writes. The gate is now scoped to **actual collisions** — files git would refuse to overwrite cleanly when the upgrade applies its writes — and to **structural inconsistencies** (conflict markers).
 
-Run `git -C "<lore-agent-repo>" status --porcelain` (quote the substituted path so it survives spaces; use `git -C` rather than `cd`ing — the shell CWD is shared with Glob, Grep, and subsequent git calls, so a stray `cd` silently shifts their root for the rest of the session). Untracked files (`??`) are ignored throughout — the upgrade never overwrites a file git doesn't already track.
+**First, confirm the repo is its own git root.** Run `git -C "<lore-agent-repo>" rev-parse --show-toplevel` and compare the result against `<lore-agent-repo>` itself (resolve both to real paths). If they differ, the lore repo is *not* its own repository — it sits inside an enclosing one (the workspace-meta-repo layout is supported), and `git -C` silently retargets every command at that enclosing repo. **Do not run the collision check in that case**: the status output would be rooted at the wrong repo, so Step 1c's write-set intersection would compare repo-relative globs against wrong-rooted paths, find a false-empty intersection, and let Step 2 overwrite the user's uncommitted edits. Instead print `<lore-agent-repo>: not its own git root — skipping automatic upgrade, reconcile manually.`, do not modify any files, and continue boot in degraded mode. (This is the same guard `git_toplevel()` applies in `scripts/lr-core`; the rule is stated there in full.)
+
+Then run `git -C "<lore-agent-repo>" status --porcelain` (quote the substituted path so it survives spaces; use `git -C` rather than `cd`ing — the shell CWD is shared with Glob, Grep, and subsequent git calls, so a stray `cd` silently shifts their root for the rest of the session). Untracked files (`??`) are ignored throughout — the upgrade never overwrites a file git doesn't already track.
 
 #### 1a. Conflict markers — always defer
 

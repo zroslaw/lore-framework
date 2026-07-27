@@ -55,8 +55,10 @@ Resolve each active agent's `<lore-agent-repo>` path. Deduplicate repos: if host
 For each unique repo, run:
 
 ```
-python3 <framework-root>/scripts/lr-core preflight --agent-dir <agent-dir> --fresh --no-teammate-check
+python3 "<framework-root>/scripts/lr-core" preflight --agent-dir "<agent-dir>" --fresh --no-teammate-check
 ```
+
+Bound **each** of these calls at **at least 180 seconds** via your engine profile's runtime-bounding binding — the per-repo calls dispatch in parallel below, and every one of them needs its own headroom. Keep the substituted values quoted as shown. See `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
 
 `<agent-dir>` is **any one** active agent's directory inside that repo — the script derives the repo root from it, so when a host and a guest share a repo either directory produces the same pull. Pick the first and move on.
 

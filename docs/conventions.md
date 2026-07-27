@@ -191,6 +191,22 @@ artifact instead of two: name it rather than leaving the executor to discover it
 
 Accelerator scripts state their exit-code contract in their own header. `scripts/lr-core` is the reference implementation: exit 0 = ran to completion (`ok: false` still means "ran fine, request could not be satisfied" — act on `errors`); exit 2 = could not complete, fall back.
 
+**Invoking one — two rules that apply at every call site.** These hold wherever a doc delegates to
+an accelerator, so a doc that invokes one need only name the value, not re-argue it:
+
+- **Quote every substituted value.** A space in a framework root, workspace, agent directory, or
+  agent name otherwise splits into extra argv entries and the script rejects the call — a
+  self-inflicted fallback for a path that was never actually a problem.
+- **Give a network-touching call at least 180 seconds** via your engine profile's
+  **runtime-bounding** binding. `lr-core preflight` bounds each git call internally, but its
+  worst-case legitimate (not hung) sequential budget is ~120s — the same as Claude Code's default
+  Bash timeout, i.e. zero margin. Killing it mid-run yields empty stdout, which this contract
+  correctly reads as a failure, except the `git pull` may already have succeeded — so the manual
+  fallback then redoes work that was already done. `--fresh` removes the TTL shortcut and so
+  guarantees the network round-trip, making the worst case likelier, not rarer. Where a profile
+  disclaims any caller-side timeout (Cursor, Codex), the script's internal per-call ceilings are
+  the only bound and there is nothing to set.
+
 **Never improvise a substitute for an implementation script.** There is no prose procedure to fall back to, and hand-rolling one produces a partial, undocumented imitation whose divergence nobody can review. When one of these fails: report it to the user with the exact command and the error, stop *that operation*, and continue the surrounding session. Never report the operation as done.
 
 `scripts/lrb.py` (the Being Keeper) is the strictest case of that rule. The Keeper is substrate that must never be impersonated by a model — it enforces budget caps and kill-switches, and an LLM standing in for it would be exactly the prompt-theater the Lore Beings design forbids. Its failure mode is "Keeper down, beings do not run".

@@ -1061,8 +1061,13 @@ def cmd_preflight(args, res):
             # Not a skew, but not a clean match either: we could not read a
             # stamp. Silence here reads as "versions agree", which is a
             # different and unearned claim.
+            #
+            # Deliberately does NOT point at version-check.md: that procedure
+            # reconciles two comparable versions, and here at least one is
+            # absent. Callers (agent-boot.md, attach.md) say to report and
+            # continue instead, so this message must not send them elsewhere.
             res.warn("could not read a version stamp (repo=%s framework=%s) — "
-                     "version state unverified; see version-check.md"
+                     "version state unverified; continuing without a version check"
                      % (repo_version, fw_version))
     else:
         # Step 5 (no-repo branch): hardcode skipped/unknown, no subprocess runs.

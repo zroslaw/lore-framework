@@ -39,8 +39,10 @@ If `$ARGUMENTS` is empty:
 Discovery, auto-pull, and the version comparison are one command — the same preflight boot runs, pointed at the guest:
 
 ```
-python3 <framework-root>/scripts/lr-core preflight --agent <guest-name> --workspace <cwd>
+python3 "<framework-root>/scripts/lr-core" preflight --agent "<guest-name>" --workspace "<cwd>"
 ```
+
+Bound this call at **at least 180 seconds** via your engine profile's runtime-bounding binding, and keep the substituted values quoted as shown — see `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
 
 Read the JSON it prints:
 

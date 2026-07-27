@@ -20,7 +20,7 @@ Why a subagent:
 Before dispatching, generate the reading map:
 
 ```
-python3 <framework-root>/scripts/lr-core scan --agent-dir <agent-dir>
+python3 "<framework-root>/scripts/lr-core" scan --agent-dir "<agent-dir>"
 ```
 
 It returns every topic with its title line, last-commit date, age in days, and a staleness flag — one git call for the whole directory, rather than the subagent globbing and sampling files to work out what exists. Pass the output to the subagent as part of its brief (write it to a temp file and give the path if it is large; a 150-topic manifest is sizeable, and it belongs in the *subagent's* context, not yours).

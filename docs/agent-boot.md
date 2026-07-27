@@ -30,10 +30,11 @@ Do this first, before the numbered steps. It is prose because it must run before
 One command performs agent discovery, the repo auto-pull, the version comparison, and teammate detection:
 
 ```
-python3 <framework-root>/scripts/lr-core preflight --agent <agent-name> --workspace <cwd>
+python3 "<framework-root>/scripts/lr-core" preflight --agent "<agent-name>" --workspace "<cwd>"
 ```
 
 - Invoke it through `python3` as shown — that works whether or not the plugin cache preserved the executable bit.
+- **Quote every substituted value, and give the call at least 180 seconds** via your profile's runtime-bounding binding — this call pulls over the network, and the default bound on some engines leaves no margin. Both rules and why they exist: `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
 - `<cwd>` is the directory this session was invoked from (run `pwd` if unsure). This is *not* the plugin/framework directory you just read this file from. Omit `--workspace` to default to the current directory.
 - If the caller gave you an **absolute path** to the agent directory, use `--agent-dir <path>` instead of `--agent` to skip discovery entirely.
 - **Add `--no-teammate-check` if the engine profile you selected in Step 0 declares teammate detection unsupported or inapplicable** (Cursor and Codex both do). Otherwise the script runs a `ps` probe the profile told you not to run. With the flag, `data.teammate.verdict` comes back `unknown`, which Step 2 treats as a normal host session.
@@ -95,7 +96,8 @@ the same facts.
 
 **If `scripts/lr-core` itself is missing or unreadable** — not merely failing — you have no
 literate spec to read, so fall back to the shipped v30 prose instead of improvising: recover it
-with `git -C <framework-root> show v30:docs/agent-boot.md` (or read the procedure in any other
+with `git -C <framework-root> show lr--v1.30.0:docs/agent-boot.md` — release tags are named
+`lr--v1.<VERSION>.0`, so substitute the last version before this one — (or read the procedure in any other
 install of the plugin), tell the user the script is absent and which source you are working from,
 and continue. Never silently invent a boot procedure; a boot that skips the pull or the version
 check without saying so is worse than a boot that reports it could not run one.
