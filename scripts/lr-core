@@ -1054,10 +1054,16 @@ def cmd_preflight(args, res):
             read_text(os.path.join(agent["repo"], "lore-repo.md"))).get("version")
         res.data["version"] = compare_versions(repo_version, fw_version)
         verdict = res.data["version"]["verdict"]
-        if verdict in ("repo-behind", "repo-ahead", "differs"):
-            res.warn("version skew: repo=%s framework=%s (%s) — see version-check.md"
-                     % (repo_version, fw_version, verdict))
-        elif verdict == "unknown":
+        # A skew is reported through data.version ONLY — deliberately never as a
+        # warning. version-check.md owns the user-facing message for every skew
+        # verdict, and on repo-ahead that message is engine-specific: it names the
+        # caller's own plugin-refresh commands. A warning here would be a second,
+        # blander rendering of the same fact, and a caller whose doc says "surface
+        # warnings in one line each" will print it and consider the skew handled.
+        # That is exactly how the Codex repo-ahead scenario came to print
+        # "version skew: repo=32 framework=31 (repo-ahead)" and stop, instead of
+        # the plugin-refresh remedy. Emit the data; let the doc own the words.
+        if verdict == "unknown":
             # Not a skew, but not a clean match either: we could not read a
             # stamp. Silence here reads as "versions agree", which is a
             # different and unearned claim.
