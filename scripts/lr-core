@@ -1000,8 +1000,9 @@ def cmd_preflight(args, res):
     compare the repo's lore-repo.md version stamp against the framework
     VERSION read in Step 1 (see compare_versions below for the exact match/
     skew rules). A failed pull is a warning ("continue in degraded mode"), not
-    a stopping condition. Version skew other than an exact match is also a
-    warning pointing at docs/version-check.md.
+    a stopping condition. Version skew other than an exact match is recorded
+    in `data.version`; the caller reads docs/version-check.md to render the
+    engine-specific remedy.
 
     Step 5: otherwise (no enclosing repo — the warning from Step 2), skip both
     of those: report pull as "skipped" and version as "unknown", and run no
