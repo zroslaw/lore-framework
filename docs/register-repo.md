@@ -25,8 +25,9 @@ decide which native artifact to generate.
 - **Codex** — personal skill:
   `~/.codex/skills/lr-<agent-name>-agent/SKILL.md`
 
-All generated shortcuts must remain thin pointers to `agent-boot.md`. Never inline boot logic or
-operating instructions into the generated artifact.
+All generated shortcuts must remain thin delegations to the active framework boot entry point.
+They pin only the agent identity and absolute agent directory; they must never bake a plugin-cache
+path, scan for a framework checkout, select an installed version, or inline boot logic.
 
 ## Shared helper steps
 
@@ -54,10 +55,16 @@ For every target agent:
 1. Verify `<lore-agent-repo>/agents/<agent-name>/role.md` exists.
 2. Resolve:
    - **`<agent-dir>`** — absolute path to `<lore-agent-repo>/agents/<agent-name>/`
-   - **`<agent-boot-path>`** — absolute path to `<framework-root>/docs/agent-boot.md`
    - **`<repo-name>`** — basename of `<lore-agent-repo>`
 3. Read the `description` field from `role.md` YAML frontmatter. Use it as
    **`<agent-purpose>`**. If missing, fall back to `Lore agent in <repo-name>`.
+
+### Resolve the shortcut bootstrap
+
+Read the current engine profile's **Registered shortcut bootstrap** section. Copy its exact
+engine-specific bootstrap sentence into every generated shortcut, substituting `<agent-name>` and
+`<agent-dir>`. The active boot skill self-locates the framework root, so the emitted shortcut must
+not contain an `<agent-boot-path>` or any other plugin-install path.
 
 ### Current shortcut templates
 
@@ -68,7 +75,7 @@ Generate exactly these engine-native forms.
 Write exactly this single line plus a trailing newline:
 
 ```markdown
-Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
+<shortcut-bootstrap>
 ```
 
 #### Cursor
@@ -84,7 +91,7 @@ paths:
 disable-model-invocation: true
 ---
 
-Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
+<shortcut-bootstrap>
 ```
 
 The `paths:` scoping keeps the shortcut visible only when the matching repo is relevant in the
@@ -100,7 +107,7 @@ name: lr-<agent-name>-agent
 description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpose>"
 ---
 
-Read `<agent-boot-path>` and boot as agent `<agent-name>` from `<agent-dir>`.
+<shortcut-bootstrap>
 ```
 
 ## Register Agent

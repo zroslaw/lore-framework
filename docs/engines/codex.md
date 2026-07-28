@@ -27,6 +27,21 @@ finalize, plus binary ground-truth of the multi-agent subsystem. See lore
   native multi-agent subsystem — see workdir `codex-multiagent-live-capture.md` — but porting
   `spawn-teammate` onto it is a separate future task, not part of this profile.)
 
+## Registered shortcut bootstrap
+
+When `/lr:register-agent` or `/lr:register-repo` emits a Codex personal per-agent skill, use this
+exact body after substituting the agent values:
+
+```markdown
+Read the `SKILL.md` for the installed `lr:boot` skill available in this session. Follow its
+self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and
+boot as agent `<agent-name>` from `<agent-dir>`.
+```
+
+Do not substitute a `~/.codex/plugins/cache/...` path, scan cache directories, or choose the
+newest installed version. If the active boot skill is unavailable, report that the Lore plugin is
+not loaded; emitted personal skills do not implement a fallback resolver.
+
 ## Fan-out override (merge / recall / consult)
 
 The shared procedures (`process-merge.md`, `recall.md`, `lore-search.md`, `consult.md`) describe

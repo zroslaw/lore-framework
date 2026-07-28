@@ -54,6 +54,17 @@ Symptom signatures:
 - A SKILL.md or doc edit in the marketplace install doesn't seem to take effect.
 - A `/plugin update` or marketplace refresh appears to succeed but Claude Code's behavior reflects the prior version.
 
+#### `doctor-stale-shortcut-bootstrap`
+
+*A registered per-agent shortcut cannot find `agent-boot.md` after an upgrade, or contains a
+versioned plugin-cache path.*
+
+Symptom signatures:
+
+- A direct `/lr-<agent>-agent` or `$lr-<agent>-agent` shortcut reports a missing `agent-boot.md`.
+- Its generated artifact contains `plugins/cache/` or an absolute path ending in `agent-boot.md`.
+- A normal `/lr:boot` works, but the corresponding direct shortcut fails after a plugin refresh.
+
 #### `doctor-cursor-session-without-plugin`
 
 *Cursor agent session started without the Lore plugin loaded — no `/lr-*` skills in the picker.*

@@ -23,6 +23,21 @@ differ.
   grandparent rather than the immediate parent. Agent-Teams / `spawn-teammate` features are
   available.
 
+## Registered shortcut bootstrap
+
+When `/lr:register-agent` or `/lr:register-repo` emits a Claude per-agent shortcut, use this
+exact body after substituting the agent values:
+
+```markdown
+Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its
+self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and
+boot as agent `<agent-name>` from `<agent-dir>`.
+```
+
+Do not substitute `${CLAUDE_PLUGIN_ROOT}`, an absolute plugin path, or a workspace checkout into
+the shortcut. If the active boot skill is unavailable, follow this profile's normal fallback at the
+point of use; generated shortcuts do not implement a second resolver.
+
 ## Notes
 
 - This profile documents the historical default. The framework was authored on Claude Code, so

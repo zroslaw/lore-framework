@@ -44,6 +44,7 @@ Note: `role.md` does not carry a `version` field at framework version 2+. Agent-
 For each agent found in step 4, check whether an engine-native registered shortcut exists:
 
 - **Claude Code:** `lr-<agent-name>-agent.md` in `.claude/commands/`
+- **Cursor:** `lr-<agent-name>-agent/SKILL.md` in `.cursor/skills/`
 - **Codex:** `lr-<agent-name>-agent/` in `~/.codex/skills/` containing `SKILL.md`
 
 Report any agents without a registered shortcut as **informational** (registration is optional — agents are always loadable via `/lr:boot`).
@@ -55,9 +56,13 @@ Conversely, for every registered shortcut artifact found in those locations, ver
 For every registered shortcut artifact:
 
 - **Claude Code:** `lr-*-agent.md` in `.claude/commands/`
+- **Cursor:** `lr-*-agent/SKILL.md` in `.cursor/skills/`
 - **Codex:** `lr-*-agent/SKILL.md` in `~/.codex/skills/`
 
-Extract all file paths referenced in the content. Verify each path resolves to an existing file. Report any broken paths.
+Extract only the absolute agent directory following `from` in the boot instruction. Verify that
+directory exists. Do **not** treat the relative prose references `SKILL.md` and
+`docs/agent-boot.md` as filesystem links: they intentionally describe the session's active boot
+skill rather than a pinned installation path. Report any missing agent directory as an error.
 
 ## 8. Agent directory structure
 
@@ -112,23 +117,24 @@ Scan `<workspace>/.claude/commands/` for files matching `lr-*.md` that do **not*
 
 ## 18. Legacy registered shortcut formats
 
-For every Claude shortcut file `lr-*-agent.md` in `<workspace>/.claude/commands/` whose content contains `boot as agent`, check the format. The current Claude form uses absolute paths and includes the agent directory:
+For every Claude shortcut file `lr-*-agent.md` in `<workspace>/.claude/commands/` whose content contains `boot as agent`, check the current active-boot-skill form. It must name the installed `/lr:boot` skill, include the `from <agent-dir>` suffix, and contain no plugin-cache or absolute `agent-boot.md` path.
 
 ```
-Read `<absolute-path>/docs/agent-boot.md` and boot as agent `<agent-name>` from `<absolute-agent-dir>`.
+Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and boot as agent `<agent-name>` from `<agent-dir>`.
 ```
 
-Flag any Claude file that instead uses:
-- `lore-framework/docs/agent-boot.md` (pre-v5 sibling-path form)
-- `<framework-root>/docs/agent-boot.md` (v5 form — unresolved in `.claude/commands/`)
-- Any form lacking the `from <agent-dir>` suffix
+Flag any Claude file that lacks the active `/lr:boot` skill reference or `from <agent-dir>` suffix,
+or contains `plugins/cache/`, an absolute `agent-boot.md` path, `lore-framework/docs/agent-boot.md`,
+or `<framework-root>/docs/agent-boot.md`.
 
-These legacy Claude formats cause slower or broken boots. Suggest: run `/lr:update` (migration 6 regenerates them) or re-register with `/lr:register-repo`.
+These legacy Claude formats can break after a plugin upgrade. Suggest: re-register with
+`/lr:register-repo` (or `/lr:register-agent` for one shortcut). Do not run migration 6: its
+historical template writes the cache-vulnerable absolute boot path this check rejects.
 
 For every Codex shortcut skill `lr-*-agent/SKILL.md` in `~/.codex/skills/` whose content contains
-`boot as agent`, flag it if it lacks the `from <agent-dir>` suffix or does not point at an
-absolute `agent-boot.md` path. Suggest: re-register with `/lr:register-agent` or
-`/lr:register-repo`.
+`boot as agent`, flag it if it lacks the installed `lr:boot` skill reference or `from <agent-dir>`
+suffix, or contains `plugins/cache/` or an absolute `agent-boot.md` path. Suggest: re-register
+with `/lr:register-agent` or `/lr:register-repo`.
 
 For every Cursor shortcut skill `lr-*-agent/SKILL.md` in `<workspace>/.cursor/skills/` whose
 content contains `boot as agent`, flag it if any of the following is missing:
@@ -137,7 +143,9 @@ content contains `boot as agent`, flag it if any of the following is missing:
 - `disable-model-invocation: true`
 - a `paths:` block scoping the shortcut to the matching repo
 - the `from <agent-dir>` suffix on the boot line
-- an absolute `agent-boot.md` path
+- an installed `/lr-boot` skill reference
+
+Flag a Cursor shortcut if it contains a plugin-cache or absolute `agent-boot.md` path.
 
 These are the current Cursor registration invariants. Suggest: re-register with
 `/lr:register-agent` or `/lr:register-repo`.

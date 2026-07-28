@@ -94,6 +94,21 @@ Use: an expected plugin skill (e.g. `/lr-boot`) **not available** in the session
 skills are listed but show stale content after an upgrade, see `doctor-stale-plugin-cache.md`
 (Claude cache) or the refresh contract below (Cursor).
 
+## Registered shortcut bootstrap
+
+When `/lr-register-agent` or `/lr-register-repo` emits a Cursor per-agent shortcut, use this
+exact body after substituting the agent values:
+
+```markdown
+Read the `SKILL.md` for the installed `/lr-boot` skill available in this session. Follow its
+self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and
+boot as agent `<agent-name>` from `<agent-dir>`.
+```
+
+Do not substitute an absolute plugin path, a workspace checkout, or a cache-discovery heuristic.
+If the active boot skill is unavailable, use the Mid-session fallback below; emitted shortcuts do
+not contain that fallback.
+
 ## Mid-session fallback (canonical)
 
 When plugin skills are unavailable and the user provides a checkout path:
