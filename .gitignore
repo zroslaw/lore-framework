@@ -4,3 +4,6 @@
 # Python bytecode from bundled scripts
 __pycache__/
 *.pyc
+
+# macOS
+.DS_Store
