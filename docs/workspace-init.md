@@ -122,16 +122,25 @@ and the entire body.
 
 ### Step 6 — Seed `.gitignore` (git workspace only)
 
-**Idempotent.** If `.gitignore` exists, do not truncate or overwrite — only append `/.worktrees/` if
-that exact line is absent. `workspace-pull` phase 3 owns the child-repo entries; reconfigure must not
-wipe them. When creating a new file:
+**Idempotent.** If `.gitignore` exists, do not truncate or overwrite — only append any missing
+**standard workspace-owned** lines below. `workspace-pull` phase 3 re-asserts these same lines and
+owns the child-repo `/<dirname>/` entries; reconfigure must not wipe either. When creating a new
+file:
 
 ```gitignore
 # Child repositories — managed by /lr:workspace-pull (lore-framework v25+)
 # Do not commit nested repo contents into the workspace repo.
 
 /.worktrees/
+/.lr-beings/
+/.tmp/
 ```
+
+| Line | Holds |
+|------|--------|
+| `/.worktrees/` | Non-default-branch checkouts (`docs/worktrees.md`) |
+| `/.lr-beings/` | Lore Beings Keeper runtime state (`docs/beings.md`) |
+| `/.tmp/` | Local scratch — debug logs, disposable fixture repos, other throwaways. Prefer `.tmp/<name>/` over a top-level directory for anything that should not look like a workspace child. |
 
 ### Step 7 — Write `README.md` (default yes)
 
@@ -210,8 +219,9 @@ agent scan yields the fallback text in the payload.
 ## Reconfigure mode
 
 Re-run Steps 2–9 with confirmation. Step 3a (`git init`) is idempotent on an existing repo; Step 6
-only appends a missing `/.worktrees/` and never overwrites `.gitignore`. Reconfigure does not delete
-child repos that were removed from the descriptor.
+only appends missing standard workspace-owned lines (`/.worktrees/`, `/.lr-beings/`, `/.tmp/`) and
+never overwrites `.gitignore`. Reconfigure does not delete child repos that were removed from the
+descriptor.
 
 ---
 

@@ -50,6 +50,13 @@ git worktree remove ../.worktrees/<repo>/<slug>
 
 A branch-naming suggestion — `<agent-name>/<slug>` — signals which agent owns the work in multi-agent workspaces. It's a convention, not enforced.
 
+## Related: workspace scratch (`.tmp/`)
+
+Disposable local artifacts that are **not** feature worktrees — debug logs, throwaway fixture
+repos, other scratch — belong under `<workspace>/.tmp/`, which is gitignored by default
+(`docs/workspace-init.md` Step 6). Do not put those at the workspace top level; they look like
+undeclared children.
+
 ## Optional: Tracking Inflight Worktrees
 
 An agent that wants to keep notes on its inflight worktrees can use:

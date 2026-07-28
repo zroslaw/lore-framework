@@ -59,8 +59,9 @@ No framework-canonical task content — what "morning" means is entirely agent-l
 
 One Keeper per machine, serving a registry of workspaces. `~/.lore-beings/` (override `$LRB_HOME`)
 holds the installed script, `config.json` (workspaces + configured engines/permission modes), and
-launchd's plist. `<workspace>/.lr-beings/` (gitignored — `lrb workspaces add` appends it to the
-workspace's own `.gitignore` automatically when the workspace is itself a git repo) holds
+launchd's plist. `<workspace>/.lr-beings/` (gitignored — seeded by `/lr:workspace-init` / maintained by
+`/lr:workspace-pull` phase 3 as `/.lr-beings/`; `lrb workspaces add` also appends that line when the
+workspace is itself a git repo) holds
 `state.json`, `outbox/` (`accepted/`/`rejected/`/`done/`), and per-being `logs/<being>/` (session
 logs + sibling `.stderr.log`s + `ledger.jsonl`). `lrb status` shows the *running daemon's* recorded
 pid/version (from `$LRB_HOME/daemon.info`, written at daemon start) alongside the CLI's own
