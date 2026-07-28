@@ -269,13 +269,15 @@ This directory is a Lore Framework workspace.
 ### Conventions
 - Top-level repos stay on their default branch (production state).
 - Non-default-branch work → git worktree at `.worktrees/<repo>/<slug>/`.
+- Local scratch (debug logs, throwaway fixture repos) → `.tmp/<name>/`, not a top-level directory.
 
 Full convention: https://github.com/zroslaw/lore-framework/blob/main/docs/worktrees.md
 <!-- lr:workspace-init:end -->
 ~~~
 
 The worktrees link is the public GitHub URL, not `<framework-root>/docs/worktrees.md`, so a
-user-facing file references a path that resolves whether the plugin is loaded or not.
+user-facing file references a path that resolves whether the plugin is loaded or not. That doc also
+covers `.tmp/` scratch.
 
 ## Idempotency and re-runs
 

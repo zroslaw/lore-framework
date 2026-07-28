@@ -210,7 +210,10 @@ If canonical and cursor wrappers drift (same doc target but different `$ARGUMENT
 - `/.lr-beings/`
 - `/.tmp/`
 
-If any is missing → **warn** (not error). Fix: run `/lr:workspace-pull` (phase 3 appends them), or `/lr:workspace-init` / reconfigure (Step 6 seeds them), or add the missing line by hand.
+If any is missing → **warn** (not error). Fix: run `/lr:workspace-pull` (phase 3 appends them), or
+add the missing line by hand. First-time `/lr:workspace-init` setup and **reconfigure** also seed
+them (Step 6). `/lr:workspace-init --refresh` does **not** touch `.gitignore` — use
+`/lr:workspace-pull` for an already-initialized workspace.
 
 **Declared child repos** — build the set of declared child dirnames: parse the `repos:` block from `<cwd>/lore-workspace.md` (if present) and from every top-level `<cwd>/<subdir>/lore-repo.md`, deriving each dirname the way `workspace-pull` does (last URL path segment with a trailing `.git` stripped; skip any URL whose derived name is unsafe). For every declared dirname that exists on disk as a top-level directory:
 
