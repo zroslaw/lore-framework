@@ -2,11 +2,14 @@
 
 Scaffold a new agent repository in the workspace.
 
-**Input:** repo name (e.g., `my-agents`)
+**Input:** repo name (e.g., `my-agents`), or a disposable path under `.tmp/` (e.g.,
+`.tmp/new-fixture-repo`) for throwaway / test scaffolds that must not look like a workspace child.
 
 ## Steps
 
-1. **Verify** the name doesn't collide with an existing directory in the workspace.
+1. **Verify** the target doesn't collide with an existing path in the workspace. A normal agent
+   repo is a single top-level directory name. Disposable scaffolds go under `.tmp/<name>/` (that
+   tree is gitignored by default — see `docs/workspace-init.md` Step 6).
 
 2. **Read the framework version** from `<framework-root>/VERSION`. This will be stamped into the repo descriptor.
 

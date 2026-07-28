@@ -35,9 +35,10 @@ descriptors are on disk and discoverable when the domain level runs.
 3. **Phase 2 — Domain-level repos.** Discover every `<workspace>/<subdir>/lore-repo.md`, merge each
    `repos:` (deduped by URL against phase 1), and clone any not already satisfied.
 4. **Phase 3 — `.gitignore` plumbing (conditional).** When the workspace root is git-tracked, append
-   a `/child/` line for every declared repo present on disk (cloned this run or already consistent),
-   so nested clones aren't committed into the workspace repo. Idempotent by exact-line match; never
-   auto-commits. Skipped when the root is not a git repo.
+   the standard workspace-owned lines (`/.worktrees/`, `/.lr-beings/`, `/.tmp/`) if missing, then a
+   `/child/` line for every declared repo present on disk (cloned this run or already consistent),
+   so nested clones and local scratch aren't committed into the workspace repo. Idempotent by
+   exact-line match; never auto-commits. Skipped when the root is not a git repo.
 5. **Phase 4 — Pull all.** `git pull --ff-only` every top-level git repo (existing + freshly cloned)
    in parallel, including top-level repos not declared in any descriptor (v11 parity). Conflict-state
    repos are skipped.
@@ -159,8 +160,9 @@ so divergent local branches surface as failures rather than silent merge commits
 - **`/lr:pull-lore`** is the narrower peer: refreshes only the lore agent repos of currently loaded
   agents (host + attached guests), no clone, no top-level non-lore pulls. Use it mid-session when a
   teammate pushed lore changes; use `workspace-pull` for bootstrap or a full-workspace refresh.
-- **`/lr:check`** runs consistency checks across the workspace (including #22, which warns when a
-  declared child repo on disk isn't gitignored in a git workspace). It does not pull or clone.
+- **`/lr:check`** runs consistency checks across the workspace (including #22, which warns when
+  standard workspace-owned ignore lines or a declared child repo on disk aren't covered in a git
+  workspace). It does not pull or clone.
 - **`/lr:create-repo`** scaffolds a new agent repo. Its `lore-repo.md` starts without a `repos:`
   field; add one when the agent has declared dependencies.
 

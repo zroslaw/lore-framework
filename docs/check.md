@@ -205,16 +205,26 @@ Conversely, every `.cursor-skills/lr-<name>/` directory must have a matching can
 
 If canonical and cursor wrappers drift (same doc target but different `$ARGUMENTS` handling or body text beyond the expected path/depth/`name`/`description` invocation-syntax differences), flag as **error** and suggest: run `python3 scripts/sync-cursor-skills` from the framework root to regenerate the cursor tree from canonical skills.
 
-## 22. Workspace child repos gitignored
+## 22. Workspace gitignore coverage
 
 **Workspace-scoped** — applies only when the current working directory is a **git-tracked workspace root**: `<cwd>/.git` exists *and* there is a `<cwd>/lore-workspace.md` or at least one `<cwd>/<subdir>/lore-repo.md`. If `<cwd>` is not a git repo (local-only workspace) or has no descriptors, skip this check — there is nothing to gitignore.
 
-Build the set of declared child dirnames: parse the `repos:` block from `<cwd>/lore-workspace.md` (if present) and from every top-level `<cwd>/<subdir>/lore-repo.md`, deriving each dirname the way `workspace-pull` does (last URL path segment with a trailing `.git` stripped; skip any URL whose derived name is unsafe). For every declared dirname that exists on disk as a top-level directory:
+**Standard workspace-owned lines** — verify `<cwd>/.gitignore` contains each of these exact lines:
+
+- `/.worktrees/`
+- `/.lr-beings/`
+- `/.tmp/`
+
+If any is missing → **warn** (not error). Fix: run `/lr:workspace-pull` (phase 3 appends them), or
+add the missing line by hand. First-time `/lr:workspace-init` setup and **reconfigure** also seed
+them (Step 6). `/lr:workspace-init --refresh` does **not** touch `.gitignore` — use
+`/lr:workspace-pull` for an already-initialized workspace.
+
+**Declared child repos** — build the set of declared child dirnames: parse the `repos:` block from `<cwd>/lore-workspace.md` (if present) and from every top-level `<cwd>/<subdir>/lore-repo.md`, deriving each dirname the way `workspace-pull` does (last URL path segment with a trailing `.git` stripped; skip any URL whose derived name is unsafe). For every declared dirname that exists on disk as a top-level directory:
 
 - Verify `<cwd>/.gitignore` contains the exact line `/<dirname>/`. If it is missing → **warn** (not error): the child repo's contents could be accidentally committed into the workspace meta-repo. Fix: run `/lr:workspace-pull` (phase 3 appends the missing entries), or add `/<dirname>/` to `.gitignore` by hand.
 
-This mirrors `workspace-pull` phase 3; the check catches a workspace where a child was cloned manually — or `.gitignore` was hand-edited — without re-running the pull. See `docs/workspace-pull.md`.
-
+This mirrors `workspace-pull` phase 3; the check catches a workspace where a child was cloned manually — or `.gitignore` was hand-edited — without re-running the pull. See `docs/workspace-pull.md` and `docs/workspace-init.md` Step 6.
 ## 23. Legacy workspace-init markers
 
 **Workspace-scoped** — applies to the workspace **memory file** (`<cwd>/CLAUDE.md` on Claude Code, `<cwd>/AGENTS.md` on Codex/Cursor — resolve the name from the engine profile). If the file is absent, skip.
