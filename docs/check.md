@@ -127,14 +127,19 @@ Flag any Claude file that lacks the active `/lr:boot` skill reference or `from <
 or contains `plugins/cache/`, an absolute `agent-boot.md` path, `lore-framework/docs/agent-boot.md`,
 or `<framework-root>/docs/agent-boot.md`.
 
-These legacy Claude formats can break after a plugin upgrade. Suggest: re-register with
-`/lr:register-repo` (or `/lr:register-agent` for one shortcut). Do not run migration 6: its
+These legacy formats can break after a plugin upgrade. On framework v33 or later, run the normal
+engine-specific boot or update entry: Claude Code `/lr:boot` or `/lr:update`; Cursor `/lr-boot` or
+`/lr-update`; Codex's installed `lr:boot` or `lr:update` skill through its native skill mechanism.
+Migration 33 refreshes a registered shortcut that belongs to the repo being migrated, including
+customized generated content. Otherwise, re-register it using the equivalent engine-native
+registration skill. Do not run migration 6: its
 historical template writes the cache-vulnerable absolute boot path this check rejects.
 
 For every Codex shortcut skill `lr-*-agent/SKILL.md` in `~/.codex/skills/` whose content contains
 `boot as agent`, flag it if it lacks the installed `lr:boot` skill reference or `from <agent-dir>`
-suffix, or contains `plugins/cache/` or an absolute `agent-boot.md` path. Suggest: re-register
-with `/lr:register-agent` or `/lr:register-repo`.
+suffix, or contains `plugins/cache/` or an absolute `agent-boot.md` path. On framework v33 or
+later, migration 33 refreshes owned shortcuts during the normal engine-specific boot or update
+entry; otherwise re-register with the equivalent native registration skill.
 
 For every Cursor shortcut skill `lr-*-agent/SKILL.md` in `<workspace>/.cursor/skills/` whose
 content contains `boot as agent`, flag it if any of the following is missing:

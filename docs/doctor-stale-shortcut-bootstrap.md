@@ -20,17 +20,21 @@ ailment.
 
 ## Remedy
 
-Regenerate the shortcut using the currently installed framework:
+On framework v33 or later, use the normal engine-specific boot or update entry once: Claude Code
+`/lr:boot` or `/lr:update`; Cursor `/lr-boot` or `/lr-update`; Codex's installed `lr:boot` or
+`lr:update` skill through its native skill mechanism. Migration 33 refreshes a clean legacy
+shortcut automatically when its agent path proves it belongs to the repo being upgraded. Registered
+shortcuts are framework-owned artifacts, so customization is replaced. A broken direct shortcut
+cannot repair itself, so use the normal entry point for that first upgrade.
 
-```text
-/lr:register-agent <lore-agent-repo> <agent-name>
-```
+To repair it immediately, regenerate it using the currently installed framework:
+
+Use the equivalent native registration skill for your engine: Claude Code
+`/lr:register-agent`, Cursor `/lr-register-agent`, or Codex's installed `lr:register-agent` skill.
 
 Or regenerate every shortcut in the repo:
 
-```text
-/lr:register-repo <lore-agent-repo>
-```
+For every shortcut in a repo, use the equivalent `register-repo` skill instead.
 
 On Codex, use the equivalent native skill invocation. Registration rewrites only a shortcut that
 already belongs to the same agent directory; it preserves the collision protection for another
@@ -39,7 +43,8 @@ repo's agent with the same name.
 ## Prevention
 
 Generated shortcuts delegate to the active boot skill and must never contain a plugin-cache path
-or absolute `agent-boot.md` path. `/lr:check` detects the obsolete forms.
+or absolute `agent-boot.md` path. `/lr:check` detects the obsolete forms; migration 33 regenerates
+owned shortcuts and preserves only collisions or unrecognised artifacts.
 
 ## See Also
 
