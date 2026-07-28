@@ -6,47 +6,39 @@ You are being loaded as a **Lore Agent** — part of a persistent knowledge syst
 
 The caller will tell you the **agent name** you are booting as, and may also provide the **absolute path** to the agent directory to skip discovery. Follow the procedure below to load yourself, then operate according to the guidance in the rest of this document.
 
-## Step 0 — Framework root & engine profile
+## Step 0 — Framework root
 
-Do this first, before the numbered steps. It is prose because it must run before any script can be located, and because the profile governs *how* you run everything that follows.
+Do this first, before the numbered steps. It is prose because it must run before any script can be located.
 
-1. **Resolve `<framework-root>`.** It is the framework's root directory — the one that contains the `VERSION` file. You already resolved it to read *this* file (a `SKILL.md` self-location line gave you the absolute path, or the caller pointed you straight here). Use that same absolute path everywhere `<framework-root>` appears below. Do **not** rely on `${CLAUDE_PLUGIN_ROOT}` or any engine-specific variable — on some engines it is empty.
+**Resolve `<framework-root>`.** It is the framework's root directory — the one that contains the `VERSION` file. You already resolved it to read *this* file (a `SKILL.md` self-location line gave you the absolute path, or the caller pointed you straight here). Use that same absolute path everywhere `<framework-root>` appears below. Do **not** rely on `${CLAUDE_PLUGIN_ROOT}` or any engine-specific variable — on some engines it is empty.
 
-2. **Select the engine profile.** Infer the engine, strongest signal first:
-   - If `${CLAUDE_PLUGIN_ROOT}` resolves to a **non-empty** path → **claude** (only Claude Code sets it).
-   - Else if `<framework-root>` lives under `~/.codex/…` → **codex**.
-   - Else if `<framework-root>` lives under `~/.cursor/…` → **cursor**.
-   - Else if `ps -o args= -p $PPID` succeeds and the parent args contain `cursor-agent` → **cursor**.
-   - Else if a `~/.codex/` directory exists → **codex**.
-   - Else if `<framework-root>` is under a Claude plugin dir (`~/.claude/plugins/…`) or was loaded via `--plugin-dir` → **claude**.
-   - Otherwise → default to **claude** and note the assumption.
-
-   Then **read `<framework-root>/docs/engines/<engine>.md`** and keep its five binding values (framework-root, invocation-syntax, subagent-spawn, memory-file, runtime-bounding) plus its capability gates as **standing context for the whole session**. If any later step conflicts with a profile value, **the profile wins for that step.**
+The **engine profile** — the five bindings that govern how you execute everything after this — is selected for you by preflight in Step 1 and consumed in Step 2. Do not infer the engine yourself, and in particular do not infer it from what you believe you are: that belief is not an observation of the running process, and the profile is precisely the thing that must not be decided by the model it governs. If preflight cannot run, the Manual Boot Procedure below covers this along with every other step.
 
 ## Boot Procedure
 
 ### Step 1 — Run preflight
 
-One command performs agent discovery, the repo auto-pull, the version comparison, and teammate detection:
+One command performs engine selection, agent discovery, the repo auto-pull, the version comparison, and teammate detection:
 
 ```
 python3 "<framework-root>/scripts/lr-core" preflight --agent "<agent-name>" --workspace "<cwd>"
 ```
 
 - Invoke it through `python3` as shown — that works whether or not the plugin cache preserved the executable bit.
-- **Quote every substituted value, and give the call at least 180 seconds** via your profile's runtime-bounding binding — this call pulls over the network, and the default bound on some engines leaves no margin. Both rules and why they exist: `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
+- **Quote every substituted value, and give the call at least 180 seconds** — this call pulls over the network, and the default bound on some engines leaves no margin. This is the one call you bound *before* knowing your profile's runtime-bounding binding, since this call is what selects the profile. Resolve it from your **tools**, not your identity: if the tool you are about to run this command with accepts a timeout, set it to 180 seconds or more; if it does not, let the call run unbounded rather than shortening it. That is a fact about the tool in front of you, which is why it is safe to act on here while Step 0 still forbids reasoning from which engine you believe you are. Every later call uses the binding from Step 2. Both rules and why they exist: `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
 - `<cwd>` is the directory this session was invoked from (run `pwd` if unsure). This is *not* the plugin/framework directory you just read this file from. Omit `--workspace` to default to the current directory.
 - If the caller gave you an **absolute path** to the agent directory, use `--agent-dir <path>` instead of `--agent` to skip discovery entirely.
-- **Add `--no-teammate-check` if the engine profile you selected in Step 0 declares teammate detection unsupported or inapplicable** (Cursor and Codex both do). Otherwise the script runs a `ps` probe the profile told you not to run. With the flag, `data.teammate.verdict` comes back `unknown`, which Step 2 treats as a normal host session.
+- Pass no engine flag. The script determines the engine itself; `--engine <name>` exists only for a caller that must force a profile (a test harness, or a user debugging one). On engines whose profile gates teammate detection off, no suppression flag is needed either — a sandbox that blocks `ps` yields `unknown` and an engine that allows it yields `no`, and Step 2 treats those identically.
 
 The command prints one JSON object: `{"ok", "data", "warnings", "errors"}`.
 
-**If it fails to complete** (exit 2, no output, unparsable output, `python3` missing): follow the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) — tell the user in one line that preflight failed and you are booting manually, then execute § Manual Boot Procedure below. A failed script never fails a boot.
+**If it fails to complete** (exit 2, no output, unparsable output, `python3` missing): before doing any manual work, emit this user-visible line: `Preflight (lr-core) failed; I am booting manually.` Then follow the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) and execute § Manual Boot Procedure below. Do not omit this notice merely because the manual boot succeeds. A failed script never fails a boot.
 
 ### Step 2 — Act on the report
 
 Read the JSON and handle each field. All of these are *results*, not failures — **none of them stops the boot**:
 
+- **`data.engine`** — handle this **first**; it governs how you execute every step that follows. Read the profile doc at `data.engine.profile` and keep its five binding values (framework-root, invocation-syntax, subagent-spawn, memory-file, runtime-bounding) plus its capability gates as **standing context for the whole session**. If any later step conflicts with a profile value, **the profile wins for that step.** When `data.engine.confidence` is `assumed`, no signal identified the engine and the reference profile was substituted. **Say so in one line, and name `--engine <claude|codex|cursor>` as the remedy** — the user is the one who knows which engine they launched, and this is the only field where they can correct you. `data.engine.detail` says whether ancestry ran and found nothing or could not run at all; the second case is the routine one on Codex outside its native install (`docs/engines/codex.md` § Detection blind spot). If a binding later contradicts what your tools actually do, re-run preflight with `--engine` rather than improvising around the mismatch.
 - **`ok: false`** — the request could not be satisfied. For a missing agent, `data.available_agents` holds the full list: print it and stop with an error. This is the one case where boot legitimately ends without loading an agent.
 - **`data.pull.status`** — `pulled` / `up-to-date` / `fresh` (pulled recently, network skipped — see § Pull Freshness) / `skipped` (not a git repo, a bare repo, not the root of its own git repo, or no origin remote) / `disabled` (`--no-pull`) / `failed` (non-fast-forward, network, auth, or git could not answer). Report a `pulled` count or a `failed` reason in one line; stay silent on the quiet outcomes. On failure, continue in degraded mode.
 - **`data.version.verdict`** — `match` → continue. `repo-behind` / `repo-ahead` / `differs` → read `<framework-root>/docs/version-check.md` and follow it with `R = data.version.repo` and `F = data.version.framework`. **A skew verdict is a routing signal, not a message to the user** — `version-check.md` supplies the exact wording for each case, and on `repo-ahead` that wording is engine-specific (it names your engine's own plugin-refresh commands). Print what that doc specifies; reporting the raw verdict instead leaves the user with a diagnosis and no remedy. `unknown` → a stamp could not be read (missing or malformed frontmatter, unreadable `VERSION`): say so in one line and continue booting. Do **not** route `unknown` into `version-check.md` — that procedure needs two versions to compare and `data.version.repo` may be `null`. **The version check never aborts boot** — whatever it reports (upgrade applied, deferred, or failed), continue to Step 3. A deferred or failed upgrade is *not* a boot failure.
@@ -81,20 +73,33 @@ Pass `--fresh` to bypass the cache (what `/lr:pull-lore` does), `--ttl <seconds>
 **Read this only when preflight could not run** (Script Fallback Contract, `docs/conventions.md`
 — `scripts/lr-core` is a *literate* accelerator, so its own comments are the normative spec, not a
 copy of it kept here). Open `scripts/lr-core` and read, in order: `cmd_preflight`'s docstring (the
-six numbered steps — resolve framework root/VERSION, resolve the agent, record `read_next`,
-pull+version-compare or skip, teammate detection), then the docstrings of the four functions it
-names for the exact hand commands — `_resolve_agent` (agent discovery), `pull_repo` (the
+seven numbered steps — resolve framework root/VERSION, select the engine profile, resolve the
+agent, record `read_next`, pull+version-compare or skip, teammate detection), then the docstrings
+of the five functions it names for the exact hand commands — `detect_engine` (the ordered engine
+signals, and the one deliberately excluded), `_resolve_agent` (agent discovery), `pull_repo` (the
 `git pull --ff-only` invocation, fail-fast env vars, and the `.git/lr-last-pull` TTL file),
 `compare_versions` (the match / skew / unknown rules), and `detect_teammate` (the
 `ps -o args= -p <ppid>` walk and the `--agent-id` match rule).
 
-Execute each step by hand to produce the same values preflight would have reported, then **rejoin
-the numbered procedure at Step 2 above and work forward from there** — Step 2, not Step 3. Step 2
-is the only place that says what to *do* with a version verdict (read `version-check.md` on a
-skew) and with a teammate verdict (read `teammate-conventions.md` and adopt its four RULES as
-standing rules). Skipping to Step 3 silently drops both, and the Script Fallback Contract requires
-the manual path to reach the same end state the script would have produced — not merely to collect
-the same facts.
+Engine selection is the one of these you are most likely to think you can skip, because you
+already have a belief about which engine you are. Walk `detect_engine`'s signals anyway and
+record which one fired. A belief about your own identity is not an observation of the running
+process, the two diverge exactly where a wrapper or an unusual install makes the profile matter
+most, and picking the wrong profile silently mis-binds subagent spawning, invocation syntax, and
+the memory file for the rest of the session.
+
+Two step numberings are in play here, so be explicit about which one you are in. The seven steps
+just described are **`cmd_preflight`'s own**, internal to the script. This document's are the
+`###`-level headings above — **Step 1 — Run preflight** and **Step 2 — Act on the report**.
+
+Execute each of `cmd_preflight`'s seven steps by hand to produce the same values preflight would
+have reported. Then **rejoin this document at its `### Step 2 — Act on the report` heading and work
+forward from there** — that heading, not Step 3. It is the only place that says what to *do* with
+an engine verdict (read the named profile and keep its bindings), with a version verdict (read
+`version-check.md` on a skew), and with a teammate verdict (read `teammate-conventions.md` and
+adopt its four RULES as standing rules). Skipping to Step 3 silently drops all three, and the
+Script Fallback Contract requires the manual path to reach the same end state the script would
+have produced — not merely to collect the same facts.
 
 **If `scripts/lr-core` itself is missing or unreadable** — not merely failing — there is no
 literate spec left to read. Follow the floor case in `<framework-root>/docs/conventions.md`
@@ -102,9 +107,11 @@ literate spec left to read. Follow the floor case in `<framework-root>/docs/conv
 own prior prose as the `<path>` it names. Never silently invent a boot procedure.
 
 One engine-profile note that lives here rather than in the script, because it's about which
-*engine* is running, not about `lr-core`'s logic: if the selected engine profile (Step 0) declares
-teammate detection **unsupported** or **inapplicable**, skip `detect_teammate` entirely and assume
-a normal host session — same as passing `--no-teammate-check`.
+*engine* is running, not about `lr-core`'s logic: if the profile you selected declares teammate
+detection **unsupported** or **inapplicable**, you may skip `detect_teammate` and assume a normal
+host session. Running it by hand is equally correct — a blocked `ps` gives `unknown` and a working
+one gives `no`, and Step 2 treats both as a host session — so this saves effort, it does not
+change the verdict.
 
 ## Your Lore
 

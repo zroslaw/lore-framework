@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""Count files with tiktoken for a consistent context-budget metric.
+
+This deliberately measures file contents only. It does not attempt to count an
+engine's system prompt, tools, or other hidden context. The same tokenizer is
+used for every target so that changes can be compared consistently.
+
+Install once:
+    python3 -m pip install tiktoken
+
+Examples:
+    python3 scripts/token-count docs/agent-boot.md
+    python3 scripts/token-count agents/lore-architect
+    python3 scripts/token-count --encoding o200k_base role.md lore-context.md
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Count text-file tokens with tiktoken.")
+    parser.add_argument(
+        "paths", nargs="+", type=Path, help="Files or directories to count (directories recurse)."
+    )
+    parser.add_argument(
+        "--encoding",
+        default="o200k_base",
+        help="tiktoken encoding to use (default: o200k_base).",
+    )
+    return parser.parse_args()
+
+
+def files_for(paths):
+    for path in paths:
+        if path.is_file():
+            yield path
+        elif path.is_dir():
+            yield from sorted(child for child in path.rglob("*") if child.is_file())
+        else:
+            raise FileNotFoundError(path)
+
+
+def main():
+    args = parse_args()
+    try:
+        import tiktoken
+    except ImportError:
+        print("tiktoken is required: python3 -m pip install tiktoken", file=sys.stderr)
+        return 2
+
+    try:
+        encoding = tiktoken.get_encoding(args.encoding)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 2
+
+    total = 0
+    for path in files_for(args.paths):
+        try:
+            content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            print(f"skipped non-UTF-8 file: {path}", file=sys.stderr)
+            continue
+        tokens = len(encoding.encode(content, disallowed_special=()))
+        total += tokens
+        print(f"{tokens:>8,}  {path}")
+
+    print(f"{total:>8,}  TOTAL ({args.encoding})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

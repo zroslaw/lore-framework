@@ -66,6 +66,13 @@ engine-specific bootstrap sentence into every generated shortcut, substituting `
 `<agent-dir>`. The active boot skill self-locates the framework root, so the emitted shortcut must
 not contain an `<agent-boot-path>` or any other plugin-install path.
 
+**Emit the bootstrap as one unwrapped line, on every engine**, however the profile's fenced block
+happens to be wrapped for reading. Two things depend on it: `migrations/33.md` classifies an
+existing shortcut as `current` only on a **byte-for-byte** match with the freshly generated
+artifact, so an executor that re-wraps differently makes every upgrade rewrite a shortcut that was
+already correct; and Claude Code renders a command's description from the file's **first line**, so
+a wrapped bootstrap shows up in the command list as a sentence fragment.
+
 ### Current shortcut templates
 
 Generate exactly these engine-native forms.

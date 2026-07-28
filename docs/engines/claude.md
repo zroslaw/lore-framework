@@ -1,9 +1,11 @@
 # Engine Profile — Claude Code (reference)
 
-Selected by boot (`agent-boot.md` Step 0) when `<framework-root>` lives under a Claude plugin
-dir (`~/.claude/plugins/…`) or the session was started with `--plugin-dir`. This is the
-**reference profile**: every other engine profile fills the same five bindings; only the values
-differ.
+Selected by `lr-core`'s `detect_engine` (reported as `data.engine` by preflight, consumed at
+`agent-boot.md` Step 2) when `CLAUDE_PLUGIN_ROOT` is set, when a `claude` process appears in this
+session's ancestry, or when `<framework-root>` lives under `~/.claude/plugins/…`. Also the
+**fallback** when no signal identifies the engine, in which case `data.engine.confidence` is
+`assumed` rather than `confident`. This is the **reference profile**: every other engine profile
+fills the same five bindings; only the values differ.
 
 ## Binding values
 
@@ -26,12 +28,11 @@ differ.
 ## Registered shortcut bootstrap
 
 When `/lr:register-agent` or `/lr:register-repo` emits a Claude per-agent shortcut, use this
-exact body after substituting the agent values:
+exact body after substituting the agent values — **as a single unwrapped line** (see
+`register-repo.md` § Resolve the shortcut bootstrap for why):
 
 ```markdown
-Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its
-self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and
-boot as agent `<agent-name>` from `<agent-dir>`.
+Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and boot as agent `<agent-name>` from `<agent-dir>`.
 ```
 
 Do not substitute `${CLAUDE_PLUGIN_ROOT}`, an absolute plugin path, or a workspace checkout into
@@ -42,4 +43,4 @@ point of use; generated shortcuts do not implement a second resolver.
 
 - This profile documents the historical default. The framework was authored on Claude Code, so
   the shared procedure docs describe the Claude mechanism directly; other profiles state where
-  they diverge and win on conflict (`agent-boot.md` Step 0).
+  they diverge and win on conflict (`agent-boot.md` Step 2).

@@ -35,9 +35,14 @@ using `--plugin-dir` against a local framework copy. Verified facts so far:
 
 - **engine-detection** — `ps -o args= -p $PPID` works here and exposes the parent `cursor-agent`
   command line. Use it as the strongest runtime signal for Cursor CLI sessions.
-- **teammate-detection** — do not run teammate-detection on Cursor boots. The `ps` probe itself
-  works, but Claude Agent-Teams semantics do not apply here, so Cursor should always treat the
-  session as a normal host session for lore purposes. `spawn-teammate` remains Claude-only.
+- **teammate-detection** — **ignore the verdict; always treat a Cursor session as a normal host
+  session.** Claude Agent-Teams semantics do not apply here, so whatever the probe reports carries
+  no meaning on Cursor. `spawn-teammate` remains Claude-only. This is stated as "ignore the result"
+  rather than "do not run the probe" on purpose: the probe runs inside the same `lr-core preflight`
+  call that *determines* which engine you are on, so nothing can suppress it in advance without
+  already knowing the answer it is being called to produce. `ps` works here, so the verdict comes
+  back `no` rather than `unknown`; both mean host session, so the distinction never reaches a
+  decision.
 - **git / network approvals** — Cursor CLI exposes `--force`, `--trust`, and sandbox controls at
   launch. In ordinary sessions, auto-pull / push may still be approval-gated or denied. Lore
   procedures must degrade cleanly on denial rather than treating it as a framework failure.

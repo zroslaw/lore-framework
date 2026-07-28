@@ -1,7 +1,10 @@
 # Engine Profile — Codex CLI
 
-Selected by boot (`agent-boot.md` Step 0) when `<framework-root>` lives under `~/.codex/…`
-(e.g. `~/.codex/plugins/cache/<marketplace>/lr/<version>/`). Fills the same five bindings as
+Selected by `lr-core`'s `detect_engine` (reported as `data.engine` by preflight, consumed at
+`agent-boot.md` Step 2) when a `codex` process appears in this session's ancestry, or when
+`<framework-root>` lives under `~/.codex/…` (e.g.
+`~/.codex/plugins/cache/<marketplace>/lr/<version>/`). The mere *existence* of `~/.codex` is not a
+signal — it means Codex is installed, not that it is running. Fills the same five bindings as
 `claude.md` (the reference profile). **Where a value here conflicts with a shared procedure doc,
 this profile wins for that step.**
 
@@ -19,6 +22,24 @@ finalize, plus binary ground-truth of the multi-agent subsystem. See lore
 | **memory-file** | `AGENTS.md` (not `CLAUDE.md`). |
 | **runtime-bounding** | No Bash-tool timeout flag; a long command is bounded by the Codex sandbox / `agents.job_max_runtime_seconds`. Ignore "set the Bash-tool timeout" prose. |
 
+## Detection blind spot — pass `--engine codex` off the native install
+
+Codex is the one engine that can end up with **no detectable signal at all**, because its two
+independent signals fail together. `ps` is blocked by the sandbox (see the capability gate below),
+so ancestry reads nothing; and containment only fires when `<framework-root>` is under `~/.codex/`.
+A Codex session against any other tree — a git worktree (`docs/worktrees.md`), a plain dev
+checkout, a CI clone — therefore matches nothing and falls back to the **claude** profile with
+`data.engine.confidence == "assumed"`.
+
+That fallback is wrong in a way that does not announce itself: wrong memory file (`CLAUDE.md`
+instead of `AGENTS.md`), wrong subagent mechanism (the `Agent` tool, which does not exist here,
+instead of `spawn_agent`), and Claude's `/lr:<skill>` invocation syntax, which in `codex exec`
+falls through to the shell and fails.
+
+**So when you run Codex against anything other than the native `~/.codex/` install, pass
+`--engine codex` to every `lr-core` call.** This is the one routine case where the flag is not just
+a debugging aid. The `assumed` confidence and the warning text are the signal that you needed it.
+
 ## Capability gates
 
 - **teammate-detection** — `ps -o args= -p $PPID` is **blocked** in Codex's sandbox
@@ -30,12 +51,11 @@ finalize, plus binary ground-truth of the multi-agent subsystem. See lore
 ## Registered shortcut bootstrap
 
 When `/lr:register-agent` or `/lr:register-repo` emits a Codex personal per-agent skill, use this
-exact body after substituting the agent values:
+exact body after substituting the agent values — **as a single unwrapped line** (see
+`register-repo.md` § Resolve the shortcut bootstrap for why):
 
 ```markdown
-Read the `SKILL.md` for the installed `lr:boot` skill available in this session. Follow its
-self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and
-boot as agent `<agent-name>` from `<agent-dir>`.
+Read the `SKILL.md` for the installed `lr:boot` skill available in this session. Follow its self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and boot as agent `<agent-name>` from `<agent-dir>`.
 ```
 
 Do not substitute a `~/.codex/plugins/cache/...` path, scan cache directories, or choose the

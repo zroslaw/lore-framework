@@ -127,6 +127,14 @@ Flag any Claude file that lacks the active `/lr:boot` skill reference or `from <
 or contains `plugins/cache/`, an absolute `agent-boot.md` path, `lore-framework/docs/agent-boot.md`,
 or `<framework-root>/docs/agent-boot.md`.
 
+**Also flag any shortcut whose bootstrap spans more than one line** (ignoring a trailing newline,
+and, on Cursor and Codex, the frontmatter block). The content can be entirely correct and still be
+wrong in shape: `migrations/33.md` classifies a shortcut as `current` only on a byte-for-byte match
+with a freshly generated artifact, so a wrapped one is rewritten at every upgrade instead of being
+recognised, and Claude Code renders a command's description from the file's first line, so a
+wrapped bootstrap shows in the command list as a sentence fragment. Fix by re-registering with the
+engine-native registration skill. See `register-repo.md` § Resolve the shortcut bootstrap.
+
 These legacy formats can break after a plugin upgrade. On framework v33 or later, run the normal
 engine-specific boot or update entry: Claude Code `/lr:boot` or `/lr:update`; Cursor `/lr-boot` or
 `/lr-update`; Codex's installed `lr:boot` or `lr:update` skill through its native skill mechanism.

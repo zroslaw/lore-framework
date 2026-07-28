@@ -16,7 +16,7 @@ missing GNU `timeout`, HTTPS credential prompts) once instead of in every doc.
 
 WHAT THIS IS NOT. This is not a fast path over a separate prose specification.
 The step comments inside each cmd_* function below (and the helpers they call —
-pull_repo, compare_versions, detect_teammate, _resolve_agent) ARE the normative
+detect_engine, pull_repo, compare_versions, detect_teammate, _resolve_agent) ARE the normative
 procedure: read them in order and you have the full hand-executable spec, not
 a summary of one. docs/*.md files carry short pointers into specific functions
 here, not restated procedures — a restated copy is exactly the drift risk this
@@ -29,8 +29,9 @@ steps by hand.
 
 SUBCOMMANDS
   discover    Enumerate lore agent repos and their agents in a workspace.
-  preflight   Boot/attach/consult preflight for one agent: resolve, pull
-              (TTL-cached), compare versions, detect teammate spawn.
+  preflight   Boot/attach/consult preflight for one agent: select the engine
+              profile, resolve, pull (TTL-cached), compare versions, detect
+              teammate spawn.
   scan        Manifest of an agent's lore topics with git dates and staleness.
 
 OUTPUT CONTRACT. Every subcommand prints exactly one JSON object:
@@ -81,6 +82,38 @@ TEAMMATE_MARKER = "--agent-id"
 # unrelated ancestor must not read as the Agent-Teams marker.
 TEAMMATE_MARKER_RE = re.compile(r"(?:^|\s)--agent-id(?:[\s=]|$)")
 TITLE_MAX_CHARS = 120
+
+# Engine detection. Keys are program basenames as they appear in `ps args`;
+# values are engine profile names (docs/engines/<name>.md).
+#
+# `cursor-agent` is listed but bare `cursor` deliberately is NOT: a Claude Code
+# or Codex session started from Cursor's integrated terminal has
+# `/Applications/Cursor.app/.../MacOS/Cursor` in its ancestry, and matching that
+# would misreport the *host application* as the running engine. Only the CLI
+# binary name is evidence about which engine is executing this procedure.
+ENGINE_PROGRAMS = {
+    "claude": "claude",
+    "codex": "codex",
+    "cursor-agent": "cursor",
+}
+# Engines shipped as scripts run under an interpreter, so the program field is
+# the runtime and the engine name sits in a later argv token. Scanning later
+# tokens is gated to these program names on purpose: an arbitrary command line
+# may mention an engine's name in a path or argument without being that engine
+# (a shell sourcing `~/.claude/shell-snapshots/...` is the common case).
+ENGINE_RUNTIMES = frozenset((
+    "node", "node.exe", "bun", "deno", "python", "python3", "electron",
+))
+# Containment fallback: which engine installs a plugin under which home dir.
+# Checked against <framework-root> only — "this framework tree lives inside
+# engine X's plugin store" is evidence; "engine X is installed on this machine"
+# is not, and an ~/.codex existence test previously stood in for the latter.
+ENGINE_HOME_DIRS = (
+    ("~/.codex", "codex"),
+    ("~/.cursor", "cursor"),
+    ("~/.claude/plugins", "claude"),
+)
+DEFAULT_ENGINE = "claude"
 
 
 # --------------------------------------------------------------------------
@@ -624,7 +657,7 @@ def compare_versions(repo_version, fw_version):
 
 
 # --------------------------------------------------------------------------
-# Teammate detection
+# Process ancestry: engine selection + teammate detection
 # --------------------------------------------------------------------------
 
 def _ps_field(pid, field):
@@ -642,8 +675,8 @@ def _ps_field(pid, field):
     return val if val else None
 
 
-def detect_teammate():
-    """Manual fallback: walk process ancestry for the Agent-Teams marker.
+def _walk_ancestors():
+    """Yield `(pid, args)` for this process's ancestors, nearest first.
 
     Step 1: start at `os.getppid()` (this process's immediate parent).
 
@@ -651,20 +684,188 @@ def detect_teammate():
     pid 1: run `ps -o args= -p <pid>` (one field per call — packing multiple
     `-o` fields onto one line has already caused a real parsing bug here, see
     lore macos-ps-o-multi-field-single-line.md). If `ps` returns nothing
-    (blocked/unavailable), stop climbing and fall through to "unknown" below.
+    (blocked/unavailable), stop climbing: callers distinguish "read nothing"
+    from "read some and found nothing" by counting what this yields.
 
-    Step 3: test that process's args against `--agent-id` using a
+    Step 3: fetch that process's ppid via another single-field `ps` call and
+    climb to it; stop if the parent is unreadable/non-numeric or would loop
+    back to the same pid.
+
+    Both ancestry-based checks below share this walk so that one `ps` trap,
+    one depth cap, and one set of stop conditions apply to both.
+    """
+    pid = os.getppid()
+    depth = 0
+    while pid and pid > 1 and depth < ANCESTOR_SCAN_DEPTH:
+        args = _ps_field(pid, "args")
+        if args is None:
+            return
+        yield pid, args
+        parent = _ps_field(pid, "ppid")
+        if not parent or not parent.strip().isdigit():
+            return
+        nxt = int(parent.strip())
+        if nxt == pid:
+            return
+        pid = nxt
+        depth += 1
+
+
+def _engine_from_args(args):
+    """Map one process's `ps args` line to an engine name, or None.
+
+    Matches the **program** — the first whitespace-separated field's basename —
+    against ENGINE_PROGRAMS. If that program is a known interpreter
+    (ENGINE_RUNTIMES), also test each later argv token's basename, because an
+    engine shipped as a script appears as `node /path/to/claude ...`.
+
+    Deliberately not a substring search over the whole line: an ancestor shell
+    sourcing `~/.claude/shell-snapshots/snapshot-zsh-*.sh` would otherwise read
+    as Claude Code, and the same trap exists for any engine name that appears in
+    a path. Only a program name is evidence about what is executing.
+    """
+    fields = args.split()
+    if not fields:
+        return None
+    program = os.path.basename(fields[0])
+    hit = ENGINE_PROGRAMS.get(program)
+    if hit:
+        return hit
+    if program in ENGINE_RUNTIMES:
+        for token in fields[1:]:
+            hit = ENGINE_PROGRAMS.get(os.path.basename(token))
+            if hit:
+                return hit
+    return None
+
+
+def detect_engine(root, override=None):
+    """Select the engine profile whose bindings govern this session.
+
+    Boot (docs/agent-boot.md) consumes this at its Step 2 and keeps the named
+    profile's bindings for the whole session: the profile decides invocation
+    syntax, subagent mechanism, memory file, and how commands are time-bounded.
+    It used to be an ordered prose ladder the model walked by hand, which is the
+    one part of boot most exposed to being decided by what the model believes
+    about itself rather than by what is observable.
+
+    Signals, strongest first. The first that fires wins:
+
+    Step 1: `--engine` override, if given. An explicit caller (a test harness,
+    a user debugging a profile) outranks every inference.
+
+    Step 2: a non-empty `CLAUDE_PLUGIN_ROOT` in the environment -> claude. Only
+    Claude Code sets it. Empty or absent proves nothing: Claude Code sessions
+    started with `--plugin-dir` against a checkout do not set it either.
+
+    Step 3: process ancestry (`_walk_ancestors`), nearest ancestor first, via
+    `_engine_from_args`. This is the only signal that observes which engine is
+    actually running, so it outranks every filesystem heuristic below. Nearest
+    wins: `claude` launched from Cursor's integrated terminal must resolve to
+    claude, and its `claude` ancestor is closer than the `Cursor` app process.
+
+    Step 4: containment — <framework-root> lives inside an engine's plugin
+    store (ENGINE_HOME_DIRS), compared on path boundaries rather than string
+    prefixes, and in both logical and symlink-resolved form (see the comment at
+    the loop for why one form alone is wrong in each direction). This answers
+    "which engine installed this tree", which is good evidence when `ps` is
+    blocked (Codex's sandbox) and the plugin was installed natively.
+
+    Step 5: default to DEFAULT_ENGINE ("claude", the reference profile) with
+    confidence "assumed", so the caller can say so rather than presenting a
+    guess as a finding. The detail distinguishes the two ways of getting here,
+    because they need different remedies: ancestry that ran and found nothing
+    (an unrecognised launcher — the program table may need a name) versus
+    ancestry that could not run at all (`ps` blocked). The second is the
+    dangerous one and is a real, reachable case, not a hypothetical: Codex's
+    sandbox blocks `ps`, so a Codex session against a tree outside
+    `~/.codex` — a worktree or dev checkout, which is how this framework's own
+    contributors run it (docs/worktrees.md) — has no signal on any rung and
+    lands here, silently profiled as claude. `--engine codex` is the remedy;
+    docs/engines/codex.md says so at the point of use.
+
+    Note what this costs: the removed "~/.codex exists" rung happened to catch
+    that case, by accident and for the wrong reason. Removing a signal that is
+    wrong in general but right in one case is still the right trade — a rung
+    that fires for every session on a multi-engine machine cannot be kept for
+    the sake of the sessions it accidentally gets right — but the case it
+    covered has to be handled deliberately somewhere, and that somewhere is
+    this branch's detail string plus the profile's own guidance.
+
+    NOT a signal, deliberately: whether `~/.codex` or `~/.cursor` merely
+    *exists*. That tests whether another engine is installed on this machine,
+    never whether it is the one running — and on any workstation with more than
+    one engine installed it fires for every session, which is exactly how the
+    prose ladder came to route Claude Code sessions to the codex profile.
+
+    Returns {name, signal, confidence, detail, profile}. `profile` is the
+    absolute docs/engines/<name>.md path so the caller reads one file instead
+    of re-deriving the mapping.
+    """
+    def _result(name, signal, confidence, detail):
+        return {
+            "name": name,
+            "signal": signal,
+            "confidence": confidence,
+            "detail": detail,
+            "profile": os.path.join(root, "docs", "engines", "%s.md" % name),
+        }
+
+    if override:
+        return _result(override, "override", "confident",
+                       "engine forced by --engine")
+
+    if os.environ.get("CLAUDE_PLUGIN_ROOT", "").strip():
+        return _result("claude", "env", "confident",
+                       "CLAUDE_PLUGIN_ROOT is set")
+
+    scanned = 0
+    for pid, args in _walk_ancestors():
+        scanned += 1
+        hit = _engine_from_args(args)
+        if hit:
+            return _result(hit, "ancestry", "confident",
+                           "ancestor pid %d runs %s" % (pid, args.split()[0]))
+
+    # Both the logical and the resolved path count, on both sides. Resolving is
+    # required for the /var -> /private/var class of trap (see version-check.md,
+    # where bare `pwd` vs git's --show-toplevel produced a false verdict), but
+    # resolving *alone* breaks the case this signal exists for: Cursor's local
+    # plugin surface is `~/.cursor/plugins/local/<name>` symlinked at an
+    # arbitrary checkout, so realpath lands outside ~/.cursor and containment
+    # never fires for the very install layout it is named after. Test both forms
+    # and take a hit on either.
+    roots = {os.path.abspath(root), os.path.realpath(root)}
+    for home, name in ENGINE_HOME_DIRS:
+        expanded = os.path.expanduser(home)
+        for base in {expanded, os.path.realpath(expanded)}:
+            if any(r == base or r.startswith(base + os.sep) for r in roots):
+                return _result(name, "containment", "confident",
+                               "framework root is under %s" % home)
+
+    if scanned:
+        detail = ("no engine signal in %d readable ancestor(s); assuming the "
+                  "reference profile" % scanned)
+    else:
+        detail = ("no engine signal and ps could not be read (blocked or "
+                  "unavailable); assuming the reference profile")
+    return _result(DEFAULT_ENGINE, "default", "assumed", detail)
+
+
+def detect_teammate():
+    """Manual fallback: walk process ancestry for the Agent-Teams marker.
+
+    Step 1: walk ancestors nearest-first via `_walk_ancestors` (see there for
+    the `ps` invocation, the depth cap, and the stop conditions).
+
+    Step 2: test each process's args against `--agent-id` using a
     flag-boundary regex, not a substring search — `--agent-idle-timeout=30`
     in some unrelated ancestor must not false-positive. A match is an
     immediate "yes": report only that one matching pid/args (truncated to 200
     chars), not the full ancestry — the point of doing this in code instead
     of prose is exactly to avoid spending tokens on the whole chain.
 
-    Step 4: no match — fetch that process's ppid via another single-field
-    `ps` call and climb to it; stop if the parent is unreadable/non-numeric or
-    would loop back to the same pid.
-
-    Step 5: if the loop climbed zero ancestors -> "unknown" ("ps unavailable
+    Step 3: if the walk yielded zero ancestors -> "unknown" ("ps unavailable
     or blocked; assume host session"). If it read at least one ancestor
     without a match -> "no", even if `ps` then failed partway up: we saw real
     process args and none matched. (Zero ancestors also covers an orphaned
@@ -676,13 +877,8 @@ def detect_teammate():
     sandboxed engines block `ps`, and the profiles' capability gates expect
     that.
     """
-    pid = os.getppid()
-    depth = 0
     scanned = 0
-    while pid and pid > 1 and depth < ANCESTOR_SCAN_DEPTH:
-        args = _ps_field(pid, "args")
-        if args is None:
-            break
+    for pid, args in _walk_ancestors():
         scanned += 1
         if TEAMMATE_MARKER_RE.search(args):
             # Only the matching process is echoed back. The full ancestry is
@@ -694,14 +890,6 @@ def detect_teammate():
                 "matched": {"pid": pid, "args": args[:200]},
                 "scanned": scanned,
             }
-        parent = _ps_field(pid, "ppid")
-        if not parent or not parent.strip().isdigit():
-            break
-        nxt = int(parent.strip())
-        if nxt == pid:
-            break
-        pid = nxt
-        depth += 1
     if not scanned:
         return {
             "verdict": "unknown",
@@ -973,7 +1161,7 @@ def _resolve_agent(args, res, workspace):
 def cmd_preflight(args, res):
     """The boot/attach/consult/merge preflight. This function's steps ARE the
     normative procedure (docs/conventions.md § Script Fallback Contract) — if
-    this script cannot run, read the six steps below (and the referenced
+    this script cannot run, read the seven steps below (and the referenced
     helper functions for their own exact commands) and execute them by hand.
 
     Step 1: resolve <framework-root> (this script's grandparent dir, or
@@ -981,7 +1169,12 @@ def cmd_preflight(args, res):
     a warning, not a failure — the version check below just becomes
     inconclusive.
 
-    Step 2: resolve the target agent. If --agent-dir was given, use it
+    Step 2: select the engine profile that governs this session (see
+    detect_engine below for the ordered signals and for the one that was
+    deliberately removed). The caller reads `data.engine.profile` — an absolute
+    docs/engines/<name>.md path — and keeps its bindings for the whole session.
+
+    Step 3: resolve the target agent. If --agent-dir was given, use it
     directly: require a role.md there, and derive the repo root by walking up
     two directories and checking for lore-repo.md (warn, don't fail, if that
     check comes up empty — repo-scoped steps 4-5 below are skipped for a
@@ -990,11 +1183,11 @@ def cmd_preflight(args, res):
     more than one match is a warning (use the first, arbitrarily). See
     _resolve_agent below for the exact logic.
 
-    Step 3: record the agent's role.md and lore-context.md paths as
+    Step 4: record the agent's role.md and lore-context.md paths as
     `read_next`. Reading and interpreting those files is the caller's job —
     their content is judgment material, not something this script parses.
 
-    Step 4: if the agent sits under a real lore repo, auto-pull it (TTL-cached
+    Step 5: if the agent sits under a real lore repo, auto-pull it (TTL-cached
     — see pull_repo below for the exact `git pull --ff-only` invocation, the
     fast-fail env vars, and the `.git/lr-last-pull` TTL stamp file), then
     compare the repo's lore-repo.md version stamp against the framework
@@ -1004,13 +1197,21 @@ def cmd_preflight(args, res):
     in `data.version`; the caller reads docs/version-check.md to render the
     engine-specific remedy.
 
-    Step 5: otherwise (no enclosing repo — the warning from Step 2), skip both
+    Step 6: otherwise (no enclosing repo — the warning from Step 3), skip both
     of those: report pull as "skipped" and version as "unknown", and run no
     git subprocess at all.
 
-    Step 6: detect an Agent-Teams teammate spawn (see detect_teammate below for
+    Step 7: detect an Agent-Teams teammate spawn (see detect_teammate below for
     the exact `ps -o args= -p <ppid>` walk and the `--agent-id` flag-boundary
     match), unless --no-teammate-check suppressed it.
+
+    On engines whose profile gates teammate detection off, this step needs no
+    suppression and the caller must not be asked to pre-decide it: Step 2 is
+    what learns the engine, so a flag chosen before the call could only be
+    guessed. Running the probe anyway is safe by construction — a sandbox that
+    blocks `ps` yields "unknown", an engine that allows it yields "no", and
+    every caller treats those two identically. --no-teammate-check remains for
+    callers that want to skip the two `ps` calls outright.
     """
     workspace = os.path.abspath(args.workspace)
     root = resolve_framework_root(args.framework_root)
@@ -1020,6 +1221,15 @@ def cmd_preflight(args, res):
 
     res.data["framework_root"] = root
     res.data["workspace"] = workspace
+
+    # Step 2: engine profile. Before agent resolution, because everything the
+    # caller does after this call — including how it reports failures — is
+    # governed by the profile's bindings.
+    res.data["engine"] = detect_engine(root, override=getattr(args, "engine", None))
+    if res.data["engine"]["confidence"] == "assumed":
+        res.warn("engine could not be determined (%s); assuming the %s profile "
+                 "— re-run with --engine <claude|codex|cursor> if that is wrong"
+                 % (res.data["engine"]["detail"], res.data["engine"]["name"]))
 
     agent = _resolve_agent(args, res, workspace)
     if agent is None:
@@ -1045,7 +1255,7 @@ def cmd_preflight(args, res):
                                          agent["has_lore_context"] else None) if p]
 
     if agent["repo"]:
-        # Step 4 (repo branch): TTL-cached pull, then version compare.
+        # Step 5 (repo branch): TTL-cached pull, then version compare.
         res.data["pull"] = pull_repo(
             agent["repo"], ttl=args.ttl, fresh=args.fresh, do_pull=not args.no_pull)
         if res.data["pull"]["status"] == "failed":
@@ -1077,13 +1287,13 @@ def cmd_preflight(args, res):
                      "version state unverified; continuing without a version check"
                      % (repo_version, fw_version))
     else:
-        # Step 5 (no-repo branch): hardcode skipped/unknown, no subprocess runs.
+        # Step 6 (no-repo branch): hardcode skipped/unknown, no subprocess runs.
         res.data["pull"] = {"status": "skipped", "detail": "no enclosing lore repo"}
         res.data["version"] = {"verdict": "unknown", "repo": None,
                                "framework": fw_version,
                                "detail": "no enclosing lore repo"}
 
-    # Step 6: teammate detection, unless suppressed.
+    # Step 7: teammate detection, unless suppressed.
     res.data["teammate"] = detect_teammate() if not args.no_teammate_check else {
         "verdict": "unknown", "detail": "check suppressed by --no-teammate-check",
         "scanned": 0}
@@ -1177,7 +1387,9 @@ def build_parser():
                        help="Bypass the TTL cache and always pull.")
     p_pre.add_argument("--no-pull", action="store_true", help="Skip the pull entirely.")
     p_pre.add_argument("--no-teammate-check", action="store_true",
-                       help="Skip process-ancestry inspection.")
+                       help="Skip the teammate process-ancestry inspection.")
+    p_pre.add_argument("--engine", default=None, choices=sorted(set(ENGINE_PROGRAMS.values())),
+                       help="Force the engine profile instead of detecting it.")
     p_pre.set_defaults(func=cmd_preflight)
 
     p_scan = sub.add_parser("scan", help="Manifest of an agent's lore topics.")
