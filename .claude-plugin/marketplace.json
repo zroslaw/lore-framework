@@ -9,7 +9,7 @@
       "name": "lr",
       "source": "./",
       "description": "Persistent, team-shared memory for AI coding agents",
-      "version": "1.33.0",
+      "version": "1.34.0",
       "repository": "https://github.com/zroslaw/lore-framework",
       "license": "MIT"
     }

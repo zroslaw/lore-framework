@@ -7,7 +7,7 @@ markdown digest that any agent on any engine (Claude Code, Codex, Cursor) can
 load into context to continue the work.
 
 Pipeline: <engine log> -> [parser] -> message list -> [renderer] -> digest
-                                      -> [archive] -> full Markdown log
+                                      -> [archive] -> full Markdown log (manual, dormant)
 
 The unified message list uses the de facto API message shape:
     {"role": "user"|"assistant", "content": str}                     -- a turn
@@ -25,7 +25,7 @@ Usage:
     session-takeover --list [--engine E] [--limit N]
     session-takeover <session-id | log-path> [-o digest.md] [--json out.json]
     session-takeover stats <session-id | log-path> --stats stats.json
-    session-takeover archive <session-id | log-path> -o archive.md
+    session-takeover archive <session-id | log-path> -o archive.md  # manual, dormant
 
 With no -o, the digest is written to stdout.
 """
@@ -1067,7 +1067,10 @@ def render_markdown(meta, messages):
     return "\n".join(out)
 
 
-# ------------------------------------------------------- archive (Feature A)
+# ------------------------------------------------------- archive (dormant manual primitive)
+#
+# This command is intentionally retained for a future explicit archive feature.
+# Summarize and finalize must not invoke it or write transcript archives.
 
 
 def _yaml_scalar(value):
@@ -1159,7 +1162,7 @@ def _archive_frontmatter(meta, output, lore_uuid=None, frontmatter=None):
 def render_archive_markdown(meta, messages, output, lore_uuid=None, frontmatter=None):
     """Render a full, unified Markdown archive for a parsed engine session.
 
-    This is the searchable, git-friendly archive. It uses the same parser output
+    This is the manual, git-friendly archive primitive. It uses the same parser output
     as takeover digests, but keeps sidechains and raw tool args/results instead
     of collapsing them to one-line summaries.
     """
@@ -1351,8 +1354,8 @@ def cmd_archive(argv):
 
     if a.stats:
         stats = compute_stats(meta, messages)
-        # Include the archive locator so the summarize step can assemble the
-        # `archive:` frontmatter block straight from this one JSON.
+        # Manual callers that request both outputs receive the archive locator
+        # in their stats JSON. Summarize/finalize do not use this path.
         stats["archive"] = {
             "path": archive_frontmatter_path(a.output),
             "schema_version": ARCHIVE_SCHEMA_VERSION,

@@ -2,7 +2,7 @@
 
 Read this when you need to find or recall topics from your lore. Covers both the agent-initiated case (you decide you need lore) and the user-triggered case (`/lr:recall`). Also covers the multi-agent case when guests are attached to the host session.
 
-Default scope is `agents/<agent>/lore/` only. Do not include `sessions/`, `archive/`, or other agent subdirectories in ordinary lore recall. Search/read `archive/` only when the user explicitly asks for full session logs or a particular session, or when the task specifically requires session-log evidence.
+Default scope is `agents/<agent>/lore/` only. Do not include `sessions/` or other agent subdirectories in ordinary lore recall.
 
 ## Preferred Mechanism: Subagent Scan
 

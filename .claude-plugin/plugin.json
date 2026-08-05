@@ -3,7 +3,7 @@
   "name": "lr",
   "displayName": "Lore Agents",
   "description": "Lore Agents — persistent, team-shared memory for AI coding agents",
-  "version": "1.33.0",
+  "version": "1.34.0",
   "author": {
     "name": "Yaroslav Panasyuk"
   },
