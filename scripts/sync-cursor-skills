@@ -10,6 +10,7 @@ Run from the framework root after adding or renaming a canonical skill:
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -69,34 +70,56 @@ def transform_body(body: str, skill_name: str, cursor_rel: str) -> str:
     return body
 
 
-def sync_one(skill_name: str) -> None:
+def wrapper_content(skill_name: str) -> str:
     src = SKILLS / skill_name / "SKILL.md"
     fm, body = parse_skill(src.read_text())
     lr_name = f"lr-{skill_name}"
     cursor_rel = f".cursor-skills/{lr_name}/SKILL.md"
-    out_dir = CURSOR / lr_name
-    out_dir.mkdir(parents=True, exist_ok=True)
     new_fm = rebuild_frontmatter(fm, skill_name)
     new_body = transform_body(body, skill_name, cursor_rel)
-    (out_dir / "SKILL.md").write_text(f"---\n{''.join(new_fm)}---\n\n{new_body}")
+    return f"---\n{''.join(new_fm)}---\n\n{new_body}"
 
 
-def main() -> int:
-    if not SKILLS.is_dir():
-        print(f"error: missing {SKILLS}", file=sys.stderr)
+def expected_wrappers(names: list[str]) -> dict[Path, str]:
+    return {
+        CURSOR / f"lr-{name}" / "SKILL.md": wrapper_content(name)
+        for name in names
+    }
+
+
+def check_wrappers(expected: dict[Path, str]) -> int:
+    """Report wrapper drift without creating, rewriting, or deleting anything."""
+    issues: list[str] = []
+    for path, content in expected.items():
+        if not path.is_file():
+            issues.append(f"missing {path.relative_to(ROOT)}")
+        elif path.read_text() != content:
+            issues.append(f"out of date {path.relative_to(ROOT)}")
+    if CURSOR.is_dir():
+        expected_dirs = {path.parent.name for path in expected}
+        for child in CURSOR.iterdir():
+            if child.is_dir() and child.name not in expected_dirs:
+                issues.append(f"stale {child.relative_to(ROOT)}")
+    if LEGACY_CURSOR.exists():
+        issues.append(f"legacy {LEGACY_CURSOR.relative_to(ROOT)}")
+    if issues:
+        for issue in issues:
+            print(issue)
+        print("Cursor skill wrappers are out of sync; run scripts/sync-cursor-skills.")
         return 1
-    names = sorted(p.name for p in SKILLS.iterdir() if p.is_dir() and (p / "SKILL.md").is_file())
-    if not names:
-        print("error: no canonical skills found", file=sys.stderr)
-        return 1
+    print("Cursor skill wrappers are in sync.")
+    return 0
+
+
+def sync_wrappers(expected: dict[Path, str]) -> None:
     CURSOR.mkdir(parents=True, exist_ok=True)
-    for name in names:
-        sync_one(name)
-        print(f"synced .cursor-skills/lr-{name}/SKILL.md")
-    # Remove stale cursor wrappers for deleted canonical skills
-    expected = {f"lr-{n}" for n in names}
+    for path, content in expected.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        print(f"synced {path.relative_to(ROOT)}")
+    expected_dirs = {path.parent.name for path in expected}
     for child in CURSOR.iterdir():
-        if child.is_dir() and child.name not in expected:
+        if child.is_dir() and child.name not in expected_dirs:
             import shutil
 
             shutil.rmtree(child)
@@ -106,6 +129,24 @@ def main() -> int:
 
         shutil.rmtree(LEGACY_CURSOR)
         print(f"removed legacy {LEGACY_CURSOR.relative_to(ROOT)}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true",
+                        help="report wrapper drift without modifying the tree")
+    args = parser.parse_args(argv)
+    if not SKILLS.is_dir():
+        print(f"error: missing {SKILLS}", file=sys.stderr)
+        return 1
+    names = sorted(p.name for p in SKILLS.iterdir() if p.is_dir() and (p / "SKILL.md").is_file())
+    if not names:
+        print("error: no canonical skills found", file=sys.stderr)
+        return 1
+    expected = expected_wrappers(names)
+    if args.check:
+        return check_wrappers(expected)
+    sync_wrappers(expected)
     return 0
 
 

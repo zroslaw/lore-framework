@@ -11,11 +11,11 @@ If a user asked you to set up Lore Agents and you are running in **Codex**, you 
 Run the install yourself, explaining each step. Before you add a marketplace or add a plugin, tell
 the user what you're about to do and get their go-ahead — and warn them that **Codex must be
 restarted** before new sessions load the plugin. You can't restart Codex yourself, so ask the user to
-exit and start a new session, then resume. Also note: **you can't invoke `$lr-<skill>` yourself** — in
+exit and start a new session, then resume. Also note: **you can't invoke `$lr:<skill>` yourself** — in
 `codex exec` it falls through to the shell and fails; when you need a skill's behavior, read
 `skills/<skill>/SKILL.md` under the framework root (it names the correct procedure doc — don't guess
 the doc filename from the skill name) and follow that, or have the user run the command. If the
-user wants automatic commits at `/lr:finalize`, that needs a writable `.git` and network, which come
+user wants automatic commits at `$lr:finalize`, that needs a writable `.git` and network, which come
 from how Codex is launched, not from the plugin (see § Optional Codex configuration). When the plugin
 is loaded, ask whether the user is joining a team that already uses Lore Agents or starting fresh —
 for joining, point them to
@@ -39,8 +39,8 @@ codex plugin add lr@lore-framework
 
 Then restart Codex so new sessions load the plugin.
 
-If you want direct per-agent boot shortcuts, ask the user to run `$lr-register-agent` or
-`$lr-register-repo` after the plugin is loaded — as an agent you cannot invoke these yourself (see
+If you want direct per-agent boot shortcuts, ask the user to run `$lr:register-agent` or
+`$lr:register-repo` after the plugin is loaded — as an agent you cannot invoke these yourself (see
 above). Those shortcuts are personal skills under `~/.codex/skills/`.
 
 ## Local development install (local checkout)

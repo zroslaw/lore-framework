@@ -1,7 +1,7 @@
-# Plain Language
+# Plain-Language Component
 
-When the user invokes `/lr:plain-language`, adopt this communication style for the rest of the
-session (until they turn it off), and re-assert it now if you had drifted.
+This is the canonical **plain** component applied when `/lr:style` selects `plain`. Keep it active
+until `/lr:style` replaces the session's style set or selects `off`.
 
 The user reads English as a second language. Dense, compressed prose costs them real effort — they
 have to read it two or three times to understand it. Write so they get it on the **first** read:
@@ -17,14 +17,5 @@ have to read it two or three times to understand it. Write so they get it on the
 This does **not** conflict with being brief. Keep replies short and say only what matters right now;
 just say those things plainly.
 
-## Re-asserting / turning off
-
-- **Re-assert:** the user can type `/lr:plain-language` again, or just say "plain language" /
-  "plain and simple", any time you slip back into compressed style.
-- **Off:** only when the user says so explicitly (e.g. "you can drop plain-language mode").
-
-## Related skills
-
-This is one of a small family of user-invoked *style* skills — alongside `/lr:follow-me` (let the
-user drive the thinking) and, later, a conversational-delivery skill. They are independent: invoke
-each one as you need it.
+The user can re-select this component with `/lr:style plain`, or combine it with the other
+components through `/lr:style`. `/lr:style off` disables it.

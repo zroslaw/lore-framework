@@ -86,7 +86,7 @@ Lore skills use a different invocation prefix per engine — this legend recurs 
 |--------|--------------|---------|
 | Claude Code | `/lr:<skill>` | `/lr:boot lore-architect` |
 | Cursor | `/lr-<skill>` | `/lr-boot lore-architect` |
-| Codex | `$lr-<skill>` | `$lr-boot lore-architect` |
+| Codex | `$lr:<skill>` | `$lr:boot lore-architect` |
 
 Per-agent shortcuts: `/lr-<agent>-agent` (Claude, Cursor) or `$lr-<agent>-agent` (Codex).
 
@@ -107,7 +107,7 @@ markdown so anyone can read and edit, and sessions written as narrative artifact
 ## Skills
 
 Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engine's prefix per the
-[Engine syntax](#engine-syntax) legend (Cursor `/lr-<skill>`, Codex `$lr-<skill>`).
+[Engine syntax](#engine-syntax) legend (Cursor `/lr-<skill>`, Codex `$lr:<skill>`).
 
 **Workspace setup**
 | Skill | Purpose |
@@ -130,9 +130,7 @@ Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engi
 **Interaction style**
 | Skill | Purpose |
 |---|---|
-| `/lr:dialogue` | Talk in short conversational turns, one step at a time |
-| `/lr:follow-me` | Follow your lead — offer small suggestions without racing ahead |
-| `/lr:plain-language` | Switch to plain, simple English |
+| `/lr:style [plain] [dialogue] [follow]` | Set one or more communication styles; no selector enables all, and `off` disables them |
 
 **Background / headless**
 | Skill | Purpose |
