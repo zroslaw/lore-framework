@@ -13,14 +13,14 @@ The procedure is intentionally narrow: one `git pull --ff-only` against the agen
 
 ## Normative source
 
-**The procedure lives in `pull_repo()`'s own comments in `scripts/lr-core`** (a literate
+**The procedure lives in `pull_repo()`'s own comments in `scripts/lr_core/preflight.py`** (a literate
 accelerator, `docs/conventions.md` § Script Fallback Contract) — this doc is a pointer into it,
 not a second copy. Boot/attach/consult/merge reach it through `lr-core preflight`, which also adds
 a TTL cache on top (a pull that succeeded within the window is reported `fresh` and skipped — see
 `_read_stamp`/`_write_stamp` next to `pull_repo`).
 
 **When the script cannot run:** notify the user, then read `pull_repo()`'s docstring in
-`scripts/lr-core` and execute **its numbered steps, all of them**, by hand against
+`scripts/lr_core/preflight.py` and execute **its numbered steps, all of them**, by hand against
 `<lore-agent-repo>` — the exact `git` invocations, the runtime bound and why not `timeout`, the
 fail-fast env vars, the bare-repo / not-its-own-git-root / no-origin skip cases, and the
 git-could-not-answer-is-a-failure-not-a-skip distinction are all spelled out there. Do not trust a

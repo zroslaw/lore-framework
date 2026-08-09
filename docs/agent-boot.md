@@ -12,7 +12,7 @@ Do this first, before the numbered steps. It is prose because it must run before
 
 **Resolve `<framework-root>`.** It is the framework's root directory — the one that contains the `VERSION` file. You already resolved it to read *this* file (a `SKILL.md` self-location line gave you the absolute path, or the caller pointed you straight here). Use that same absolute path everywhere `<framework-root>` appears below. Do **not** rely on `${CLAUDE_PLUGIN_ROOT}` or any engine-specific variable — on some engines it is empty.
 
-The **engine profile** — the five bindings that govern how you execute everything after this — is selected for you by preflight in Step 1 and consumed in Step 2. Do not infer the engine yourself, and in particular do not infer it from what you believe you are: that belief is not an observation of the running process, and the profile is precisely the thing that must not be decided by the model it governs. If preflight cannot run, the Manual Boot Procedure below covers this along with every other step.
+The **engine profile** — the five bindings that govern how you execute everything after this — is selected for you by preflight in Step 1 and consumed in Step 2. Do not infer the engine from what you believe you are: that belief is not an observation of the running process. The one bootstrap exception is direct evidence in the active tool interface, described in Step 1 for Codex's native `spawn_agent` tool. If preflight cannot run, the Manual Boot Procedure below covers this along with every other step.
 
 ## Boot Procedure
 
@@ -28,7 +28,13 @@ python3 "<framework-root>/scripts/lr-core" preflight --agent "<agent-name>" --wo
 - **Quote every substituted value, and give the call at least 180 seconds** — this call pulls over the network, and the default bound on some engines leaves no margin. This is the one call you bound *before* knowing your profile's runtime-bounding binding, since this call is what selects the profile. Resolve it from your **tools**, not your identity: if the tool you are about to run this command with accepts a timeout, set it to 180 seconds or more; if it does not, let the call run unbounded rather than shortening it. That is a fact about the tool in front of you, which is why it is safe to act on here while Step 0 still forbids reasoning from which engine you believe you are. Every later call uses the binding from Step 2. Both rules and why they exist: `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
 - `<cwd>` is the directory this session was invoked from (run `pwd` if unsure). This is *not* the plugin/framework directory you just read this file from. Omit `--workspace` to default to the current directory.
 - If the caller gave you an **absolute path** to the agent directory, use `--agent-dir <path>` instead of `--agent` to skip discovery entirely.
-- Pass no engine flag. The script determines the engine itself; `--engine <name>` exists only for a caller that must force a profile (a test harness, or a user debugging one). On engines whose profile gates teammate detection off, no suppression flag is needed either — a sandbox that blocks `ps` yields `unknown` and an engine that allows it yields `no`, and Step 2 treats those identically.
+- Normally pass no engine flag and let the script determine the engine. **Codex bootstrap
+  exception:** if the active tool interface directly exposes Codex's native `spawn_agent` model
+  tool, append `--engine codex`. This is observed runtime capability, not model identity, and it
+  closes Codex's known detection blind spot when `<framework-root>` is a checkout or worktree
+  outside `~/.codex/`. A caller may likewise supply an explicit engine for a test harness or a
+  user-directed debugging run. On other paths, do not guess an override. Engine-specific teammate
+  suppression is unnecessary: a sandbox-blocked `ps` yields `unknown`, which Step 2 handles.
 
 The command prints one JSON object: `{"ok", "data", "warnings", "errors"}`.
 
@@ -47,7 +53,32 @@ Read the JSON and handle each field. All of these are *results*, not failures �
   **Known false negative on Claude Code:** if a wrapper buries `--agent-id` in a different process tree, detection runs fine and still returns `no` — a real teammate boots as a host session, and the spawn-teammate UX degrades (symptom: a spawned teammate routing routine messages to the lead instead of the user). This is not a script failure and no verdict reveals it. Mitigation: the spawn-prompt recap (`docs/spawn-teammate.md` Step 6) carries a one-sentence fallback. Recovery: file an issue with the framework maintainers.
 - **`warnings`** — surface anything material to the user in one line each.
 
-### Step 3 — Read the agent's files
+### Step 3 — Generate the compact Lore map
+
+After version handling and before loading agent-authored knowledge, run:
+
+```
+python3 "<framework-root>/scripts/lr-core" lore-map --agent-dir "<agent-dir>" --view boot --engine "<engine>"
+```
+
+Use `data.agent.dir` and `data.engine.name` from preflight as `<agent-dir>` and `<engine>`. Read the emitted YAML into the boot context;
+do not save it as a Lore file. Its coverage block says how strongly to rely on the taxonomy:
+
+- `complete` — taxonomy coverage is complete; the boot map remains compact, so expand relevant
+  areas with scoped detailed maps;
+- `partial` — use mapped areas, but also search uncovered Lore for comprehensive recall;
+- `legacy` — use `lore-context.md` and ordinary directory search.
+
+A nonzero `coverage.uncovered.invalid_utf8` count is a partial map, not map failure. Keep the compact
+map and use its readable taxonomy; do not switch to the full fallback merely because that count is
+nonzero.
+
+If the map command fails, say `Lore map generation failed; using normal Lore search.` once and
+continue. This command is an implementation, not a literate accelerator: do not reconstruct the
+complete taxonomy manually or invoke the Script Fallback Contract. Boot never rewrites or migrates
+Lore.
+
+### Step 4 — Read the agent's files
 
 Read every path in `data.read_next`, in order:
 
@@ -56,23 +87,65 @@ Read every path in `data.read_next`, in order:
 
 Read them yourself; preflight deliberately does not inline their contents, because interpreting them is your job, not the script's. If `lore-context.md` is absent (a brand-new agent), continue with `role.md` alone.
 
-### Step 4 — Confirm
+### Step 5 — Report
 
-Confirm you are loaded as the agent and briefly state your role and what you know.
+Finish every successful boot with exactly this concise three-line report:
 
-These files, together with this one, form your **boot context**. The rest of this document explains how to operate once loaded.
+```text
+Booted: <agent-name> — <role description>
+Agent Lore: <lore_files> topics · ~<total_tokens_k>k tokens total · coverage <mapped_percent>% (<status>)
+Context Footprint: ~<boot_footprint_k>k tokens total · ~<lore_context_k>k lore context · ~<map_k>k lore map · ~<role_k>k role · ~<system_prompts_k>k system prompts
+```
+
+Take the agent name and role description from preflight. Take `lore_files` and context size from
+the compact map's `stats`, total Lore size from `coverage.estimated_tokens.total`, map size from its
+top-level `estimated_tokens`, and total boot footprint, role size, and system-prompt size from
+`stats.boot_footprint_estimated_tokens`, `stats.boot_role_estimated_tokens`, and
+`stats.boot_system_prompts_estimated_tokens`. Take coverage percentage and status from
+`coverage.estimated_tokens.mapped_percent` and `coverage.status`.
+
+Render every available token estimate in ceiling-rounded thousands: `ceil(tokens / 1000)`, with a
+minimum display of `~1k`. For example, 215 becomes `~1k`, 3,685 becomes `~4k`, and 10,815 becomes
+`~11k`. Keep topic counts exact and coverage to the map's one decimal place. Each component is
+rounded independently, so displayed components need not add exactly to the displayed total; the
+map's exact estimates remain authoritative for arithmetic and budgeting.
+
+If `lore_context_estimated_tokens` is `null`, render `context unavailable` in that position instead
+of a token count.
+
+`lore_files` counts Markdown files below `lore/`, including area hubs and legacy files; it excludes
+the fixed `lore-context.md`. This keeps the count useful before migration, when v1 leaf types are
+not yet known.
+
+The role component is `role.md`. The system-prompts component is the boot skill pointer,
+`docs/agent-boot.md`, and the selected engine profile. The total boot footprint adds the role,
+`lore-context.md`, and the generated compact map. It excludes workspace
+memory that was already loaded before boot, optional per-agent shortcut wrappers, command/tool
+transcript overhead, and conditional version, migration, release-note, or teammate documents.
+
+If map generation failed, keep the same report shape:
+
+```text
+Booted: <agent-name> — <role description>
+Agent Lore: unknown topics · total unavailable · coverage unavailable
+Context Footprint: total unavailable · lore context unavailable · lore map unavailable · role unavailable · system prompts unavailable
+```
+
+The compact map and these files, together with this document, form your **boot context**. The rest
+of this document explains how to operate once loaded.
 
 ## Pull Freshness
 
 Preflight auto-pulls the agent's repo so boot sees the team's latest pushed state, and stamps the time of each successful pull inside the repo's git directory. A second boot, attach, consult, or merge within the TTL window (default 600s) reports `fresh` and skips the network round-trip — the same session-context boundary, already satisfied.
 
-Pass `--fresh` to bypass the cache (what `/lr:pull-lore` does), `--ttl <seconds>` to change the window, or `--no-pull` to skip the pull entirely. The full pull semantics — `--ff-only`, fail-fast transport env vars, the skip and failure cases — are specified in `pull_repo()`'s own comments in `scripts/lr-core`; `<framework-root>/docs/auto-pull.md` is a short pointer into it, not a second copy.
+Pass `--fresh` to bypass the cache (what `/lr:pull-lore` does), `--ttl <seconds>` to change the window, or `--no-pull` to skip the pull entirely. The full pull semantics — `--ff-only`, fail-fast transport env vars, the skip and failure cases — are specified in `pull_repo()`'s own comments in `scripts/lr_core/preflight.py`; `<framework-root>/docs/auto-pull.md` is a short pointer into it, not a second copy.
 
 ## Manual Boot Procedure
 
 **Read this only when preflight could not run** (Script Fallback Contract, `docs/conventions.md`
-— `scripts/lr-core` is a *literate* accelerator, so its own comments are the normative spec, not a
-copy of it kept here). Open `scripts/lr-core` and read, in order: `cmd_preflight`'s docstring (the
+— `scripts/lr-core` is a *literate* accelerator, so its implementation comments are the normative
+spec, not a copy kept here). Open `scripts/lr_core/preflight.py` and read, in order:
+`cmd_preflight`'s docstring (the
 seven numbered steps — resolve framework root/VERSION, select the engine profile, resolve the
 agent, record `read_next`, pull+version-compare or skip, teammate detection), then the docstrings
 of the five functions it names for the exact hand commands — `detect_engine` (the ordered engine
@@ -101,8 +174,8 @@ adopt its four RULES as standing rules). Skipping to Step 3 silently drops all t
 Script Fallback Contract requires the manual path to reach the same end state the script would
 have produced — not merely to collect the same facts.
 
-**If `scripts/lr-core` itself is missing or unreadable** — not merely failing — there is no
-literate spec left to read. Follow the floor case in `<framework-root>/docs/conventions.md`
+**If `scripts/lr_core/preflight.py` itself is missing or unreadable** — not merely failing — there
+is no literate spec left to read. Follow the floor case in `<framework-root>/docs/conventions.md`
 § Script Fallback Contract (*The floor: when the script itself is gone*), recovering this doc's
 own prior prose as the `<path>` it names. Never silently invent a boot procedure.
 
@@ -115,7 +188,9 @@ change the verdict.
 
 ## Your Lore
 
-Your lore is stored in the `lore/` directory within your agent directory. It is a collection of plain markdown files — each file is a **lore topic**, an atomic piece of knowledge.
+Your Lore uses the structure defined in `<framework-root>/docs/lore-structure.md`: one fixed
+`lore-context.md`, recursive area hubs, and focused leaf topics. Legacy and mixed agents remain
+supported.
 
 Lore topics contain:
 - Decisions and their reasoning
@@ -123,11 +198,15 @@ Lore topics contain:
 - Operational recommendations from experience
 - Practical context about the systems and environment you work in
 
-Lore topics reference each other by filename, forming a knowledge graph. Some topics are **summary topics** that provide an overview of an area and link to more specific topics.
+The frontmatter `parent` relation forms the primary taxonomy. Markdown links form the wider
+knowledge graph and may cross any area boundary.
 
 ### Searching Your Lore
 
-`lore-context.md` is a compressed index, not the full picture — treat it as a starting point, not the answer. At the start of any non-trivial task, scan your `lore/` directory for related topics before proceeding. Never act on assumptions about things you might have encountered in previous sessions without first confirming in your lore.
+`lore-context.md` contains every-session working knowledge and high-level taxonomy, not an index of
+every leaf. Start with the compact boot map, expand relevant areas with scoped detailed maps, and
+combine taxonomy navigation with legacy/uncovered search according to map coverage. Never act on
+assumptions about prior sessions without confirming them in Lore.
 
 Default lore search means `lore/` only. Do **not** search `sessions/` as part of ordinary recall: it contains session summaries rather than reusable lore.
 

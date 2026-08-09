@@ -74,17 +74,40 @@ For every agent found in step 4, verify the directory contains all required file
 
 Report any missing components.
 
-## 9. lore-context.md topic references
+## 9. Lore structure and references
 
-For every agent, read `lore-context.md` and extract any lore topic filenames referenced (e.g. `topic-name.md`). Verify each referenced file exists in the agent's `lore/` directory. Report any broken references.
+For every agent, use the deterministic validator for Lore structure, recursive paths, and the
+bounded formal-link grammar. Write the detailed census to a temporary file so it does not flood
+the model context:
 
-## 10. Lore topic cross-references
+```
+python3 "<framework-root>/scripts/lr-core" lore-map --agent-dir "<agent-dir>" --view boot
+python3 "<framework-root>/scripts/lr-core" lore-map --agent-dir "<agent-dir>" --view detailed > "<temporary-map>"
+```
 
-For every `.md` file in each agent's `lore/` directory, extract any `.md` filenames referenced in the content. Verify each referenced file exists in the same `lore/` directory. Report any broken references.
+Take coverage status and file/token percentages from the compact view. Inspect only `validation`
+and relevant mapped or uncovered reference records in the temporary detailed map, then delete it.
+Do not read or print
+the taxonomy body wholesale. Report every validation item.
+Legacy, invalid, unreachable, and unsupported-version counts are findings, not command failures.
+Unsupported future versions are informational unless another procedure edited them. The validator
+checks v1 schema, the fixed context, parent confinement/types, cycles, topic children, reachability,
+context-size thresholds, formal links, and conservative legacy-reference ambiguity.
+
+If this command fails, report that Lore v1 validation could not complete. It is an implementation
+script, so do not imitate the validator manually or invoke the Script Fallback Contract.
+
+## 10. Legacy reference cautions
+
+The detailed map also reports conservative plain-filename, backticked, and raw-HTML references.
+Report unresolved and ambiguous legacy references. They are safety cautions for future path-changing
+operations, not formal graph edges.
 
 ## 11. lore-context.md size
 
-For every agent, check the size of `lore-context.md`. Warn if it exceeds 40K tokens (approaching the 50K limit) or flag as a violation if it exceeds 50K tokens.
+Use the detailed map's `context_size_warning` / `context_size_error` findings. For a v1 context, warn above 10,000 estimated
+tokens and report an error above 20,000. For a legacy context, retain the historical 50,000-token
+ceiling until it migrates. Do not apply exact-token language to the dependency-free estimate.
 
 ## 12. Pending reflections
 

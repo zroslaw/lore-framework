@@ -99,8 +99,8 @@ creating a repo, creating an agent, booting it, and finalizing:
 
 ## What you get
 
-- **Agents with persistent memory** — each agent's knowledge lives in `lore/` as a graph of plain
-  markdown topics, loaded when you boot it.
+- **Agents with persistent memory** — each agent's knowledge lives in Markdown as a declared
+  taxonomy plus wider cross-links; a compact navigation map is reconstructed when you boot it.
 - **A usage→learning loop** — working with an agent teaches it; `/lr:finalize` extracts what was
   learned and merges it back into the shared repo.
 - **Team-shared knowledge** — teammates boot the same agents, contribute to the same lore, and push

@@ -39,8 +39,12 @@ If `$ARGUMENTS` is empty:
 Discovery, auto-pull, and the version comparison are one command — the same preflight boot runs, pointed at the guest:
 
 ```
-python3 "<framework-root>/scripts/lr-core" preflight --agent "<guest-name>" --workspace "<cwd>"
+python3 "<framework-root>/scripts/lr-core" preflight --agent "<guest-name>" --workspace "<cwd>" --engine "<engine>"
 ```
+
+Use the host boot's selected engine (`data.engine.name`) for `<engine>`. This keeps attachment on
+the same profile even when Codex is running against a worktree or other path where automatic
+detection has no native-install signal.
 
 Bound this call at **at least 180 seconds** via your engine profile's runtime-bounding binding, and keep the substituted values quoted as shown — see `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
 
@@ -53,7 +57,7 @@ Read the JSON it prints:
 
 Pass `--no-teammate-check` if you like; the host already established spawn context at boot and the guest's answer is irrelevant.
 
-**If the script fails to complete:** apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) — tell the user, then read `_resolve_agent`, `pull_repo`, and `compare_versions` in `<framework-root>/scripts/lr-core` and execute their commented steps by hand, in that order (pull before version-compare, so the reconcile sees the freshest stamp), against `<guest-lore-agent-repo>`.
+**If the script fails to complete:** apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) — tell the user, then read `_resolve_agent`, `pull_repo`, and `compare_versions` in `<framework-root>/scripts/lr_core/preflight.py` and execute their commented steps by hand, in that order (pull before version-compare, so the reconcile sees the freshest stamp), against `<guest-lore-agent-repo>`.
 
 ### Step 3: Version reconcile in a subagent
 
@@ -93,18 +97,54 @@ After the subagent returns:
 In the host's main context, read:
 
 1. `agents/<guest>/role.md` — frontmatter has `description`; the body defines the guest's identity and responsibilities.
-2. `agents/<guest>/lore-context.md` — the guest's compacted working knowledge (≤50K tokens).
+2. `agents/<guest>/lore-context.md` — only when `data.agent.lore_context_file` is non-null (and it
+   appears in `data.read_next`). A missing context is allowed; retain zero context tokens and
+   continue with the role, map, and directory search.
+
+Then generate the guest's compact boot map:
+
+```text
+python3 "<framework-root>/scripts/lr-core" lore-map --agent-dir "<guest-agent-dir>" --view boot --engine "<engine>"
+```
+
+Keep the YAML in working context. Use its coverage guidance exactly as normal boot does: rely on
+the map when complete, combine it with directory search when partial, and use ordinary legacy
+search when legacy. If map generation fails, warn once and continue with the role, context, and
+directory search. Attachment never migrates Lore.
 
 These files now live in the host's working context alongside the host's own role and lore-context.
 
 ### Step 5: Confirm
 
-Print a confirmation message. Include:
+Print this standard report:
 
-- `Attached <guest-name>.`
-- Active agents line: `Active agents: host=<host-name>, guests=[<g1>, <g2>, ...]`.
-- One-line summary of the guest's role (taken from the guest's `role.md` frontmatter description).
-- If a version reconcile ran, note it: `Guest repo was upgraded from <R> to <F>.`
+```text
+Attached: <guest-name> — <role description>
+Agent Lore: <lore_files> topics · ~<total_tokens_k>k tokens total · coverage <mapped_percent>% (<status>)
+Added Context: ~<added_context_k>k tokens total · ~<lore_context_k>k lore context · ~<map_k>k lore map · ~<role_k>k role
+Active agents: host=<host-name>, guests=[<g1>, <g2>, ...]
+```
+
+Use the same map fields and ceiling-rounded-thousands rule as the boot report in
+`docs/agent-boot.md`. Calculate exact added context as `lore_context_estimated_tokens` (zero when
+the context file is absent) + top-level `estimated_tokens` + `boot_role_estimated_tokens`, then
+round the result upward independently. This is the guest knowledge retained in the host context.
+Do not add system prompts: the framework boot instructions and engine profile are already loaded.
+Also exclude the transient attach procedure and command transcript.
+
+If map generation failed, keep the report shape and render the unavailable values:
+
+```text
+Attached: <guest-name> — <role description>
+Agent Lore: unknown topics · total unavailable · coverage unavailable
+Added Context: total unavailable · lore context unavailable · lore map unavailable · role unavailable
+Active agents: host=<host-name>, guests=[<g1>, <g2>, ...]
+```
+
+If reconciliation confirms that a repo which started below `F` is now stamped exactly `F`, add
+`Guest repo was upgraded from <R> to <F>.` after the report. For a deferred, failed, repo-ahead,
+different-scheme, or otherwise unstamped outcome, do not claim an upgrade; the warning/degraded
+state already surfaced from Step 3 remains authoritative.
 
 This confirmation message is the host's record of the attachment — the session conversation itself tracks active agents. No disk state is written for the attach.
 
@@ -126,7 +166,10 @@ No detach in v1. Guests stay attached for the rest of the session and participat
 
 ## Attaching multiple guests
 
-Call `/lr:attach` multiple times. Order matters only for finalization iteration (host first, then guests in attach order). There is no hard cap on the number of guests — token cost is the user's responsibility. Each guest's `lore-context.md` can be up to 50K tokens; attaching several visibly shrinks the host's working budget.
+Call `/lr:attach` multiple times. Order matters only for finalization iteration (host first, then
+guests in attach order). There is no hard cap on the number of guests — token cost is the user's
+responsibility. Each guest adds its role, context, and compact map; attaching several visibly
+shrinks the host's working budget.
 
 ## Escalation from consult
 
@@ -137,7 +180,7 @@ If a `/lr:consult <agent>` surfaces that you actually need sustained engagement 
 - `<framework-root>/docs/consult.md` — the one-shot sibling (subagent boots, answers, exits; no host-side loading)
 - `<framework-root>/docs/recall.md` — lore search across active agents
 - `<framework-root>/docs/lore-search.md` — search brief structure, fan-out mechanics
-- `<framework-root>/docs/auto-pull.md` — caller-side reporting policy for the per-repo refresh at Step 2 (the procedure itself lives in `pull_repo()`'s comments in `scripts/lr-core`)
+- `<framework-root>/docs/auto-pull.md` — caller-side reporting policy for the per-repo refresh at Step 2 (the procedure itself lives in `pull_repo()`'s comments in `scripts/lr_core/preflight.py`)
 - `<framework-root>/docs/version-check.md` — migration procedure used by the Step 3 subagent
 - `<framework-root>/docs/pull-lore.md` — `/lr:pull-lore` does the same auto-pull mid-session for already-attached agents
 - `<framework-root>/docs/process-reflection.md` and `process-merge.md` — per-agent iteration when guests are attached

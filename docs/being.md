@@ -82,7 +82,7 @@ Procedure:
 
 1. Discover lore agent repos with `python3 "<framework-root>/scripts/lr-core" discover --workspace "<cwd>"`,
    reading `data.repos` / `data.agents` from its JSON. If it fails to complete, apply the Script
-   Fallback Contract: read `cmd_discover`'s docstring in `<framework-root>/scripts/lr-core` — it
+   Fallback Contract: read `cmd_discover`'s docstring in `<framework-root>/scripts/lr_core/preflight.py` — it
    carries the numbered steps — and execute them by hand.
 2. Resolve the target agent. If the user supplied `agent-name`, use the matching existing agent.
    If omitted and there is one obvious existing agent, use it. Otherwise ask the user which agent.

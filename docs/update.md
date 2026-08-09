@@ -10,7 +10,7 @@ Optional argument: `--dry-run` — print what would change without writing any f
 
 ## Core Concept
 
-A single repo-level version identifier is the source of truth. The framework version lives in `<framework-root>/VERSION`. Each lore agent repo stamps this version in its `lore-repo.md` frontmatter. When the framework is ahead of a repo, `/lr:update` walks intermediate versions in sequence — applying migrations from `<framework-root>/migrations/` and displaying release notes from `<framework-root>/release-notes/` — then stamps the new version, but only after all steps succeed.
+A single repo-level version identifier is the source of truth. The framework version lives in `<framework-root>/VERSION`. Each lore agent repo stamps this version in its `lore-repo.md` frontmatter. When the framework is ahead of a repo, `/lr:update` walks intermediate versions in sequence — applying migrations from `<framework-root>/migrations/` and displaying release notes from `<framework-root>/release-notes/` — then stamps the new version, but only after all steps succeed. It then tries to commit and push only those update-owned repo changes so a successful update does not remain local by accident.
 
 There is no per-agent version stamp. Agents within a repo migrate together with the repo.
 
@@ -39,9 +39,22 @@ If no repos are found, report "no lore agent repos in this workspace" and stop.
 
 Read the `version` field from `lore-repo.md` frontmatter → repo version `R`.
 
-- **If `R == F`**: report `<lore-agent-repo>: already at version F`, skip.
+- **If `R == F`**: report `<lore-agent-repo>: already at version F`. If Git metadata contains a
+  valid pending-update marker created by this procedure, retry its exact push as described in
+  **Automatic Publication**; otherwise skip.
 - **If `R > F`**: warn `<lore-agent-repo>: stamped as version R, but framework is at F — plugin may be out of date`. Do not migrate this repo.
 - **If `R < F`**: this repo needs migration. Continue to step 4.
+
+Before writing an `R < F` repo, capture the publication pre-state described in **Automatic
+Publication**. This snapshot is what prevents unrelated local work from entering the update
+commit.
+
+Also resolve the declared migration write paths for the full `R+1 ... F` range and compare them
+with the captured dirty paths before applying anything. If any update target was already dirty,
+do not write that repo: report the exact colliding paths and ask the user to commit, stash, or
+otherwise resolve them, then rerun `/lr:update`. If a migration has no usable `Write Paths`
+declaration, conservatively treat every dirty repo path as a collision. An explicit update is not
+permission to overwrite uncommitted work.
 
 ### 4. Apply migrations and release notes in order
 
@@ -65,15 +78,26 @@ Only after all upgrade steps in step 4 succeed:
 
 If any upgrade step failed in step 4, skip this step — leave the repo at its previous version so the next `/lr:update` run can retry.
 
-### 6. Report
+### 6. Publish the completed update
+
+Immediately after stamping, follow **Automatic Publication** below. Commit only repo-contained
+files written by this update, including `lore-repo.md`, then try to push that commit to the current
+branch's existing upstream. Publication failure does not undo a successful migration or version
+stamp.
+
+### 7. Report
 
 For each repo processed, print one line per outcome:
-- `<lore-agent-repo>: upgraded from R to F` (success)
+- `<lore-agent-repo>: upgraded from R to F; committed and pushed` (fully synchronized)
+- `<lore-agent-repo>: upgraded from R to F; committed locally, push failed: <reason>`
+- `<lore-agent-repo>: upgraded from R to F; committed locally, push skipped: <reason>`
+- `<lore-agent-repo>: upgraded from R to F; publication skipped: <reason>`
 - `<lore-agent-repo>: already at version F` (skipped, current)
 - `<lore-agent-repo>: stamped as R, framework is F — plugin may be out of date` (warning)
 - `<lore-agent-repo>: upgrade to v failed: <reason>` (error)
 
-At the end, print a summary: total repos, upgraded, skipped, warned, failed.
+At the end, print a summary: total repos, upgraded, pushed, push-failed, push-skipped,
+publication-skipped, skipped, warned, failed.
 
 ## Dry-Run Mode
 
@@ -85,7 +109,11 @@ If `--dry-run` is passed:
   - `would modify: <path>` — include a unified diff preview
   - `would delete: <path>`
 - For the version stamp step, print `would stamp <lore-agent-repo>: version R → F`.
+- Print `would commit and push: <repo-relative update-owned paths>` when publication preconditions
+  are satisfied, or `would skip publication: <reason>` when they are not.
 - For manual-edit detection, report `manual edits detected in: <path>` and describe what a merge would propose, but do NOT prompt the user.
+- For dirty migration targets, report `would defer: dirty update target(s): <paths>` and make no
+  write or publication claim for that repo.
 - At the end, print the same summary format as normal mode, prefixed with `[DRY RUN]`.
 
 ## Handling Manual Edits to Generated Files
@@ -128,11 +156,96 @@ When manual edits are detected:
 
 In **dry-run mode**, detect divergence and describe the proposed merge, but do not prompt — just report `manual edits detected: <path>`.
 
-## Commit Policy
+## Automatic Publication
 
-Do not run git commands that modify state. Leave all changes uncommitted so the user can review with `git diff` and commit themselves. This applies to both the migrated files and the version stamp in `lore-repo.md`.
+Publication is best-effort and conservative. Its purpose is to synchronize framework-owned update
+changes, not to publish arbitrary user work.
 
-It is acceptable to run read-only git commands (`git -C <lore-agent-repo> status`, `git -C <lore-agent-repo> diff`, `git -C <lore-agent-repo> log`) during migration if needed for context, where `<lore-agent-repo>` is the path of the repo currently being processed. Always use `git -C` rather than `cd`ing into each repo — `/lr:update` iterates across repos, and a stray `cd` will silently shift the CWD for subsequent Glob/Grep/git calls on the next repo.
+### Before writing
+
+For each repo that needs an update, record:
+
+1. The exact Git top-level from `git -C <repo> rev-parse --show-toplevel`. It must equal the Lore
+   repo's real path. An enclosing workspace repository is not a valid publication target.
+2. The current branch and its existing upstream. Detached HEAD disables the automatic commit; no
+   upstream disables only the push. Do not guess a remote or create a branch.
+3. Staged paths from `git diff --cached --name-only` and dirty paths from porcelain status.
+4. The count of commits already ahead of the upstream.
+
+Keep an exact list of repo-contained files actually created, modified, or deleted by the update.
+External shortcut files may still be updated by migrations, but never belong in the Lore repo
+commit. Always include the final `lore-repo.md` stamp in the owned list.
+
+Before any migration write, intersect the range's declared repo-contained write paths (plus
+`lore-repo.md`) with the captured dirty paths. Any intersection defers the entire repo update with
+no writes. A missing or malformed declaration uses the conservative fallback described above.
+The separate generated-file divergence procedure still applies to targets that this Git gate does
+not defer, especially external shortcuts outside the Lore repo. It never overrides a dirty
+repo-contained target.
+
+### Commit gate
+
+After a successful stamp, automatically commit only when all of these hold:
+
+- the Lore repo is its own Git root and is on a branch;
+- no update-owned path was already dirty before the update;
+- there were no staged changes before the update;
+- every repo path changed by the update is in the recorded update-owned list.
+
+Unrelated **unstaged** dirty paths do not block publication and must not be staged. A pre-existing
+dirty update target or any staged work does block publication because committing it could absorb
+user changes. If a gate fails, leave the update changes uncommitted and report the exact reason.
+
+When the gate passes:
+
+1. Stage only the recorded update-owned paths, using explicit path arguments and deletion-aware
+   staging. Never use `git add .`, `git add -A` without paths, or a wildcard.
+2. Commit only those paths with subject `chore(lore): update framework to v<F>`. Preserve any
+   unrelated unstaged changes.
+3. Verify the created commit contains no path outside the update-owned list. If verification fails,
+   do not push and report the unexpected paths.
+
+### Push attempt and retry
+
+After the narrow commit succeeds, attempt a push only when the branch has an existing upstream and
+it had zero commits ahead of that upstream before this update. Otherwise keep the new update commit
+local and report why the push was skipped; unrelated unpublished commits must never ride along
+automatically.
+
+Immediately before writing the pending marker or pushing, freshly resolve the current branch,
+upstream, `HEAD`, and commits ahead of that upstream. Continue only when the branch and upstream are
+unchanged, `HEAD` is the exact update commit just created, and that commit is the sole commit ahead.
+If any value differs, skip the push and report the changed precondition. This second gate prevents
+a concurrent or newly-created local commit from riding along after the earlier snapshot.
+
+When the push gate passes, push the current branch to its existing upstream with non-interactive
+credentials and the engine profile's normal runtime bound. Never force-push. Immediately before
+the attempt, write a small `lr-update-pending` marker inside the absolute Git directory (resolve it
+with `git rev-parse --absolute-git-dir`), containing the exact update commit ID, branch, and
+upstream. Use this exact format so a later engine can validate it deterministically:
+
+```yaml
+version: 1
+commit: "<full-commit-id>"
+branch: "<branch>"
+upstream: "<upstream>"
+```
+
+Remove the marker only after a successful push. If the marker cannot be written, still try the
+immediate push; if that push fails, report that automatic retry is unavailable.
+
+A rejected, unauthenticated, timed-out, or otherwise failed push leaves the update commit and
+marker local and must be reported with the short commit ID and Git's useful error line. Do not roll
+back the migration, stamp, or commit.
+
+On a later `/lr:update` where `R == F`, retry only when the marker still names the current branch
+and upstream, `HEAD` equals the recorded commit, and that commit is the sole commit ahead of the
+upstream. If any check differs, do not push and report the stale marker; a later user commit must
+never ride along. A successful retry removes the marker. With no marker, ordinary
+`already at version F` handling applies.
+
+Use `git -C <lore-agent-repo>` for every Git command rather than changing directories; the command
+iterates across repositories.
 
 ## Ordering Rules
 
@@ -152,7 +265,8 @@ If a migration step throws an error (file not found, permission denied, malforme
 
 - Does not update the plugin itself (that's Claude Code's job).
 - Does not touch lore topics, `lore-context.md`, or `workdir/` contents — those are agent-owned and not templated.
-- Does not commit changes.
+- Does not commit or push unrelated user changes, create an upstream, or force-push.
 - Does not auto-resolve manual edits without user confirmation.
+- Does not overwrite a dirty migration target; resolve it and rerun the update.
 - Does not skip versions.
 - Does not diagnose runtime/environmental issues — if a skill expected from a freshly-applied version isn't appearing, an old skill lingers, or behavior reflects the prior version after a successful update, see `/lr:doctor`. Plugin-cache staleness is the most common cause and is a known ailment.

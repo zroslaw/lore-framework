@@ -42,8 +42,15 @@ Add a new agent to an existing agent repo.
 
    Note: the framework version is tracked **only** at the repo level (`lore-repo.md` frontmatter). Agents do not carry their own version stamp — they migrate together with the repo via `/lr:update`.
 
-6. **Write `lore-context.md`** with a minimal starting structure:
+6. **Write `lore-context.md`** as a minimal Lore v1 root (schema:
+   `<framework-root>/docs/lore-structure.md`):
    ```markdown
+   ---
+   lore: 1
+   type: context
+   summary: "Initial working knowledge and navigation for this agent."
+   ---
+
    # Lore Context
 
    Initial session. No accumulated lore yet.

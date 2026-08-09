@@ -20,7 +20,7 @@ Use consult when a focused question will get you what you need. If you realize y
 ### Step 1: Preconditions
 
 1. **Host must be loaded.** Consult needs the current session as raw material for the brief. If no agent is booted, respond: `No agent loaded. Run /lr:boot <agent-name> first.` and stop.
-2. **Consultant must exist.** Run `python3 "<framework-root>/scripts/lr-core" discover --workspace "<cwd>"` and check `data.agents` for the name. If absent, print the available agents from that same output and stop. This check exists only so the host fails fast on a typo instead of paying for a subagent; the consult subagent re-runs the full preflight when it boots. If the script fails to complete, apply the **Script Fallback Contract** in `<framework-root>/docs/conventions.md`: read `cmd_discover`'s docstring in `<framework-root>/scripts/lr-core` — it carries the numbered steps — and execute them by hand.
+2. **Consultant must exist.** Run `python3 "<framework-root>/scripts/lr-core" discover --workspace "<cwd>"` and check `data.agents` for the name. If absent, print the available agents from that same output and stop. This check exists only so the host fails fast on a typo instead of paying for a subagent; the consult subagent re-runs the full preflight when it boots. If the script fails to complete, apply the **Script Fallback Contract** in `<framework-root>/docs/conventions.md`: read `cmd_discover`'s docstring in `<framework-root>/scripts/lr_core/preflight.py` — it carries the numbered steps — and execute them by hand.
 3. **Do not consult the host.** If the requested name equals the host, respond: `<name> is the host — use /lr:recall for its lore.` and stop.
 4. **If the consultant is already an attached guest**, point to recall: `<name> is already attached as a guest — use /lr:recall to search its lore alongside the host's.` and stop. Do not dispatch a consult subagent for an already-loaded agent; recall is strictly better.
 
@@ -43,7 +43,7 @@ Keep the brief itself concise. The subagent will boot and read the consultant's 
 
 ### Step 3: Dispatch the subagent
 
-> **Engine note.** If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use it instead of the Claude `general-purpose` subagent — e.g. on Codex, `spawn_agent` (role `worker`), with the resolved `<framework-root>` absolute path inlined into the prompt.
+> **Engine note.** If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use it instead of the Claude `general-purpose` subagent — e.g. on Codex, call `spawn_agent` with the resolved `<framework-root>` absolute path and the required read-only scope in the brief. Use only arguments exposed by the active tool schema; do not pass a synthetic `role` argument.
 
 Use a general-purpose subagent. Prompt shape:
 

@@ -48,7 +48,10 @@ If the merge completes without conflicts, jump to Step 4 (push).
 For each conflicted file within your agent's subtree (`agents/<your-name>/`):
 
 - **Lore topics (`lore/<topic>.md`)** — read both sides. If both sides added distinct information, merge into a single coherent topic that keeps all valid additions. If both sides edited the same information differently, prefer the more specific/correct version using your role as judge. When in genuine doubt, preserve more content rather than lose it.
-- **`lore-context.md`** — the typical conflict is both sides inserting different summary entries. Produce a combined version that includes all additions; resolve duplicates by keeping the better-phrased one; respect the size budget (≤50K tokens).
+- **`lore-context.md`** — the typical conflict is both sides inserting different summary entries.
+  Produce a combined version that includes all additions; resolve duplicates by keeping the
+  better-phrased one. A v1 context targets 10,000 estimated tokens and must not exceed 20,000; a
+  legacy context retains the historical 50,000-token ceiling until migration.
 - **`role.md`** — role changes are rare and meaningful. Merge body updates; for the frontmatter `description`, pick the more accurate of the two.
 
 Do not invent content that exists on neither side. The resolution must be a reconciliation of the two inputs, filtered through your role perspective.

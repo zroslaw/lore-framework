@@ -64,9 +64,11 @@ Now for the vocabulary — the terms the rest of the docs lean on:
 
 - **Workspace** — the directory you run your coding agent from. Holds one or more agent repos and any other repos they declare.
 - **Agent repo** — a git repo containing one or more lore agents, marked by a `lore-repo.md` at its root. Conceptually, the **domain** an agent (or set of agents) covers.
-- **Agent** — a directory under `agents/<name>/` inside an agent repo. Has a `role.md` (identity) and `lore-context.md` (working knowledge), plus a `lore/` knowledge graph of markdown topics.
+- **Agent** — a directory under `agents/<name>/` inside an agent repo. Has a `role.md` (identity),
+  `lore-context.md` (working knowledge and taxonomy root), plus recursive areas and focused topics
+  under `lore/`.
 - **Lore** — the agent's accumulated knowledge: decisions, domain expertise, and operational wisdom. Plain markdown, tracked in git, shared across teammates.
-- **Boot** — load an agent's role and lore into your session.
+- **Boot** — load an agent's role, context, and reconstructed Lore map into your session.
 - **Finalize** — at session end, extract what was learned, merge it into the agent's lore, write a session summary, and commit (+ push if a remote is configured).
 
 ## Go deeper — meet the maintainer agent
@@ -166,6 +168,7 @@ Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engi
 | Skill | Purpose |
 |---|---|
 | `/lr:update` | Apply pending framework migrations |
+| `/lr:groom [scope] [--dry-run] [--all]` | Improve Lore structure, retrieval efficiency, and prose quality |
 | `/lr:check` | Run consistency checks |
 | `/lr:doctor` | Diagnose framework runtime issues |
 

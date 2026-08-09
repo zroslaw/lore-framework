@@ -31,7 +31,7 @@ The "lore" prefix on repo placeholders is intentional: it distinguishes lore age
 └── agents/
     └── <agent-name>/
         ├── role.md              # Identity and responsibilities (with YAML frontmatter)
-        ├── lore-context.md      # Compacted working knowledge (≤50K tokens)
+        ├── lore-context.md      # Working knowledge and Lore taxonomy root
         ├── lore/                # Knowledge graph of atomic topics
         ├── reflections/         # Temporary — exists only during finalization
         ├── sessions/            # Session summaries, organized YYYY/MM/ (created on demand)
@@ -64,7 +64,7 @@ The lore framework itself is installed as a plugin (`lr`), not as a repo in the 
 
 ## Descriptor Files
 
-Three descriptor files carry YAML frontmatter so the framework can machine-read them:
+Three framework descriptor files carry YAML frontmatter so the framework can machine-read them:
 
 - **`lore-repo.md`** — at the root of a lore agent repo. Frontmatter fields:
   - `description` (string, required)
@@ -83,23 +83,29 @@ the domain level, and clones the union. Both use identical block-form list synta
 
 ## Lore Topics
 
-- **Atomic** — one concept or lesson per file
-- **Compact** — under 5K tokens preferred, flexible when needed
-- **Plain markdown** — no frontmatter, no metadata fields. Descriptor files (`lore-repo.md`, `role.md`) are the only exception — see above.
-- **Git tracks metadata** — creation date, update history, authorship all come from git
-- **Obsolete topics are deleted** — git preserves history, no need for status markers
-- **Cross-references by filename** — topics reference each other to form a knowledge graph
-- **Summary topics** — serve as entry points to clusters of related topics
+The canonical schema is `docs/lore-structure.md`: one fixed context, recursive area hubs, and
+focused leaf topics. V1 Lore files carry only `lore`, `type`, `summary`, and (except the root)
+`parent` frontmatter. Legacy files without a `lore` field remain supported.
+
+- **Focused** — one subject per leaf; under 5K estimated tokens preferred.
+- **Areas own knowledge** — an area carries stable area-wide knowledge and routes to children.
+- **Git tracks operational metadata** — dates and authorship do not enter Lore frontmatter.
+- **Delete obsolete files** — Git preserves history; do not add status markers.
+- **Two graphs** — `parent` is the primary taxonomy; Markdown links are wider relationships.
+- **Computed data stays generated** — children, token/link metrics, dates, and coverage belong in
+  `lr-core lore-map`, never frontmatter.
 
 ## Lore Context
 
-`lore-context.md` is the agent's every-session working knowledge **and** the entry point to the lore graph — not an index of all topics. The graph (summary topics → detail topics) carries whatever isn't needed in most sessions.
+`lore-context.md` is the agent's every-session working knowledge and the taxonomy root, not an
+index of every leaf. Areas carry whatever is not needed in most sessions.
 
-- **Content**: compacted, present-tense working knowledge + references to the most important / **summary** topics — not enumerations of detail topics
-- **Entry point, not catalog**: reference a theme's summary topic and let it fan out; if a significant theme lacks one, create it rather than inlining the cluster
+- **Content**: compacted, present-tense working knowledge plus high-level area navigation.
+- **Entry point, not catalog**: reference area hubs and let generated children fan out.
 - **No version-history narrative**: present-tense only — "vN did X" annotations belong in git / release notes / the topic itself
-- **Budget**: 50K tokens maximum — but shape is the primary discipline; nearing the budget is a drift signal to restructure, not just to summarize older entries
-- **Prioritization**: knowledge relevant across most sessions first; one-off knowledge lives in a topic reachable via a referenced summary topic
+- **Budget**: v1 targets 10K estimated tokens and errors above 20K. A legacy context retains the
+  historical 50K ceiling until migration. Shape is the primary discipline in both cases.
+- **Prioritization**: agent-wide knowledge first; one-off knowledge lives in a reachable topic.
 
 See `process-merge.md` § Step 4 for the procedure that maintains this shape at finalization.
 
@@ -130,7 +136,7 @@ The agent's shell working directory is shared across Bash, Glob, Grep, and subse
 
 Framework-authored shell commands run in whatever environment the agent booted in — and the primary dev platform is macOS (BSD userland), not GNU/Linux. Commands that silently assume GNU coreutils break there, and the failure is often invisible: a `command not found` (exit 127) inside a best-effort flow reads as the underlying operation failing, not as a portability bug.
 
-- **No GNU-only binaries.** Most notably `timeout` / `gtimeout` — absent on a stock macOS. To bound a command's runtime, use your Bash tool's own timeout parameter, not a `timeout` wrapper. (This exact trap silently disabled v13 auto-pull on macOS; see `pull_repo()`'s Step 6 comment in `scripts/lr-core`.) Inside a **standalone script** there is no Bash-tool timeout and no portable one-liner for a hard wall-clock cap — prevent hangs at the source with fail-fast env vars (`GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with `BatchMode`/`ConnectTimeout`), or implement a bash watchdog (background the job, then `sleep`+`kill`). `scripts/workspace-pull` takes the fail-fast-env-vars route.
+- **No GNU-only binaries.** Most notably `timeout` / `gtimeout` — absent on a stock macOS. To bound a command's runtime, use your Bash tool's own timeout parameter, not a `timeout` wrapper. (This exact trap silently disabled v13 auto-pull on macOS; see `pull_repo()`'s Step 6 comment in `scripts/lr_core/preflight.py`.) Inside a **standalone script** there is no Bash-tool timeout and no portable one-liner for a hard wall-clock cap — prevent hangs at the source with fail-fast env vars (`GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with `BatchMode`/`ConnectTimeout`), or implement a bash watchdog (background the job, then `sleep`+`kill`). `scripts/workspace-pull` takes the fail-fast-env-vars route.
 - **Watch BSD-vs-GNU flag differences** on tools present in both userlands: `sed -i` (BSD needs `-i ''`), `date -d` (GNU-only), `readlink -f` / `realpath` (not always present), `grep -P`, `xargs -r`. Prefer a portable invocation or a short Bash/`git` equivalent.
 - **Prefer git's own knobs over external wrappers** for git operations: `GIT_TERMINAL_PROMPT=0` (suppress HTTP(S) auth prompts), `GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=<n>'` (fail-fast SSH), `git -C <repo>` (see § Tooling: CWD Safety above).
 
@@ -140,35 +146,39 @@ Same shape as CWD Safety: a portability landmine hidden inside an emitted shell 
 
 Directly-runnable shipped scripts default to Bash-on-BSD (§ Tooling: Portable Shell). The exception is a **server component that must speak a protocol** where bash is impractical — most notably an **MCP stdio server** (newline-delimited JSON-RPC). Those may be written in **`python3`, standard library only** (no `pip install`), so they need no dependency install and run anywhere `python3` is present — any Linux, and any macOS with the Xcode Command Line Tools (a bare macOS may prompt to install them). `scripts/wait-server.py` is the first instance; it parallels the Node ULA module (`df/aiqa/workflows/ula-file-pass.js`) as a language-specific module the framework ships and drives, not a portable one-liner. Keep companion tooling in Bash where practical (e.g. `scripts/lr-emit`). Don't reach for `python3` for work a portable shell script can do.
 
-The second sanctioned class is a **deterministic substrate** with real data structures, structured output, and per-platform edge cases that bash handles badly: `scripts/lrb.py` (the Being Keeper) and `scripts/lr-core` (§ Script Fallback Contract below). Same rules — stdlib only, no `pip`, one file, Python 3.9 floor.
+The second sanctioned class is a **deterministic substrate** with real data structures, structured output, and per-platform edge cases that bash handles badly: `scripts/lrb.py` (the Being Keeper) and `scripts/lr-core` (§ Script Fallback Contract below). Same rules — stdlib only, no `pip`, Python 3.9 floor. A small script may stay in one file; a larger substrate may keep a stable executable wrapper and split focused modules beneath it, as `scripts/lr-core` does in `scripts/lr_core/`.
 
 ## Script Fallback Contract
 
-A shipped script is one of two things, and which one decides what happens when it breaks.
+A shipped script operation is one of two things, and which one decides what happens when it
+breaks. One CLI may expose both kinds as separate subcommands.
 
 - **Accelerator** — a **literate** one: the procedure lives in the script's own instructional
   comments (its docstrings and inline `# Step N:` blocks), not in a separate `docs/` doc. The
   running code is normative, and so are its comments — there is exactly one artifact, not a
   prose copy and a code copy that can drift apart. A doc that delegates to it carries only a
-  short pointer: what to call, what the output fields mean, and — on failure — *which function*
-  to go read. `scripts/lr-core` is the reference case: `docs/agent-boot.md`,
+  short pointer: what to call, what the output fields mean, and — on failure — *which function
+  and focused module* to go read. `scripts/lr-core`'s `discover`, `preflight`, and `scan` subcommands are the reference
+  cases: `docs/agent-boot.md`,
   `docs/auto-pull.md`, `docs/attach.md`, `docs/consult.md`, `docs/lore-search.md`,
   `docs/process-merge.md`, `docs/pull-lore.md`, and `docs/being.md` all point into specific
-  functions in it rather than restating what those functions do.
+  functions in `scripts/lr_core/preflight.py` or `scripts/lr_core/scan.py` rather than restating
+  what those functions do.
 - **Implementation** — the script *is* the specification; there is no prose procedure and no
   comment-as-procedure to execute by hand either. `scripts/workspace-pull`,
   `scripts/session-takeover`, `scripts/sync-cursor-skills`, `scripts/lr-emit` +
-  `scripts/wait-server.py`, and `scripts/lrb.py` are all this kind.
+  `scripts/wait-server.py`, `scripts/lrb.py`, and `lr-core`'s `lore-map` / `lore-workset`
+  subcommands are all this kind.
 
 **Take over manually only for a literate accelerator.** When a doc delegates a step to one and
-the script **fails to complete** — an exit code the script's own header does not define as a
-completed run (for `lr-core`, anything but 0), a missing interpreter, no output, or output you
+the script **fails to complete** — an exit code the operation's own header does not define as a
+completed run (for an `lr-core` accelerator subcommand, anything but 0), a missing interpreter, no output, or output you
 cannot parse:
 
 1. **Notify the user immediately**, in one line: which script failed and that you are proceeding
    manually. Never fail silently, and never let a script failure look like the underlying
    operation failing.
-2. **Read the relevant function(s) in the script** — the doc's pointer names them — and **execute
+2. **Read the relevant function(s) in the named implementation module** — the doc's pointer names them — and **execute
    the steps described in their comments**, in order, resolving what you reasonably can along the
    way (a missing directory, a repo that needs a different path). The flow must reach the same end
    state it would have reached had the script worked.
@@ -176,9 +186,9 @@ cannot parse:
    wrong path), say so in one line. Otherwise finish the flow and report the failure at the end for
    follow-up. **Never abort the surrounding flow because a script died.**
 
-**The floor: when the script itself is gone.** Step 2 presumes the script is *readable* — a
+**The floor: when the named implementation module is gone.** Step 2 presumes that module is *readable* — a
 literate accelerator carries its own fallback, so a script that merely misbehaves still specifies
-what to do instead. A script that is **missing, truncated, or unreadable** takes its spec with it,
+what to do instead. A module that is **missing, truncated, or unreadable** takes its spec with it,
 and that is the one case the pattern cannot self-serve. Then, in order: recover the procedure from
 git (`git -C <framework-root> show <last-release-tag>:<path>` — release tags are named
 `lr--v1.<VERSION>.0`, so substitute the version before the current one) or from another install of
@@ -190,7 +200,11 @@ artifact instead of two: name it rather than leaving the executor to discover it
 
 **Distinguish failure from a reported degraded condition.** A script that exits 0 while reporting a problem in its output (`"pull": {"status": "failed"}`, `"teammate": {"verdict": "unknown"}`) has *succeeded* — it did its job and told you the truth about the world. That is data: handle it per the procedure doc's degraded-mode guidance. No takeover, no user-facing script-failure notice.
 
-Accelerator scripts state their exit-code contract in their own header. `scripts/lr-core` is the reference implementation: exit 0 = ran to completion (`ok: false` still means "ran fine, request could not be satisfied" — act on `errors`); exit 2 = could not complete, fall back.
+Accelerator operations state their exit-code contract in their own header. `scripts/lr-core`'s
+accelerator subcommands are the reference implementation: exit 0 = ran to completion (`ok: false`
+still means "ran fine, request could not be satisfied" — act on `errors`); exit 2 = could not
+complete, fall back. Its Lore map/workset subcommands are implementations and deliberately do not
+inherit that fallback.
 
 **Invoking one — two rules that apply at every call site.** These hold wherever a doc delegates to
 an accelerator, so a doc that invokes one need only name the value, not re-argue it:

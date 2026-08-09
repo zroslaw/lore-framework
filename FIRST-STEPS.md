@@ -59,9 +59,10 @@ and an `agents/` folder. Name it for the area it will cover — `payments-agents
 You'll be asked for a **name** and a short **role**. The skill scaffolds the agent's four pieces:
 
 - **`role.md`** — its identity and responsibilities. Loaded every boot.
-- **`lore-context.md`** — its compacted working knowledge. Loaded every boot; kept lean (≤ 50K tokens).
-- **`lore/`** — a growing graph of markdown **topics** (decisions, domain expertise, and operational
-  wisdom). Read on demand, not all at once.
+- **`lore-context.md`** — its compacted working knowledge and taxonomy root. Loaded every boot;
+  v1 targets ≤ 10K estimated tokens.
+- **`lore/`** — recursive area hubs plus focused markdown **topics** (decisions, expertise, and
+  operational wisdom). Read on demand, not all at once.
 - **`workdir/`** — a persistent scratch space for scripts, tools, and files the agent needs across
   sessions.
 
@@ -100,9 +101,9 @@ This generates an engine-native shortcut — `/lr-my-agent-name-agent` (Claude C
 /lr:boot my-agent-name
 ```
 
-(or the shortcut from Step 5). Booting loads the agent's `role.md` and `lore-context.md` into the
-session, pulls the latest lore from git, and confirms the agent is ready. From here, you're talking
-to the agent, not the generic assistant.
+(or the shortcut from Step 5). Booting pulls the latest Lore, loads the agent's `role.md` and
+`lore-context.md`, reconstructs a compact taxonomy map, and confirms the agent is ready. From here,
+you're talking to the agent, not the generic assistant.
 
 ## Step 7 — Work with it (this is where it learns)
 

@@ -52,9 +52,9 @@ git -C "<lore-agent-repo>" rev-parse --show-toplevel
 python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "<lore-agent-repo>"
 ```
 
-**Use `python3 -c` for the second command, not `cd "<lore-agent-repo>" && pwd`.** They look equivalent and usually agree, but on macOS `pwd` (without `-P`) returns the *logical* path — it does not resolve symlinks — while git's `--show-toplevel` always returns the *physical*, symlink-resolved one. `/var` is itself a symlink to `/private/var` on macOS, so a repo under a `/var/...` tmpdir (a `TMPDIR`-based fixture, for instance) makes the two commands disagree even when the repo genuinely is its own git root — a false mismatch that skips a real, needed upgrade. `os.path.realpath()` resolves symlinks the same way `git_toplevel()` does in `scripts/lr-core`, so it's the one method guaranteed to agree with the script's own verdict; treat it as the specified command, not one option among several.
+**Use `python3 -c` for the second command, not `cd "<lore-agent-repo>" && pwd`.** They look equivalent and usually agree, but on macOS `pwd` (without `-P`) returns the *logical* path — it does not resolve symlinks — while git's `--show-toplevel` always returns the *physical*, symlink-resolved one. `/var` is itself a symlink to `/private/var` on macOS, so a repo under a `/var/...` tmpdir (a `TMPDIR`-based fixture, for instance) makes the two commands disagree even when the repo genuinely is its own git root — a false mismatch that skips a real, needed upgrade. `os.path.realpath()` resolves symlinks the same way `git_toplevel()` does in `scripts/lr_core/preflight.py`, so it's the one method guaranteed to agree with the script's own verdict; treat it as the specified command, not one option among several.
 
-If the two outputs differ, the lore repo is *not* its own repository — it sits inside an enclosing one (the workspace-meta-repo layout is supported), and `git -C` silently retargets every command at that enclosing repo. **Do not run the collision check in that case**: the status output would be rooted at the wrong repo, so Step 1c's write-set intersection would compare repo-relative globs against wrong-rooted paths, find a false-empty intersection, and let Step 2 overwrite the user's uncommitted edits. Instead print `<lore-agent-repo>: not its own git root — skipping automatic upgrade, reconcile manually.`, do not modify any files, and continue boot in degraded mode. (This is the same guard `git_toplevel()` applies in `scripts/lr-core`; the rule is stated there in full.)
+If the two outputs differ, the lore repo is *not* its own repository — it sits inside an enclosing one (the workspace-meta-repo layout is supported), and `git -C` silently retargets every command at that enclosing repo. **Do not run the collision check in that case**: the status output would be rooted at the wrong repo, so Step 1c's write-set intersection would compare repo-relative globs against wrong-rooted paths, find a false-empty intersection, and let Step 2 overwrite the user's uncommitted edits. Instead print `<lore-agent-repo>: not its own git root — skipping automatic upgrade, reconcile manually.`, do not modify any files, and continue boot in degraded mode. (This is the same guard `git_toplevel()` applies in `scripts/lr_core/preflight.py`; the rule is stated there in full.)
 
 Then run `git -C "<lore-agent-repo>" status --porcelain` (quote the substituted path so it survives spaces; use `git -C` rather than `cd`ing — the shell CWD is shared with Glob, Grep, and subsequent git calls, so a stray `cd` silently shifts their root for the rest of the session). Untracked files (`??`) are ignored throughout — the upgrade never overwrites a file git doesn't already track.
 
@@ -135,6 +135,13 @@ Match each dirty tracked file's repo-relative path against the write-set globs.
 
 In deferred cases: do NOT modify any files; continue boot in degraded mode. **A deferred upgrade is not a boot failure** — return to `agent-boot.md` Step 2 and proceed to Step 3; the agent still loads.
 
+#### 1d. Capture publication pre-state
+
+Before Step 2 writes anything, record the remaining pre-state required by `docs/update.md`
+§ **Automatic Publication**: staged paths, current branch and existing upstream, commits already
+ahead of upstream, and the computed update write-set. Keep this snapshot for
+Step 4. Do not stage, commit, or push yet.
+
 ### Step 2: Walk versions from R+1 to F
 
 For each version `v` in `R+1` through `F` inclusive, in order:
@@ -155,13 +162,23 @@ Only after all versions in step 2 succeed:
 2. Update the `version` field to `F` (quoted string).
 3. Write the file back, preserving the rest of the frontmatter and the body.
 
-### Step 4: Inform the user
+### Step 4: Publish the completed update
+
+Follow `docs/update.md` § **Automatic Publication** for this repo, using the pre-state captured in
+Step 1d. Treat only files written by the migrations plus `lore-repo.md` as update-owned.
+
+Commit and push are best-effort. A publication failure never fails boot, never reverses a
+successful migration, and never permits a force-push or inclusion of unrelated local work.
+
+### Step 5: Inform the user
 
 Print a brief summary:
-- `<lore-agent-repo>: upgraded from R to F`
-- The changes are uncommitted and ready for `git diff` review
+- `<lore-agent-repo>: upgraded from R to F; committed and pushed`
+- Or the truthful partial outcome: committed locally but push failed, or publication skipped with
+  the reason and the update changes left uncommitted
 
-Then return to `agent-boot.md` Step 3 and continue with reading `role.md` and `lore-context.md`.
+Then return to `agent-boot.md` Step 3 and continue the boot procedure. Step 3 generates the Lore
+map; role and Lore context loading follows in Step 4.
 
 ## Invariants
 
@@ -169,13 +186,18 @@ Then return to `agent-boot.md` Step 3 and continue with reading `role.md` and `l
 - **No file the upgrade would write is overwritten while dirty.** The collision gate guarantees this — git's own write-time refusal is the second line of defense. Files the upgrade does *not* touch (other agents' `workdir/*`, unrelated scratch state) never block.
 - **Conflict markers always defer.** A repo with unresolved conflict markers is structurally broken regardless of upgrade scope; the gate refuses uniformly.
 - **Version stamps are atomic.** Either all migrations for the range succeed and the version is stamped, or no version is stamped — the next boot or `/lr:update` run can retry.
-- **No commits.** The user reviews and commits the upgraded files themselves.
+- **Publication is narrow and best-effort.** Only update-owned paths may enter the automatic
+  commit; pushes use the existing upstream and are never forced. Failure remains visible but does
+  not fail boot.
 
 ## Relationship to `/lr:update`
 
-`/lr:update` is the user-triggered, manual entry point — it processes all repos in the workspace and supports `--dry-run`. The boot-time check described here is a per-repo automatic reconciliation that runs only for the booting agent's repo, with no dry-run and no user prompt. Both share the same migration/release-notes data and the same version-stamping logic.
+`/lr:update` is the user-triggered, manual entry point — it processes all repos in the workspace and supports `--dry-run`. The boot-time check described here is a per-repo automatic reconciliation that runs only for the booting agent's repo, with no dry-run and no user prompt. Both share the same migration/release-notes data, version-stamping logic, and conservative automatic-publication policy.
 
-**Asymmetry note:** the **write-aware collision gate (Step 1) lives only on the boot-time path.** `/lr:update` is user-triggered — the user has direct visibility of the workspace state, can `git diff` before running, and accepts that running `/lr:update` against dirty files may overwrite them. The boot-time path is automatic and unattended, so it carries the gate. `/lr:update` writes through dirty files unconditionally; the user is expected to commit/stash first. (Bringing the gate to `/lr:update` is a possible future enhancement.)
+Both paths use the same write-aware collision rule: a dirty path that the migration may write
+defers that repo before any change. The boot path reports the defer and continues loading; the
+explicit command reports the exact paths so the user can commit, stash, or resolve them and rerun.
+Explicit invocation is not blanket permission to overwrite uncommitted work.
 
 ## For Framework Authors
 

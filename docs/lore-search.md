@@ -4,11 +4,34 @@ Read this when you need to find or recall topics from your lore. Covers both the
 
 Default scope is `agents/<agent>/lore/` only. Do not include `sessions/` or other agent subdirectories in ordinary lore recall.
 
-## Preferred Mechanism: Subagent Scan
+## Start With the Lore Map
+
+Boot normally placed a compact Lore map in context. Its coverage status governs retrieval:
+
+- `complete` — taxonomy coverage is complete; use the compact entries to choose relevant areas,
+  then expand them with scoped detailed maps;
+- `partial` — navigate mapped areas, then also search uncovered Lore for comprehensive recall;
+- `legacy` — use `lore-context.md` and the existing directory-scan path below.
+
+When a mapped area appears relevant, inspect its authoritative generated children without loading
+the complete census:
+
+```
+python3 "<framework-root>/scripts/lr-core" lore-map --agent-dir "<agent-dir>" --view detailed --scope "<lore-path>"
+```
+
+Open the relevant child summaries and texts from that scoped result. Cross-links can lead outside
+the taxonomy and remain useful retrieval cues.
+
+If the map was not loaded or may be stale, regenerate the compact view. If map generation fails,
+continue with the scan/search mechanism below; do not reconstruct the whole taxonomy with the LLM.
+Legacy and uncovered files remain first-class knowledge, not lower-quality search results.
+
+## Legacy and Uncovered Search: Subagent Scan
 
 For any non-trivial search, **dispatch an `Explore` subagent** with a structured search brief. The subagent reads relevant lore topics directly, synthesizes findings, and returns a compact result. This keeps your main context clean and uses the LLM's own semantic understanding — stronger than keyword matching for finding topics by *meaning* rather than by *exact term*.
 
-> **Engine note.** "`Explore` subagent" and "single-message parallel dispatch" describe Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use its read-only spawn instead — e.g. on Codex, `spawn_agent` with role `explorer`, gathered via `wait_agent`.
+> **Engine note.** "`Explore` subagent" and "single-message parallel dispatch" describe Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use its read-only spawn instead — e.g. on Codex, call `spawn_agent` with a brief that explicitly requires read-only work, then gather via `wait_agent`. Use only arguments in the active tool schema; Codex does not expose a portable `role` argument.
 
 Why a subagent:
 - Reading 10–100 topic files in your main context wastes tokens you need for the user's task
@@ -17,7 +40,8 @@ Why a subagent:
 
 ### Give the subagent a topic manifest
 
-Before dispatching, generate the reading map:
+When coverage is legacy, or when a partial map requires searching uncovered Lore, generate the
+legacy reading manifest:
 
 ```
 python3 "<framework-root>/scripts/lr-core" scan --agent-dir "<agent-dir>"
@@ -30,7 +54,7 @@ Two things this buys beyond speed:
 - **Search by title, not just by filename.** The manifest exposes what each topic actually claims, so the subagent picks what to read on meaning rather than guessing from the name.
 - **Age-awareness.** Lore accumulates for years; a topic last touched 14 months ago may describe a superseded design. Tell the subagent to **note the age of anything it surfaces, and flag findings from `stale: true` topics as needing verification** before they are acted on. Age is a caution flag, not a disqualifier — plenty of old topics are still exactly right.
 
-If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`). Unlike the other call sites, there's no hand-executed equivalent worth running here (read `cmd_scan`'s docstring (the numbered steps; `scan_lore` below it is the implementation) in `<framework-root>/scripts/lr-core` if you want the exact manifest logic) — simply dispatch the subagent without a manifest; it will list and read the directory itself, which is the historical behavior and still works.
+If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`). Unlike the other call sites, there's no hand-executed equivalent worth running here (read `cmd_scan`'s docstring (the numbered steps; `scan_lore` above it is the implementation) in `<framework-root>/scripts/lr_core/scan.py` if you want the exact manifest logic) — simply dispatch the subagent without a manifest; it will list and read the directory itself, which is the historical behavior and still works.
 
 ## Active Agents: Fan Out When Guests Are Attached
 

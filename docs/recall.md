@@ -35,7 +35,7 @@ Keep the brief under ~300 words. The same brief is used for every active agent �
 
 ### 4. Dispatch subagents in parallel — one per active agent
 
-> **Engine note.** The mechanism below is Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use it instead — e.g. on Codex use `spawn_agent` (role `explorer`, read-only) and gather with `wait_agent`.
+> **Engine note.** The mechanism below is Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`) defines a subagent-spawn override, use it instead — e.g. on Codex call `spawn_agent` with an explicitly read-only brief and gather with `wait_agent`. Use only arguments exposed by the active tool schema; do not pass a synthetic `role` argument.
 
 Dispatch **one `Explore` subagent per active agent, all in a single message** (parallel execution — there are no dependencies between them). Each subagent receives:
 

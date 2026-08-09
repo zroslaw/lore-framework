@@ -6,7 +6,7 @@ Integrate reflection topics into the agent's existing lore.
 
 Merge always runs in a subagent, one per active agent, with all subagents launched in parallel. This is uniform for single- and multi-agent sessions — a single-agent session just spawns one subagent. Running merge in a subagent keeps session noise out of merge decisions and gives a clean, focused context.
 
-> **Engine note.** The spawn mechanics below describe Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`, selected at boot) defines a **subagent-spawn override**, follow it instead — e.g. on Codex use `spawn_agent` (role `worker`), not the `Agent` tool, and the **host reads this procedure and passes the steps inline** into each subagent's brief rather than pointing the subagent at this doc. The subagent still boots as its target agent.
+> **Engine note.** The spawn mechanics below describe Claude Code. If your engine profile (`<framework-root>/docs/engines/<engine>.md`, selected at boot) defines a **subagent-spawn override**, follow it instead — e.g. on Codex use `spawn_agent`, explicitly authorize the required write scope in its brief, and do not pass a synthetic `role` argument. The **host reads this procedure and passes the steps inline** into each subagent's brief rather than pointing the subagent at this doc. The subagent still boots as its target agent.
 
 **Each subagent boots as the agent it is merging for**, using the standard boot procedure. Booting gives the subagent the agent's role, identity, and lore context naturally — the same pattern `/lr:consult` uses. After booting, the subagent runs the process below scoped to its own agent and returns a short summary to the host.
 
@@ -28,6 +28,9 @@ If any subagent fails, the others still proceed.
 - The agent's `reflections/` directory — new reflection topics to integrate
 - The agent's `role.md` — current role description
 
+Lore v1 structure is canonical in `<framework-root>/docs/lore-structure.md`. Read it before
+creating or migrating any Lore file.
+
 ## Process
 
 The steps below are what **each subagent** runs once booted as its target agent. The host does not run these steps inline — it orchestrates subagents per the Execution model above and aggregates their summaries.
@@ -44,7 +47,7 @@ python3 "<framework-root>/scripts/lr-core" preflight --agent-dir "<agent-dir>" -
 
 `--fresh` because merge is exactly the moment where the TTL shortcut is not worth taking. Quote the substituted values as shown and bound the call at **at least 180 seconds** via your engine profile's runtime-bounding binding — `--fresh` guarantees the network round-trip, so this is the site most likely to need the headroom (`docs/conventions.md` § Script Fallback Contract, *Invoking one*).
 
-If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) and read `pull_repo`'s comments in `<framework-root>/scripts/lr-core` (`docs/auto-pull.md` points to the same place) to run the pull against the agent's repo by hand.
+If the script fails to complete, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`) and read `pull_repo`'s comments in `<framework-root>/scripts/lr_core/preflight.py` (`docs/auto-pull.md` points to the same place) to run the pull against the agent's repo by hand.
 
 `--ff-only` is safe even though the merge subagent's working tree is dirty (the `reflections/` from phase 1, or any merge-in-progress edits): git refuses to fast-forward if the operation would clobber uncommitted edits, and otherwise advances `HEAD` cleanly leaving the working tree untouched. See `docs/auto-pull.md` § Invariants.
 
@@ -52,7 +55,20 @@ If auto-pull surfaces a non-fast-forward failure, do **not** abort merge — pro
 
 ### Step 1: Read Everything
 
-Read all reflection topics, the current `lore-context.md`, and scan the existing `lore/` directory to understand what's already there.
+Generate the compact baseline before semantic integration:
+
+```
+python3 "<framework-root>/scripts/lr-core" lore-map --agent-dir "<agent-dir>" --view boot
+```
+
+Record its file and estimated-token coverage. Use the compact map for navigation. Generate scoped
+detailed views only for areas or files actually needed by the merge. Never print or read an
+unscoped detailed census merely to preserve baseline numbers. If mapping fails, report it and
+continue with legacy directory search; merge remains usable, but do not claim a coverage change
+without a valid before/after pair.
+
+Read all reflection topics, the current `lore-context.md`, and the relevant existing Lore files.
+When coverage is partial or legacy, search uncovered Lore as well as following the map.
 
 ### Step 2: Integrate Lore Topics
 
@@ -66,10 +82,40 @@ For each reflection topic, decide:
 
 When updating or creating topics:
 - Keep topics under 5000 tokens when possible. Split if too large.
-- Topics can reference other topics by filename.
-- Summary topics can link to clusters of related topics.
+- Every new Lore file uses v1 frontmatter from `docs/lore-structure.md`.
+- New area hubs use `type: area`; focused leaves use `type: topic`.
+- Use normal Markdown links for wider knowledge-graph relationships.
 - Include operational recommendations where relevant.
 - Only essential information — no filler.
+
+Before the first v1 child in a legacy agent, add valid v1 metadata to the fixed
+`lore-context.md`, whose identity is unambiguous. Migrate the minimum clear existing area chain
+needed for the new child. When no narrower parent is defensible, use `lore-context.md` rather than
+inventing an area.
+
+If a legacy root already has non-v1 frontmatter, preserve it unchanged; it is not safe for
+automatic conversion. New files still use v1 and may temporarily point to that fixed legacy root,
+which the map reports as `unreachable_v1`.
+
+An unsupported future-version root is different: it is read-only, and a v1 child cannot validly
+attach to it. An invalid-v1 root is also not silently replaced. In either case, integrate a
+reflection only when an existing writable file is a safe target and the edit introduces no new
+finding. If new structure is required, leave that reflection unmerged and report the exact root
+blocker to the host; do not discard the knowledge or invent legacy metadata.
+
+An existing legacy file materially edited by this merge is a lazy-migration candidate. Add v1
+metadata only when its type, concise summary, and primary parent are clear. Migrate at most the
+minimum existing ancestor chain needed to reach the root. Existing summary hubs may become areas
+when that role is clear. Otherwise leave the file legacy without asking the user merely for
+migration bookkeeping.
+
+Lazy migration is metadata-only. It never merges, splits, renames, deletes, or broadly rewrites
+existing topics. A legacy file with non-v1 frontmatter is not auto-migrated. A future-version file
+is read-only and must never be edited or migrated by this procedure.
+
+A genuinely new area is allowed only when the current session established that knowledge area and
+the new file contains real scope or area-wide knowledge, not placeholder structure. This is normal
+knowledge integration, not migration.
 
 ### Step 3: Handle Role Updates
 
@@ -83,19 +129,58 @@ If any reflection topic has a `role-update-` prefix:
 
 Update `lore-context.md` to reflect the new state of the agent's knowledge.
 
-**`lore-context.md` is the agent's every-session working knowledge and the entry point to the lore graph — not an index of all topics.** Carry the compacted knowledge needed in essentially every session, plus references to the most important / **summary** topics, and let the graph (summary topics → detail topics) carry the rest. Shape it accordingly:
+Exception: an unsupported future-version root remains byte-identical. For an invalid-v1 root,
+preserve its frontmatter unless the correction is unambiguous and retains every useful existing
+field. If this prevents an honest context update, leave the affected reflection unmerged under the
+Step 2 blocker rule.
+
+**`lore-context.md` is the agent's every-session working knowledge and the root of the Lore
+taxonomy — not an index of all topics.** Carry compacted knowledge needed in essentially every
+session plus high-level routing to top-level areas. Let areas carry their own shared knowledge and
+route to descendants.
 
 - **Compacted working knowledge** — facts, decisions, and context the agent draws on across most sessions, stated tightly and in the **present tense**.
-- **Reference summary topics; don't enumerate detail topics** — point at a theme's summary topic and let *it* fan out to the details. Do not list every file in `lore/`. If a significant theme has no summary topic to point at, **create one** (strengthening the graph's mid-tier) rather than inlining the whole cluster here.
+- **Reference areas; don't enumerate leaves** — point at a theme's area hub and let its generated
+  children fan out to detail. Do not list every file in `lore/`. Create a new area only when it has
+  real area-wide scope or knowledge.
 - **No version-history narrative** — `lore-context.md` is present-tense. Changelog-style "vN did X" annotations and dated step-by-step history belong in git, release notes, or the relevant topic.
 
-**Preserve graph navigability.** When you remove something from `lore-context.md`, ensure it still lives in a topic **and** is reachable from a summary topic that `lore-context.md` references — existence somewhere isn't enough; the entry point must still lead there.
+**Preserve graph navigability.** When you remove something from `lore-context.md`, ensure it still
+lives in a reachable area or topic. Existence somewhere is not enough; the generated parent path
+from the root must still lead there.
 
-**Size budget**: keep `lore-context.md` under 50,000 tokens — but shape is the primary discipline, not the ceiling. A well-shaped context sits comfortably under budget; nearing 50K is a drift signal that it has grown toward an index or accumulated history, so **restructure** (lift detail into topics, lean on summary topics, strip narrative) rather than merely summarizing older entries.
+**V1 size budget:** target at most 10,000 estimated tokens. The validator warns above 10,000 and
+errors above 20,000. Demote detail into reachable areas before removing unique knowledge. Legacy
+contexts retain the historical 50,000-token ceiling until migrated, but shape remains the primary
+discipline.
 
-### Step 5: Cleanup
+### Step 5: Validate the merge
 
-Delete the current agent's `reflections/` directory and all its contents.
+Regenerate the boot map for global coverage. Generate a scoped detailed map for every changed Lore
+file and link repair. When the changed root would make that scope equal the whole corpus, redirect
+the detailed YAML to a temporary file and inspect only its `validation` entries for changed paths;
+do not load the taxonomy body into context. Validate every changed file and repair. Fix structural
+errors the merge introduced: invalid metadata, missing or wrong-type parents, cycles, children
+under topics, unreachable v1 files, and broken links. Delete temporary map files after the check.
+
+Pre-existing legacy files and findings outside the write set do not fail merge. The only allowed
+new uncovered case is a valid v1 child temporarily blocked by incompatible frontmatter on the
+fixed legacy root. If optional metadata migration is invalid, correct or remove the metadata while
+preserving the knowledge edit.
+
+When both baseline and final maps are valid and coverage changed, return one quiet line:
+
+```text
+Lore structure coverage: 24% → 27%
+```
+
+Use file coverage percentage. Say nothing when it did not change.
+
+### Step 6: Cleanup
+
+Delete each reflection topic only after its knowledge was successfully integrated. If every topic
+was integrated, remove the now-empty `reflections/` directory. Leave blocked or failed topics in
+place and name them in the return summary so a later merge can retry without knowledge loss.
 
 Merge does not commit — leave all changes uncommitted on disk. In a multi-agent session, return a short summary of what was integrated (topics touched, role changes, any anomalies) to the host. Committing is handled at the end of `/lr:finalize`, or by the user directly if merge is invoked standalone.
 
