@@ -34,10 +34,13 @@ readers, not a second definition — never stage from a remembered copy of it:
 | `.gitignore` | `workspace-init`, `workspace-pull` phase 3 |
 | `README.md` | `workspace-init` |
 | `.claude/commands/lr-*-agent.md` | `register-agent` / `register-repo`, `update` migrations |
+| `.codex/skills/lr-*-agent/SKILL.md` | `register-agent` / `register-repo`, `update` migrations |
 | `.cursor/skills/lr-*-agent/SKILL.md` | `register-agent` / `register-repo`, `update` migrations |
 
-Codex per-agent shortcuts live in `~/.codex/skills/`, outside the workspace repo — no publish path
-applies to them; they are regenerated locally with `/lr:register-repo` instead (finding S15).
+All three engines' per-agent shortcuts are workspace-local as of v37, so all three publish here.
+Codex shortcuts left in `~/.codex/skills/` by an earlier framework version are the exception: that
+directory is outside the workspace repo and no publish path can reach it. Relocate them with
+`migrations/37.md` (via `/lr:update`) or by re-registering — finding S15 names the ones it can see.
 
 Do not confuse these with the **standard ignore lines** (`/.worktrees/`, `/.lr-beings/`, `/.tmp/`)
 that `workspace-pull` phase 3 maintains *inside* `.gitignore` — those are content, this is the path

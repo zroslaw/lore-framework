@@ -12,7 +12,9 @@ Inspect the engine-native shortcut artifact:
 
 - Claude Code: `<workspace>/.claude/commands/lr-<agent-name>-agent.md`
 - Cursor: `<workspace>/.cursor/skills/lr-<agent-name>-agent/SKILL.md`
-- Codex: `~/.codex/skills/lr-<agent-name>-agent/SKILL.md`
+- Codex: `<workspace>/.codex/skills/lr-<agent-name>-agent/SKILL.md`, and
+  `~/.codex/skills/lr-<agent-name>-agent/SKILL.md` for a shortcut registered before v37 (Codex loads
+  both, so inspect both — a stale home copy keeps failing while a fresh workspace copy exists)
 
 The current format names the session's installed boot skill and keeps only the agent name and
 absolute agent directory. A versioned cache path or absolute `agent-boot.md` path identifies this

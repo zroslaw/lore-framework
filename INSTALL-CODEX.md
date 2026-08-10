@@ -41,7 +41,8 @@ Then restart Codex so new sessions load the plugin.
 
 If you want direct per-agent boot shortcuts, ask the user to run `$lr:register-agent` or
 `$lr:register-repo` after the plugin is loaded — as an agent you cannot invoke these yourself (see
-above). Those shortcuts are personal skills under `~/.codex/skills/`.
+above). Those shortcuts are workspace-local skills under `<workspace>/.codex/skills/`, committed with the
+workspace repo so teammates get them too.
 
 ## Local development install (local checkout)
 

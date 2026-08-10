@@ -110,10 +110,13 @@ converging run that re-asks the founding interview is a bug, not thoroughness.
    on purpose, and a finding a user can never clear teaches them to skim the whole report. `sharing:
    local` suppresses S3; adding a remote later clears the key.
 
-5. **Codex shortcuts.** On Codex only, when finding S15 is present: offer to run `register-repo` for
-   each declared agent repo. Codex shortcuts live in `~/.codex/skills/`, outside the workspace repo,
-   so they can never arrive by git — a Codex teammate who clones this workspace has no bootable
-   agents until they are regenerated locally.
+5. **Legacy Codex shortcuts.** When finding S15 is present: offer to re-register the named agents, so
+   their shortcuts move from `~/.codex/skills/` to the workspace-local `.codex/skills/` that
+   `workspace-push` can publish. Offer the deletion of each home-directory copy as part of the same
+   plan, and only for a shortcut whose boot line names an `<agent-dir>` under this workspace —
+   `~/.codex/skills` is user-global, so a same-named shortcut may belong to a different workspace.
+   `/lr:update` does the same relocation in bulk via `migrations/37.md`; this offer exists for a
+   workspace whose repos are already at version 37.
 
 ### Step 3 — Confirmation gate
 

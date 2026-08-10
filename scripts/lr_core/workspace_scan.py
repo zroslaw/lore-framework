@@ -38,9 +38,12 @@ from .preflight import detect_engine, discover_workspace, find_repos
 # by the docs rather than restated in them — a remembered copy in prose is how
 # `/lr:workspace-push` would come to stage a path nobody re-checked.
 #
-# Deliberately NOT in this set: Codex per-agent shortcuts. They live in
-# `~/.codex/skills/`, outside the workspace repo, so no publication path can
-# reach them; they are materialized at join instead (finding S15).
+# All three engines' per-agent shortcuts are in this set as of v37. Codex
+# discovers skills under `<repo-root>/.codex/skills/` as well as
+# `~/.codex/skills/`, so its shortcuts are workspace-local and publishable like
+# Claude's and Cursor's. Shortcuts still sitting in `~/.codex/skills/` are
+# legacy: outside the workspace repo, unreachable by any publication path, and
+# reported for relocation by finding S15.
 MANAGED_PATHS = (
     "lore-workspace.md",
     "AGENTS.md",
@@ -48,6 +51,7 @@ MANAGED_PATHS = (
     ".gitignore",
     "README.md",
     ".claude/commands/lr-*-agent.md",
+    ".codex/skills/lr-*-agent/SKILL.md",
     ".cursor/skills/lr-*-agent/SKILL.md",
 )
 
@@ -534,15 +538,22 @@ def memory_state(workspace):
 def shortcut_inventory(workspace):
     """Registered per-agent shortcuts, by engine, as bare agent names.
 
-    Manual fallback — list each engine's location and strip the `lr-`/`-agent`
-    affixes:
-      claude  `<workspace>/.claude/commands/lr-<agent>-agent.md`
-      cursor  `<workspace>/.cursor/skills/lr-<agent>-agent/SKILL.md`
-      codex   `~/.codex/skills/lr-<agent>-agent/SKILL.md`
+    Manual fallback — list each location and strip the `lr-`/`-agent` affixes:
+      claude      `<workspace>/.claude/commands/lr-<agent>-agent.md`
+      codex       `<workspace>/.codex/skills/lr-<agent>-agent/SKILL.md`
+      cursor      `<workspace>/.cursor/skills/lr-<agent>-agent/SKILL.md`
+      codex_home  `~/.codex/skills/lr-<agent>-agent/SKILL.md`  (legacy)
 
-    All three are inventoried on every engine, not just the running one: a
+    All of them are inventoried on every engine, not just the running one: a
     workspace shared by a mixed-engine team carries all of them, and `init`
     renders the Agents section from the union.
+
+    `codex_home` is a fourth *location*, not a fourth engine. Codex discovers
+    skills under both the repo root and the user's home directory, so a home
+    shortcut still boots — which is why it counts as registered for S11 — but it
+    cannot be published to the team. S15 asks for it to be relocated. Keep the
+    two keys apart: merging them would make an unpublishable shortcut
+    indistinguishable from a published one.
     """
     def _names_from_files(directory, suffix):
         out = []
@@ -571,9 +582,11 @@ def shortcut_inventory(workspace):
     return {
         "claude": _names_from_files(
             os.path.join(workspace, ".claude", "commands"), "-agent.md"),
+        "codex": _names_from_dirs(
+            os.path.join(workspace, ".codex", "skills")),
         "cursor": _names_from_dirs(
             os.path.join(workspace, ".cursor", "skills")),
-        "codex": _names_from_dirs(
+        "codex_home": _names_from_dirs(
             os.path.expanduser("~/.codex/skills")),
     }
 
@@ -718,24 +731,32 @@ def build_findings(data):
         add("S14", "info", {"count": git_data["behind"],
                             "upstream": git_data["upstream"]})
 
-    # S15 is Codex-only and is suppressed on an `unknown` engine verdict rather
-    # than guessed: the remedy regenerates shortcuts in the user's home
-    # directory, so firing it on a misidentified engine writes somewhere the
-    # user did not ask for.
+    # S15: Codex shortcuts still in `~/.codex/skills/`. Since v37 the framework
+    # writes them to `<workspace>/.codex/skills/`, where git can carry them to
+    # the team; a home-directory copy boots fine on this machine and reaches
+    # nobody else.
     #
-    # Decided **per repo**, not workspace-wide. A single workspace-wide
-    # intersection would go quiet the moment any one agent anywhere had a Codex
-    # shortcut, hiding every other repo that has none — and because
-    # `~/.codex/skills` is user-global, a same-named agent registered in some
-    # unrelated workspace would silence it too. Agent names collide across repos
-    # by design (docs/register-repo.md § Collision rule), so the name alone is
-    # not evidence about *this* repo.
-    if data["engine"] == "codex":
-        codex_registered = set(data["shortcuts"]["codex"])
-        unserved = [repo for repo, names in sorted(data["agents_by_repo"].items())
-                    if names and not codex_registered.intersection(names)]
-        if unserved:
-            add("S15", "info", {"repos": unserved})
+    # Reported per agent name, and only for names this workspace actually has an
+    # agent for. `~/.codex/skills` is user-global while agent names collide
+    # across repos by design (docs/register-repo.md § Collision rule), so an
+    # unmatched home shortcut is more likely another workspace's than this one's
+    # — claiming it here would tell the user to relocate a shortcut that does not
+    # belong to this workspace. The matched ones carry the same ambiguity in
+    # weaker form, which is why the severity is `info` and the doc says to check
+    # the shortcut's own `from <agent-dir>` before deleting anything.
+    #
+    # Not gated on the running engine. The old S15 was, because its remedy wrote
+    # into the user's home directory; this one asks for a workspace-local write
+    # that is correct from any engine, and a mixed-engine team benefits from the
+    # Claude session noticing it too.
+    home_names = set(data["shortcuts"].get("codex_home") or [])
+    workspace_agents = set(data["agents"])
+    stale_home = sorted(home_names.intersection(workspace_agents))
+    if stale_home:
+        add("S15", "info", {"agents": stale_home,
+                            "also_workspace_local": sorted(
+                                set(data["shortcuts"]["codex"])
+                                .intersection(stale_home))})
 
     order = {"error": 0, "warn": 1, "info": 2}
     findings.sort(key=lambda f: (order.get(f["severity"], 3),
@@ -770,8 +791,11 @@ def cmd_workspace_scan(args, res):
     field, and no doc restates the set.
 
     Step 5: select the engine profile via `preflight.detect_engine` — never a
-    second detector, and never the executing model's belief about itself. It
-    gates S15 only.
+    second detector, and never the executing model's belief about itself. No
+    finding is gated on it since v37 (S15 was, until Codex shortcuts became
+    workspace-local); it is emitted as `data.engine` for consumers that render
+    engine-native invocation syntax, and stays `unknown` on an `assumed`
+    verdict rather than being guessed.
 
     Step 6: derive findings (`build_findings`) and emit. Findings never set a
     nonzero exit; exit 0 means the scan ran, exit 2 means it could not.
@@ -840,8 +864,11 @@ def cmd_workspace_scan(args, res):
     res.data["memory"] = memory_state(workspace)
     res.data["shortcuts"] = shortcut_inventory(workspace)
     res.data["agents"] = [a["name"] for a in agents]
-    # Agent names grouped by their repo's directory name. S15 is a per-repo
-    # verdict and cannot be computed from the flat list above.
+    # Agent names grouped by their repo's directory name. No finding consumes
+    # this since v37 (the old per-repo S15 did); it stays in the envelope
+    # because the flat `agents` list cannot answer "which repo is this agent
+    # from", which `register-repo`'s Agents-section rendering and any per-repo
+    # report need.
     agents_by_repo = {}
     for agent in agents:
         repo_dir = os.path.basename(agent["repo"]) if agent["repo"] else "(no repo)"

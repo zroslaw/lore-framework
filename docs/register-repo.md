@@ -22,8 +22,15 @@ decide which native artifact to generate.
   `.claude/commands/lr-<agent-name>-agent.md`
 - **Cursor** — workspace-local skill:
   `.cursor/skills/lr-<agent-name>-agent/SKILL.md`
-- **Codex** — personal skill:
-  `~/.codex/skills/lr-<agent-name>-agent/SKILL.md`
+- **Codex** — workspace-local skill:
+  `.codex/skills/lr-<agent-name>-agent/SKILL.md`
+
+All three are workspace-local, so all three are published by `/lr:workspace-push` and arrive for a
+teammate by git. Codex also loads personal skills from `~/.codex/skills/`, which is where the
+framework wrote its shortcuts before v37; never write there now — that copy reaches nobody else, and
+`workspace-status` finding S15 asks for any leftover to be relocated (`migrations/37.md` does it in
+bulk). Codex resolves the workspace-local root from the git root of the session's working directory:
+see `docs/engines/codex.md` § Where per-agent shortcuts live.
 
 All generated shortcuts must remain thin delegations to the active framework boot entry point.
 They pin only the agent identity and absolute agent directory; they must never bake a plugin-cache
@@ -130,7 +137,9 @@ For every register/unregister operation, after the artifact is written or delete
    no `## Agents` heading, do not synthesize one here — report that the workspace memory file needs
    `/lr:workspace-init` and continue; registration itself has succeeded.
 2. **Rewrite the `## Agents` section body** from the shortcuts now on disk, across all three engine
-   locations (§ Engine-native shortcut locations). The section runs from its exact `## Agents`
+   locations (§ Engine-native shortcut locations) plus any legacy `~/.codex/skills/` shortcut for an
+   agent in this workspace — an agent bootable only from the legacy location is still registered, and
+   dropping it from the list would make the membership record disagree with what Codex offers. The section runs from its exact `## Agents`
    heading to the line before the next `^## ` heading, or EOF, **ignoring any such line inside a
    ``` or `~~~` fence** — a fenced example in the user's own prose is not a heading. Keep the
    provenance comment as the first line of the body.
@@ -210,6 +219,11 @@ These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
 4. Delete the artifact:
    - **Claude Code:** delete the `.md` file.
    - **Cursor / Codex:** delete the `lr-<agent-name>-agent/` directory.
+
+   On Codex, also check `~/.codex/skills/lr-<agent-name>-agent/SKILL.md`. Delete it too **when its
+   boot line names an `<agent-dir>` under this workspace** — leaving it behind means the agent the
+   user just unregistered still appears in every Codex session. When it names a different path, it
+   belongs to another workspace: report it and leave it alone.
 5. Maintain the workspace Agents section (shared helper step above) — the removed agent's line goes
    with it.
 6. Report the removed shortcut in the engine-native form.

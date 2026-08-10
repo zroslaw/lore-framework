@@ -11,7 +11,7 @@ Check the engine-native shortcut location:
 
 - **Claude Code:** `.claude/commands/` for `lr-*-agent.md`
 - **Cursor:** `.cursor/skills/` for `lr-*-agent/` directories containing `SKILL.md`
-- **Codex:** `~/.codex/skills/` for `lr-*-agent/` directories containing `SKILL.md`
+- **Codex:** `.codex/skills/` for `lr-*-agent/` directories containing `SKILL.md` (also `~/.codex/skills/`, the pre-v37 location Codex still loads)
 
 Each encodes an agent name (e.g., `lr-lore-architect-agent` -> agent `lore-architect`).
 

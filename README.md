@@ -184,7 +184,7 @@ Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engi
 
 By default you boot with `/lr:boot <name>`. To register a direct `/lr-<name>-agent` shortcut for one
 agent or a whole repo, use `/lr:register-agent` or `/lr:register-repo`. Shortcuts land in
-`.claude/commands/` (Claude Code), `.cursor/skills/` (Cursor), or `~/.codex/skills/` (Codex), and
+`.claude/commands/` (Claude Code), `.cursor/skills/` (Cursor), or `.codex/skills/` (Codex), and
 delegate to the boot procedure with an absolute agent path. See [FIRST-STEPS.md](FIRST-STEPS.md) § 5.
 
 ## Directory layout
@@ -210,13 +210,19 @@ my-workspace/                       # Workspace — the directory you run your c
 │   └── commands/                   # Claude Code optional registered agent commands
 │       ├── lr-researcher-agent.md
 │       └── ...
+├── .codex/
+│   └── skills/                     # Codex optional registered agent shortcuts
+│       ├── lr-researcher-agent/
+│       └── ...
 └── .cursor/
     └── skills/                     # Cursor optional registered agent shortcuts
         ├── lr-researcher-agent/
         └── ...
 ```
 
-On Codex, registered shortcuts live in `~/.codex/skills/` as personal skills like `$lr-researcher-agent`.
+Codex reads `.codex/skills/` from the git root of your working directory, so start Codex at the
+workspace root. (Before v37 those shortcuts were written to `~/.codex/skills/`, outside the repo and
+unshareable; `/lr:update` relocates them.)
 
 ## Reference
 

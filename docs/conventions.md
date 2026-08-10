@@ -48,7 +48,9 @@ Session summaries live under `sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md`
 │   └── ...
 ├── <other-repo>/                # Optionally, repos declared via `repos:` (workspace- or domain-level)
 │   └── ...
-└── .claude/commands/            # Claude Code optional agent shortcut commands
+├── .claude/commands/            # Claude Code optional agent shortcut commands
+├── .codex/skills/               # Codex optional agent shortcut skills
+└── .cursor/skills/              # Cursor optional agent shortcut skills
 ```
 
 The workspace root may itself be a git repo (a "workspace meta-repo") that versions
@@ -64,8 +66,10 @@ line — one payload, one source of truth, no copy-drift. See `docs/workspace-in
 memory-file contract. (This is workspace-level only; an agent repo's own files are unaffected.)
 
 On Cursor, the equivalent registered shortcuts live in workspace-local `.cursor/skills/` as
-path-scoped skills. On Codex, they live outside the workspace in `~/.codex/skills/` as personal
-skills.
+path-scoped skills; on Codex, in workspace-local `.codex/skills/`. All three locations are inside the
+workspace repo and published by `/lr:workspace-push`. Codex also loads personal skills from
+`~/.codex/skills/` — the framework's pre-v37 location, which no publication path reaches; see
+`docs/engines/codex.md` § Where per-agent shortcuts live.
 
 The lore framework itself is installed as a plugin (`lr`), not as a repo in the workspace. Plugin files are accessed via `<framework-root>`, never via a sibling path like `lore-framework/`.
 
@@ -339,18 +343,18 @@ Rules:
 
 ### Known gap: workspace-root paths
 
-Some migrations write files outside the booting lore-agent repo — most notably
-`.claude/commands/lr-*-agent.md` (Claude per-agent shortcuts at the workspace root),
-`.cursor/skills/lr-*-agent/` (Cursor per-agent skills at the workspace root), and, on Codex,
-`~/.codex/skills/lr-*-agent/` (personal-skill shortcuts). Because the gate is per-repo and these
-locations sit outside the booting repo, **dirty edits there cannot enter the collision
-intersection** and the gate cannot protect against them.
+Some migrations write files outside the booting lore-agent repo — the three per-agent shortcut
+locations at the workspace root (`.claude/commands/lr-*-agent.md`, `.codex/skills/lr-*-agent/`,
+`.cursor/skills/lr-*-agent/`) and, for pre-v37 leftovers, `~/.codex/skills/lr-*-agent/` in the user's
+home directory. Because the gate is per-repo and these locations sit outside the booting repo,
+**dirty edits there cannot enter the collision intersection** and the gate cannot protect against
+them.
 
 This is a known gap, not a fix-by-misdeclaration: declaring `.claude/commands/...`,
-`.cursor/skills/...`, or `~/.codex/skills/...` in a migration's Write Paths does not make the gate
-see those files; it just bloats the write-set with paths that will never match. Migrations 5 and 6
-historically write to `.claude/commands/`; a future shortcut-refresh migration would have the same
-constraint for Cursor and Codex shortcut locations.
+`.codex/skills/...`, `.cursor/skills/...`, or `~/.codex/skills/...` in a migration's Write Paths does
+not make the gate see those files; it just bloats the write-set with paths that will never match.
+Migrations 5 and 6 historically write to `.claude/commands/`; migrations 33 and 37 have the same
+constraint for the Cursor and Codex shortcut locations.
 
 The mitigation lives in the migrations themselves, not the gate: migrations 2/5/6 detect manual edits via known-template matching and present a three-way merge (see `update.md` § *Handling Manual Edits to Generated Files*). The gate doesn't replace that mechanism — it complements it for repo-local files. A future workspace-aware gate would close the hole; until then, treat workspace-root paths as protected by the in-migration three-way merge alone.
 

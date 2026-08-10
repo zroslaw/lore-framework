@@ -13,6 +13,6 @@ For each repo found:
 - Read the `description` and `version` fields from `lore-repo.md` YAML frontmatter.
 - Count the agents it contains (subdirectories under `agents/` with `role.md`).
 - Check whether it has any registered engine-native per-agent shortcuts (`.claude/commands/`,
-  `.cursor/skills/`, or `~/.codex/skills/`, depending on the current engine).
+  `.cursor/skills/`, or `.codex/skills/` — plus `~/.codex/skills/`, the pre-v37 Codex location).
 
 Output a table: **Repo**, **Agents**, **Version**, **Registered**, **Description**.
