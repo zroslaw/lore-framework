@@ -141,6 +141,10 @@ The script never modifies a directory it doesn't recognize. It collects and repo
 | `git clone` failed | clone failure |
 | `git pull --ff-only` failed (auth, divergence, etc.) | pull failure |
 
+A clone that fails, or a run interrupted with Ctrl-C, removes the partial target directory it was
+writing — nothing else — so the next run sees a missing repo to clone rather than a directory it can
+only report as a conflict. Removal is confined to paths under the workspace that this run created.
+
 Repos in any conflict state are **skipped during the pull phase** — the script won't `git pull`
 against a remote that doesn't match the declaration. The user resolves manually (rename, remove,
 reconfigure remote) and reruns.

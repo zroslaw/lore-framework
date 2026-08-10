@@ -625,7 +625,12 @@ def build_findings(data):
         add("S3", "info", {})
 
     if not usable_git and data["applicable"]:
-        add("S4", "info", {"enclosing_root": git_data["enclosing_root"]})
+        # Two states, one finding, deliberately different severities: a local-only
+        # workspace is a supported mode (info), while a workspace nested inside
+        # someone else's repo makes every workspace-level git operation unsafe and
+        # must not read as one more informational line (warn).
+        add("S4", "warn" if git_data["enclosing_root"] else "info",
+            {"enclosing_root": git_data["enclosing_root"]})
 
     undeclared = [c for c in data["children"]
                   if c["git"] and not c["declared"]]
@@ -633,9 +638,29 @@ def build_findings(data):
         add("S5", "info", [{"dirname": c["dirname"], "origin": c["origin"]}
                            for c in undeclared])
 
+    # Keep the *first* declarer of each dirname — `declared_repos` dedupes by URL,
+    # so two different URLs can derive to one directory, and the first is the one a
+    # conflict is reported against. A later declarer must not overwrite it: doing so
+    # both hides the collision and checks the child's origin against the wrong URL.
+    declared_by_dirname, dirname_collisions = {}, []
+    for d in data["descriptors"]["declared"]:
+        if not d["dirname"]:
+            continue
+        first = declared_by_dirname.setdefault(d["dirname"], d)
+        if first is not d:
+            dirname_collisions.append({"dirname": d["dirname"],
+                                       "reason": "two declared URLs derive to the same "
+                                                 "directory name",
+                                       "declared": first["url"], "actual": d["url"]})
+    collided = {c["dirname"] for c in dirname_collisions}
+
     on_disk = {c["dirname"] for c in data["children"]}
+    # A dirname two URLs claim is not "missing, run workspace-pull" — pull refuses to
+    # place either until a descriptor is edited. S13 owns that state; reporting it here
+    # too would hand the user a remedy that cannot work.
     missing = [d for d in data["descriptors"]["declared"]
-               if d["dirname"] and d["dirname"] not in on_disk]
+               if d["dirname"] and d["dirname"] not in on_disk
+               and d["dirname"] not in collided]
     if missing:
         add("S6", "warn", [{"url": d["url"], "dirname": d["dirname"]}
                            for d in missing])
@@ -695,9 +720,7 @@ def build_findings(data):
     if usable_git and other_dirty:
         add("S12", "info", {"paths": other_dirty})
 
-    declared_by_dirname = {d["dirname"]: d for d in data["descriptors"]["declared"]
-                           if d["dirname"]}
-    conflicts = []
+    conflicts = list(dirname_collisions)
     for child in data["children"]:
         decl = declared_by_dirname.get(child["dirname"])
         if child["escapes_workspace"]:
@@ -716,7 +739,11 @@ def build_findings(data):
         elif child["origin"] is None:
             conflicts.append({"dirname": child["dirname"],
                               "reason": "declared but has no origin remote"})
-        elif child["origin"] != decl["url"]:
+        elif child["origin"] != decl["url"] and child["dirname"] not in collided:
+            # Suppressed under a collision: `decl` is the first declarer, and a child
+            # cloned from the second one would be reported as a mismatch against a URL
+            # the user never pointed it at — two rows for one problem, whose single
+            # remedy is already stated by the collision entry.
             conflicts.append({"dirname": child["dirname"],
                               "reason": "origin does not match declaration",
                               "declared": decl["url"], "actual": child["origin"]})
@@ -849,6 +876,15 @@ def cmd_workspace_scan(args, res):
                      "(S1, S12) are suppressed")
         else:
             for path in paths:
+                # Framework-owned scratch state (`.worktrees/`, `.lr-beings/`,
+                # `.tmp/`) shows up here only when the standard ignore lines are
+                # missing — which is exactly what S7 reports. It is neither
+                # publishable (not in MANAGED_PATHS) nor the user's own content, so
+                # it belongs in neither list: S12 would call it "yours, nothing will
+                # touch it" and offer no fix, while the fix is S7's.
+                if any(path == ln.strip("/") or path.startswith(ln.strip("/") + "/")
+                       for ln in STANDARD_IGNORE_LINES):
+                    continue
                 (dirty if is_managed(path) else other_dirty).append(path)
 
     _, agents = discover_workspace(workspace)

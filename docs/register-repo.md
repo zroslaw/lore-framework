@@ -204,9 +204,14 @@ These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
 
 1. Resolve `<lore-agent-repo>`.
 2. Scan `<lore-agent-repo>/agents/` for directories containing `role.md`.
-3. For each agent found, run the **Register Agent** procedure above.
-4. Re-render the Agents section once at the end rather than per agent — it is rendered from disk, so
-   one pass after the last write is both correct and cheaper.
+3. For each agent found, run the **Register Agent** procedure above, deferring its § Maintain the
+   workspace Agents section step to step 4. A collision on one agent stops **that agent only** —
+   record it and carry on with the rest; a repo-wide registration must not be abandoned halfway
+   because one name is taken.
+4. Run § Maintain the workspace Agents section once at the end rather than per agent — **all** of it,
+   the `CLAUDE.md` import stub included. The section is rendered from disk, so one pass after the
+   last write is both correct and cheaper; skipping the helper's other items is not part of the
+   saving.
 5. Report the created or refreshed shortcuts.
 
 ## Unregister Agent
@@ -224,8 +229,8 @@ These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
    boot line names an `<agent-dir>` under this workspace** — leaving it behind means the agent the
    user just unregistered still appears in every Codex session. When it names a different path, it
    belongs to another workspace: report it and leave it alone.
-5. Maintain the workspace Agents section (shared helper step above) — the removed agent's line goes
-   with it.
+5. Maintain the workspace Agents section and the `CLAUDE.md` import stub (shared helper step above) —
+   the removed agent's line goes with it.
 6. Report the removed shortcut in the engine-native form.
 
 ## Unregister Repo
@@ -234,8 +239,10 @@ These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
 
 1. Resolve `<lore-agent-repo>`.
 2. Scan the repo's `agents/` directory for valid agents.
-3. For each agent found, run the **Unregister Agent** procedure above.
-4. Re-render the Agents section once at the end.
+3. For each agent found, run the **Unregister Agent** procedure above, deferring its § Maintain the
+   workspace Agents section step to step 4.
+4. Run § Maintain the workspace Agents section once at the end — all of it, the `CLAUDE.md` import
+   stub included.
 5. Report the removed shortcuts.
 
 ## Collision rule

@@ -98,6 +98,10 @@ or register every agent in the repo at once:
 This generates an engine-native shortcut — `/lr-my-agent-name-agent` (Claude Code, Cursor) or
 `$lr-my-agent-name-agent` (Codex) — that boots the agent directly.
 
+The shortcut is written inside the workspace and left uncommitted. It works for you immediately;
+teammates get it only once you publish the workspace with `/lr:workspace-push` — see Step 8 for why
+`/lr:finalize` does not do this for you.
+
 ## Step 6 — Boot the agent
 
 ```
@@ -134,6 +138,11 @@ This preserves what the session produced, in four phases:
 2. **Merge** — integrate those into the agent's `lore/` and `lore-context.md`.
 3. **Summarize** — write a session summary teammates can read later.
 4. **Commit + push** — one commit per touched repo, pushed to the shared remote if the repo has one (see Step 2).
+
+Phase 4 covers the **agent repos**, not the workspace directory around them. If the session also
+changed the workspace — `workspace-init`, a registered shortcut, a new repo declaration — publish
+that separately with `/lr:workspace-push`; `/lr:workspace-status` tells you whether anything is
+waiting.
 
 Only finalize when you mean to — it's the moment the agent's learning becomes durable and shared.
 (You can also run the phases individually: `/lr:reflect`, `/lr:merge`, `/lr:summarize`.)

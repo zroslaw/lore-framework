@@ -11,10 +11,13 @@ workspace-push    publish   — commit and push the framework-managed workspace 
 workspace-status  diagnose  — read-only report of the same findings this skill resolves
 ```
 
-> **Converge = drive the scanner's findings to zero.** This skill and `/lr:workspace-status` read the
-> same scan (`docs/workspace-status.md` § Findings catalog). Status names what is off; init offers to
-> fix it. That is the whole relationship, and it is why this doc carries no second checklist of
-> "things to check" that could drift from the S-list.
+> **Converge = drive the scanner's findings to zero, as far as this skill owns them.** This skill and
+> `/lr:workspace-status` read the same scan (`docs/workspace-status.md` § Findings catalog). Status
+> names what is off; init offers to fix what init can fix. That is the whole relationship, and it is
+> why this doc carries no second checklist of "things to check" that could drift from the S-list.
+> Several findings' fixes belong to other commands — `workspace-pull` for what is behind or missing,
+> `workspace-push` for what is unpublished, `register-agent` for membership. A converging run leaves
+> those standing and Step 7 names them; it does not report a clean workspace on their account.
 
 > **Precondition.** The user must already have framework context loaded to run this skill — a session
 > started with the plugin (Claude `--plugin-dir` / installed plugin; Codex `codex plugin add`; Cursor
@@ -69,6 +72,7 @@ Take the **first** row that matches, in this order:
 
 | # | Observed | Path |
 |---|---|---|
+| 0 | `applicable` is `false` | **Initialize** — full interview. A greenfield directory: the scan stops at the applicability gate, so `memory`, `git`, and `descriptors` are absent from the envelope and no later row can be evaluated. This is the documented cold start, not an error |
 | 1 | Zero findings **and** `memory.agents_md.format` is `v3` | **Stop.** Report `already current` and write nothing |
 | 2 | No `lore-workspace.md` **and** `memory.agents_md.format` is `absent` or `none` | **Initialize** — full interview |
 | 3 | Anything else | **Converge** — the scanner's findings are the work list |
@@ -110,11 +114,14 @@ converging run that re-asks the founding interview is a bug, not thoroughness.
    on purpose, and a finding a user can never clear teaches them to skim the whole report. `sharing:
    local` suppresses S3; adding a remote later clears the key.
 
-5. **Legacy Codex shortcuts.** When finding S15 is present: offer to re-register the named agents, so
-   their shortcuts move from `~/.codex/skills/` to the workspace-local `.codex/skills/` that
-   `workspace-push` can publish. Offer the deletion of each home-directory copy as part of the same
-   plan, and only for a shortcut whose boot line names an `<agent-dir>` under this workspace —
-   `~/.codex/skills` is user-global, so a same-named shortcut may belong to a different workspace.
+5. **Legacy Codex shortcuts.** When finding S15 is present: offer to re-register the named agents —
+   the **Register Agent** procedure in `docs/register-repo.md`, one per agent — so their shortcuts
+   move from `~/.codex/skills/` to the workspace-local `.codex/skills/` that `workspace-push` can
+   publish. For an agent listed in `data.also_workspace_local` the workspace copy already exists, so
+   there is nothing to write and that agent's offer is the deletion alone. Either way the deletion of
+   the home copy belongs to the same plan, and is offered only for a shortcut whose boot line names
+   an `<agent-dir>` under this workspace — `~/.codex/skills` is user-global, so a same-named shortcut
+   may belong to a different workspace.
    `/lr:update` does the same relocation in bulk via `migrations/37.md`; this offer exists for a
    workspace whose repos are already at version 37.
 
@@ -202,10 +209,20 @@ becomes a divergence.
 |---|---|---|
 | No `origin` remote | Local-only workspace | Skip. Report that push and team sharing are inert until a remote exists |
 | `git ls-remote --heads origin` is empty | Founding a new shared workspace | Stage the framework-managed paths, commit `chore(lore): initialize lore workspace`, `git push -u origin HEAD`. **Confirm this with its own one-line yes/no** — the Step 3 plan was built before the fetch, so it could not have disclosed a publish action, and this one goes outward to a shared remote |
-| `git merge-base --is-ancestor HEAD origin/<branch>` | Local is behind or equal | Fast-forward, re-run Steps 1–5 against what arrived, then commit and push any remaining delta |
+| `git merge-base --is-ancestor HEAD origin/<branch>` | Local is behind or equal | Fast-forward, re-run Steps 1–5 against what arrived, then commit and push any remaining delta — see *Fast-forwarding over Step 4's writes* below |
 | `git merge-base --is-ancestor origin/<branch> HEAD` | Local is ahead | Commit the delta and push |
 | A merge-base exists, neither is an ancestor | Diverged | **Stop.** Suggest `workspace-pull` (phase 0) then `workspace-push`. Never merge automatically |
 | **No merge-base at all** | Unrelated histories — a *join* onto someone else's workspace | **Stop** and offer two explicit choices — see *Adopting a remote* below. Never `--allow-unrelated-histories` automatically |
+
+**Fast-forwarding over Step 4's writes.** The behind case is the ordinary one, and it is the one
+where Step 4's uncommitted renders sit in the way: `git merge --ff-only origin/<branch>` aborts when
+the incoming commits touch a path Step 4 just wrote. Do **not** merge into the dirty tree, stash, or
+`checkout -f` the whole tree. Instead restore only the framework-managed paths the fast-forward
+complains about — `git checkout -- <path>` per path, never a bare `git checkout -- .` — fast-forward,
+then re-run Steps 1–5. Those paths are deterministic renders of managed sections, so discarding and
+re-rendering them loses nothing; a path outside the managed set is user content and is never
+discarded to clear the way. If the fast-forward still refuses, stop and report it rather than
+escalating to a stronger git command.
 
 **Adopting a remote (the join case).** By the time Step 6 runs, Step 4 has already written
 `lore-workspace.md`, `.gitignore`, `README.md`, `AGENTS.md`, and possibly `CLAUDE.md` into the
@@ -214,17 +231,23 @@ the remote **replaces content this run just produced**, and may replace user pro
 local `AGENTS.md` before this run. Say that in the offer, then preserve everything before switching:
 
 1. **Commit the current state onto a side branch first**, so nothing uncommitted can be lost:
-   `git -C "<workspace>" checkout -b pre-join-<short-sha>` then stage **all** of it —
+   `git -C "<workspace>" checkout -b pre-join-<suffix>` then stage **all** of it —
    `git -C "<workspace>" add -A` — and commit `chore(lore): local state before joining <origin>`.
    Staging everything is correct *here* and nowhere else in the workspace layer: the point is a
    complete rescue point, not a publication.
+
+   `<suffix>` is `git rev-parse --short HEAD` when there is a commit to name. There need not be:
+   this branch is reached whenever no merge-base exists, which includes a repo `git init`-ed earlier
+   in *this* run and pointed at a populated remote — an unborn HEAD with no sha to substitute. Then
+   use `pre-join-local`, and if that name is taken, append `-2`, `-3` until one is free. Never
+   proceed with the switch until the rescue branch exists and the commit succeeded.
 2. **Switch to the remote's history:** `git -C "<workspace>" checkout -B <branch> origin/<branch>`.
    Use this rather than `reset --hard` — with the rescue commit in place either is recoverable, but
    `checkout -B` never runs against a dirty tree by accident.
 3. **Re-run Steps 1–5** against what arrived. Convergence re-derives the framework-managed content
    from the joined workspace's descriptors.
-4. **Tell the user the branch name.** `pre-join-<short-sha>` holds everything that was here before;
-   any local prose worth keeping is recovered from it by hand (`git show pre-join-<short-sha>:AGENTS.md`).
+4. **Tell the user the branch name.** `pre-join-<suffix>` holds everything that was here before;
+   any local prose worth keeping is recovered from it by hand (`git show pre-join-<suffix>:AGENTS.md`).
 
 Option **(b)** is "this is a different workspace" — supply a different remote, or remove the origin.
 Nothing is written in that case.
@@ -390,8 +413,9 @@ follow-up to anything that changed on disk.
 
 - Does not write any file outside the Step 3 plan, and does not touch user content outside a managed
   section (or, in `CLAUDE.md`, outside the single import line).
-- Does not commit or push, **except** Step 6's founding case (an empty remote), which is confirmed at
-  the Step 3 gate like every other write. Ongoing publication is `/lr:workspace-push`.
+- Does not commit or push, **except** Step 6's founding case (an empty remote), which carries its own
+  one-line yes/no — the Step 3 plan was built before the fetch, so it could not have disclosed a
+  publish action. Ongoing publication is `/lr:workspace-push`.
 - Does not merge divergent histories, and never passes `--allow-unrelated-histories`.
 - Does not three-way-merge the memory file — show-diff-and-confirm is the entire user-edit protocol.
 - Does not delete child repos dropped from a descriptor (no `--prune`).

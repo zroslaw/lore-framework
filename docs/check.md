@@ -318,7 +318,7 @@ explains the gap this check watches).
 | S1 | Framework-managed workspace files are dirty — the changes exist only on this filesystem, and a teammate's `workspace-pull` phase 0 receives a stale state. Name the paths from `data.paths` | warn | `/lr:workspace-push` |
 | S2 | N workspace commit(s) not pushed | warn | `/lr:workspace-push` |
 | S3 | Git-tracked but no `origin` — `workspace-pull` phase 0 and the README join path are inert until a remote exists | info | `git -C "<cwd>" remote add origin <url>`, or `/lr:workspace-init`, which also offers to record a deliberately local-only workspace as `sharing: local` |
-| S4 | Not a git repo (a supported local-only mode), or — when `data.enclosing_root` is set — sitting inside another git repo, where no workspace-level git operation is safe | info | `/lr:workspace-init` (offers tracking) |
+| S4 | Not a git repo (a supported local-only mode), or — when `data.enclosing_root` is set — sitting inside another git repo, where no workspace-level git operation is safe | info; warn in the enclosing-repo case | `/lr:workspace-init` (offers tracking) |
 
 The **framework-managed path set is defined in code** (`scripts/lr_core/workspace_scan.py`) and
 rendered in `docs/workspace-push.md` § Framework-managed paths. Do not restate it here, and do not

@@ -409,10 +409,44 @@ tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t 'workspace-pull')"
 # shellcheck disable=SC2329  # invoked indirectly via trap
 cleanup_tmp() { rm -rf "$tmpdir"; }
 # shellcheck disable=SC2329  # invoked indirectly via trap
+# A clone subshell cleans up its own partial target when `git clone` fails, but
+# on INT/TERM it is killed as part of this process group and never reaches that
+# line. Each in-flight clone therefore records its target here, and the signal
+# handler removes what the subshells could not — otherwise Ctrl-C mid-clone
+# leaves a half-written directory that the next run can only report as a
+# conflict.
+cleanup_inflight() {
+  local f target
+  for f in "$tmpdir"/inflight-*; do
+    [[ -e "$f" ]] || continue
+    target="$(cat "$f" 2>/dev/null || true)"
+    # Only ever remove inside the workspace, and only a path we wrote here.
+    [[ -n "$target" && "$target" == "$WORKSPACE"/* && -d "$target" ]] || continue
+    # A marker means this run created this directory and never confirmed it
+    # finished, so it is disposable: nothing of the user's can be inside it, and
+    # re-cloning is lossless. Do not try to tell a finished clone from an
+    # interrupted one — `git clone` resolves HEAD before it finishes checking out
+    # the working tree, so every cheap test either preserves a truncated tree
+    # (which `classify_url` would then trust forever) or deletes a good one.
+    # Deleting a few seconds of download beats keeping a repo that only looks
+    # complete.
+    rm -rf "$target"
+  done
+}
+# shellcheck disable=SC2329  # invoked indirectly via trap
 cleanup_signal() {
-  trap - INT TERM
+  trap - INT
+  # Deafen this shell to its own broadcast before sending it. `kill -- -$$`
+  # includes the sender, so with TERM reset to its default the handler's own
+  # survival depends on bash's signal-delivery timing — and the two lines that
+  # matter (removing partial clones, removing the tmpdir) come after the kill.
+  # Ignoring TERM across the broadcast removes the question: children take the
+  # default action and die, this handler runs to completion either way.
+  trap '' TERM
   kill -- -$$ 2>/dev/null || kill 0 2>/dev/null || true
+  cleanup_inflight
   cleanup_tmp
+  trap - TERM
   exit 130
 }
 trap cleanup_tmp EXIT
@@ -451,11 +485,16 @@ run_clone_batch() {
     dir="${to_clone_dir[$i]}"
     target="$WORKSPACE/$dir"
     key="$(safe_key "$dir" "$i")"
+    printf '%s' "$target" >"$tmpdir/inflight-$key"
     (
       # `--` terminates option parsing so a hostile URL starting with `-` is
       # treated as a positional argument (URL), not a git flag.
       LC_ALL=C git clone -- "$url" "$target" >"$tmpdir/clone-$key.out" 2>&1
       ec=$?
+      # Drop the marker the instant `git clone` returns — before any other work.
+      # Anything after this point is no longer an interruptible clone, and a signal
+      # arriving here must not send the handler after a target that is now complete.
+      rm -f "$tmpdir/inflight-$key"
       echo $ec >"$tmpdir/clone-$key.exit"
       # Clean up partial clones so the next run doesn't see them as conflicts.
       if [[ $ec -ne 0 && -d "$target" ]]; then

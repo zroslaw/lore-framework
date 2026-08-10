@@ -185,7 +185,9 @@ Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engi
 By default you boot with `/lr:boot <name>`. To register a direct `/lr-<name>-agent` shortcut for one
 agent or a whole repo, use `/lr:register-agent` or `/lr:register-repo`. Shortcuts land in
 `.claude/commands/` (Claude Code), `.cursor/skills/` (Cursor), or `.codex/skills/` (Codex), and
-delegate to the boot procedure with an absolute agent path. See [FIRST-STEPS.md](FIRST-STEPS.md) § 5.
+delegate to the boot procedure with an absolute agent path. All three locations are inside the
+workspace, so `/lr:workspace-push` publishes them to teammates and their `/lr:workspace-pull`
+receives them. See [FIRST-STEPS.md](FIRST-STEPS.md) § 5.
 
 ## Directory layout
 

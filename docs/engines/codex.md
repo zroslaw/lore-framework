@@ -77,7 +77,9 @@ avoid colliding with other tools that share `.agents/`.
 
 ## Registered shortcut bootstrap
 
-When `/lr:register-agent` or `/lr:register-repo` emits a Codex personal per-agent skill, use this
+Since v37 `/lr:register-agent` and `/lr:register-repo` write the Codex per-agent skill to
+`<workspace>/.codex/skills/lr-<agent>-agent/SKILL.md` (§ Where per-agent shortcuts live, above). Use
+this
 exact body after substituting the agent values — **as a single unwrapped line** (see
 `register-repo.md` § Resolve the shortcut bootstrap for why):
 
@@ -87,7 +89,7 @@ Read the `SKILL.md` for the installed `lr:boot` skill available in this session.
 
 Do not substitute a `~/.codex/plugins/cache/...` path, scan cache directories, or choose the
 newest installed version. If the active boot skill is unavailable, report that the Lore plugin is
-not loaded; emitted personal skills do not implement a fallback resolver.
+not loaded; emitted shortcuts do not implement a fallback resolver.
 
 ## Fan-out override (merge / recall / consult)
 

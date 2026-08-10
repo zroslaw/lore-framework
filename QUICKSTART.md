@@ -87,7 +87,9 @@ A teammate has an agent repo and pointed you at it.
    (re-run it any time to converge; `/lr:workspace-status` says whether anything needs it)
 5. **Boot an agent and work:** `/lr:boot <agent-name>` (run `/lr:list-agents` first if you don't
    know what's available).
-6. **Finalize at session end** to preserve what was learned: `/lr:finalize`
+6. **Finalize at session end** to preserve what was learned: `/lr:finalize` — this commits your agent
+   repos. If the session also changed the workspace itself (init, a registered shortcut, a new repo
+   declaration), `/lr:workspace-push` publishes that; `/lr:workspace-status` says whether it did.
 
 ### B. Starting fresh — your own agent
 
