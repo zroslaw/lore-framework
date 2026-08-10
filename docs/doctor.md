@@ -6,6 +6,10 @@ Diagnose and heal **framework runtime issues** — the things that go wrong with
 >
 > Not for content issues. Use `/lr:check` for descriptor validity, references, staleness; use `/lr:update` to reconcile a repo behind the framework's `VERSION`.
 
+> **Which diagnostic do I want?** `/lr:workspace-status` diagnoses this workspace's git and
+> descriptor state; `/lr:check` verifies content consistency inside agent repos; `/lr:doctor`
+> diagnoses engine and plugin runtime problems.
+
 ## How It Works
 
 `/lr:doctor` is a **catalog of ailments**. *Ailment* is the framework's term for one well-understood runtime failure mode, with a known signature and a known fix. Each ailment is its own topic doc (`doctor-<slug>.md`) describing:

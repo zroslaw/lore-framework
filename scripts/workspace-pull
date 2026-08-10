@@ -242,6 +242,25 @@ if [[ -d "$WORKSPACE/.git" || -f "$WORKSPACE/.git" ]] \
   if [[ -n "$(git -C "$WORKSPACE" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
     echo "${C_WARN}Phase 0: workspace root has uncommitted changes — skipping root pull, using local files.${RESET}" >&2
     phase0_state="warned"
+    # Say HOW STALE the local files are, not just that we skipped. A silent
+    # skip is indistinguishable from a successful pull in the summary, so a
+    # workspace that is 12 commits behind reads as current — which is exactly
+    # the state /lr:workspace-status reports as S14. Fetch first (refs only, no
+    # working-tree change, safe on a dirty tree), then count.
+    if git -C "$WORKSPACE" fetch --quiet origin >/dev/null 2>&1 \
+       && upstream="$(git -C "$WORKSPACE" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" \
+       && [[ -n "$upstream" ]]; then
+      behind="$(git -C "$WORKSPACE" rev-list --count "HEAD..$upstream" 2>/dev/null || echo "")"
+      if [[ -n "$behind" && "$behind" != "0" ]]; then
+        echo "${C_WARN}Phase 0: workspace root is $behind commit(s) behind $upstream — commit or stash, then re-run.${RESET}" >&2
+        phase0_state="warned ($behind behind)"
+      else
+        phase0_state="warned (up to date)"
+      fi
+    else
+      echo "${C_WARN}Phase 0: could not determine how far behind the workspace root is (no upstream, or fetch failed).${RESET}" >&2
+      phase0_state="warned (behind-ness unknown)"
+    fi
   else
     if git -C "$WORKSPACE" pull --ff-only >/dev/null 2>&1; then
       phase0_state="pulled"
@@ -556,9 +575,36 @@ if [[ -d "$WORKSPACE/.git" || -f "$WORKSPACE/.git" ]]; then
       gitignore_added=$((gitignore_added + 1))
     fi
   done
-  # De-dupe present_dirs, then append any missing exact `/dir/` line.
+  # Every child git repo on disk gets an ignore line, declared or not.
+  # Declaration governs cloning and pulling; ignoring governs safety, and an
+  # undeclared clone can have its contents committed into the workspace repo
+  # just as easily as a declared one. Ignoring only the declared set is how a
+  # hand-cloned child came to need a manually-added .gitignore line.
+  #
+  # A name taken from the FILESYSTEM must pass the same metacharacter filter
+  # url_to_dir applies to a name derived from a URL. A directory literally
+  # named `!notes` or `logs*` is creatable locally even though no git host
+  # would allow it as a repo name, and writing `/!notes/` into .gitignore turns
+  # the line into a negation that un-ignores something else. Skip and warn
+  # instead — an unignored child is a visible problem, a corrupted .gitignore
+  # is a silent one.
+  ign_dirs=("${present_dirs[@]:-}")
+  for d in "$WORKSPACE"/*/; do
+    d="${d%/}"
+    [[ -L "$d" ]] && continue
+    [[ -d "$d/.git" || -f "$d/.git" ]] || continue
+    ign_name="$(basename "$d")"
+    case "$ign_name" in
+      '!'*|*'*'*|*'?'*|*'['*|-*)
+        echo "${C_WARN}Phase 3: child repo '$ign_name' has a name unsafe for .gitignore — not ignored; rename it or add a quoted rule by hand.${RESET}" >&2
+        continue
+        ;;
+    esac
+    ign_dirs+=("$ign_name")
+  done
+  # De-dupe, then append any missing exact `/dir/` line.
   seen_ign=""
-  for dir in "${present_dirs[@]:-}"; do
+  for dir in "${ign_dirs[@]:-}"; do
     [[ -z "$dir" ]] && continue
     case "$seen_ign" in *"|$dir|"*) continue ;; esac
     seen_ign="$seen_ign|$dir|"
@@ -713,6 +759,31 @@ if [[ ${#pull_failures[@]} -gt 0 ]]; then
   for f in "${pull_failures[@]}"; do
     echo "  ${C_FAIL}*${RESET} $f"
   done
+  echo ""
+fi
+
+# Undeclared-repo nudge. A top-level git repo that no descriptor declares is
+# pulled by phase 4 but never *cloned* for anyone else — a teammate's fresh
+# checkout of this workspace simply will not contain it. That is invisible from
+# here, so name it. Informational only: it never affects the exit code, because
+# an ad-hoc local repo in a workspace is a legitimate thing to have.
+undeclared_dirs=()
+for d in "$WORKSPACE"/*/; do
+  d="${d%/}"
+  [[ -L "$d" ]] && continue
+  [[ -d "$d/.git" || -f "$d/.git" ]] || continue
+  name="$(basename "$d")"
+  is_declared=0
+  for dir in "${present_dirs[@]:-}"; do
+    [[ "$dir" == "$name" ]] && { is_declared=1; break; }
+  done
+  [[ $is_declared -eq 0 ]] && undeclared_dirs+=("$name")
+done
+
+if [[ ${#undeclared_dirs[@]} -gt 0 ]]; then
+  echo "${BOLD}Undeclared top-level repos:${RESET} ${undeclared_dirs[*]}"
+  echo "  Not in any lore-workspace.md or lore-repo.md \`repos:\` list, so a teammate's"
+  echo "  workspace-pull will not clone them. Run workspace-init to declare them."
   echo ""
 fi
 

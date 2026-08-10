@@ -50,4 +50,9 @@ Scaffold a new agent repository in the workspace.
    missing, create the missing item before continuing. Do not print "done" for a
    no-op.
 
-9. **Report** what was created. Remind the user they can now add agents with `/lr:create-agent`.
+9. **Report** what was created. Remind the user they can now add agents with `/lr:create-agent`, and
+   that registering them (`/lr:register-repo <lore-agent-repo>`) is what lists them in the workspace
+   memory file's `## Agents` section.
+10. If this workspace declares its repos in `lore-workspace.md`, note that the new repo is not in it
+    yet — `/lr:workspace-init` offers to declare it, and until then a teammate's `/lr:workspace-pull`
+    will not clone it (`/lr:workspace-status` finding S5).

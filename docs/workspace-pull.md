@@ -5,9 +5,9 @@ other repositories they declare. One command for first-time bootstrap and ongoin
 **two levels** of repo declarations and clones/pulls everything they name.
 
 > **When to run.** First thing on a fresh workspace (after cloning the workspace repo, or your first
-> agent repo); whenever you want to refresh everything to the latest. On a fresh, empty workspace the
-> setup wizard `/lr:workspace-init` runs this for you as its last step. Follow up with
-> `/lr:workspace-init --refresh` to write the workspace memory-file conventions block.
+> agent repo); whenever you want to refresh everything to the latest. On a fresh, empty workspace
+> `/lr:workspace-init` runs this for you as one of its steps. Follow up with `/lr:workspace-init` to
+> converge the memory file and the ignore lines against whatever just arrived.
 
 ## Two levels of repo declarations
 
@@ -30,18 +30,31 @@ descriptors are on disk and discoverable when the domain level runs.
    (skips with a warning rather than clobbering uncommitted edits). Any phase-0 failure is a
    **warning, never fatal** — the run proceeds against the local files. Skipped entirely when the
    root is not a git repo (local-only workspace).
+
+   When the pull is skipped because the tree is dirty, phase 0 **fetches and reports how far behind
+   the workspace root is**, rather than skipping silently. A silent skip is indistinguishable from a
+   successful pull in the summary line, so a workspace twelve commits behind would read as current.
 2. **Phase 1 — Workspace-level repos.** Parse `<workspace>/lore-workspace.md` `repos:` and clone any
    declared repo not present.
 3. **Phase 2 — Domain-level repos.** Discover every `<workspace>/<subdir>/lore-repo.md`, merge each
    `repos:` (deduped by URL against phase 1), and clone any not already satisfied.
 4. **Phase 3 — `.gitignore` plumbing (conditional).** When the workspace root is git-tracked, append
-   the standard workspace-owned lines (`/.worktrees/`, `/.lr-beings/`, `/.tmp/`) if missing, then a
-   `/child/` line for every declared repo present on disk (cloned this run or already consistent),
-   so nested clones and local scratch aren't committed into the workspace repo. Idempotent by
-   exact-line match; never auto-commits. Skipped when the root is not a git repo.
+   the **standard ignore lines** (`/.worktrees/`, `/.lr-beings/`, `/.tmp/`) if missing, then a
+   `/child/` line for **every child git repo on disk** — declared or not — so nested clones and local
+   scratch aren't committed into the workspace repo. Idempotent by exact-line match; never
+   auto-commits. Skipped when the root is not a git repo.
+
+   Declaration governs cloning and pulling; **ignoring governs safety**, and an undeclared clone can
+   have its contents committed into the workspace repo just as easily as a declared one. That is why
+   the ignore set is the wider of the two.
 5. **Phase 4 — Pull all.** `git pull --ff-only` every top-level git repo (existing + freshly cloned)
    in parallel, including top-level repos not declared in any descriptor (v11 parity). Conflict-state
    repos are skipped.
+
+   Afterwards, the run **names any top-level git repo that no descriptor declares**. Such a repo is
+   pulled here but never *cloned* for anyone else, so a teammate's fresh checkout of this workspace
+   simply will not contain it. Informational only — an ad-hoc local repo is a legitimate thing to
+   have — and never affects the exit code. `/lr:workspace-init` offers to declare them.
 
 All conflicts (remote mismatches, target-not-a-repo, dir collisions, clone/pull failures) are
 collected and reported at the end for manual resolution.
@@ -153,16 +166,20 @@ so divergent local branches surface as failures rather than silent merge commits
 
 ## Relationship to Other Skills
 
-- **`/lr:workspace-init`** is the producer companion: the setup wizard writes `lore-workspace.md`,
-  the optional workspace git root, `README.md`, and the memory-file conventions block, then ends by
-  running `workspace-pull`. `workspace-pull` is the consumer — it reads those descriptors and
-  clones/pulls.
+- **`/lr:workspace-init`** is the producer companion: it writes `lore-workspace.md`, the optional
+  workspace git root and remote, `README.md`, and the framework-managed sections of `AGENTS.md`, and
+  runs `workspace-pull` as one of its steps. `workspace-pull` is the consumer — it reads those
+  descriptors and clones/pulls. On an already-initialized workspace, init **converges**: no flag.
+- **`/lr:workspace-push`** is the publisher — it commits and pushes the framework-managed workspace
+  files that init and the register skills write. Phase 0 here is what receives them on the other end.
+- **`/lr:workspace-status`** is the read-only diagnosis: the same facts this script acts on, rendered
+  as findings with fixes (S6 missing declared repos, S7 ignore coverage, S13 conflicts, S14 behind).
 - **`/lr:pull-lore`** is the narrower peer: refreshes only the lore agent repos of currently loaded
   agents (host + attached guests), no clone, no top-level non-lore pulls. Use it mid-session when a
   teammate pushed lore changes; use `workspace-pull` for bootstrap or a full-workspace refresh.
-- **`/lr:check`** runs consistency checks across the workspace (including #22, which warns when
-  standard workspace-owned ignore lines or a declared child repo on disk aren't covered in a git
-  workspace). It does not pull or clone.
+- **`/lr:check`** runs consistency checks across the workspace (including #22, which warns when a
+  standard ignore line or a child git repo on disk isn't covered in a git workspace). It does not
+  pull or clone.
 - **`/lr:create-repo`** scaffolds a new agent repo. Its `lore-repo.md` starts without a `repos:`
   field; add one when the agent has declared dependencies.
 

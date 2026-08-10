@@ -84,6 +84,7 @@ A teammate has an agent repo and pointed you at it.
 3. **Pull the workspace** — clones any other repos it declares and pulls everything:
    `/lr:workspace-pull`
 4. **Initialize the workspace** so future sessions auto-load the conventions: `/lr:workspace-init`
+   (re-run it any time to converge; `/lr:workspace-status` says whether anything needs it)
 5. **Boot an agent and work:** `/lr:boot <agent-name>` (run `/lr:list-agents` first if you don't
    know what's available).
 6. **Finalize at session end** to preserve what was learned: `/lr:finalize`

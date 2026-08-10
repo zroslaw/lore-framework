@@ -117,6 +117,61 @@ description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpo
 <shortcut-bootstrap>
 ```
 
+### Maintain the workspace Agents section
+
+A shortcut is the membership record: the workspace memory file's `## Agents` section lists
+**registered** agents — it is the "what can I boot here" answer. So every operation below writes the
+shortcut and updates that section **in the same operation**. A shortcut without an entry is an agent
+nobody reading the memory file knows exists.
+
+For every register/unregister operation, after the artifact is written or deleted:
+
+1. **Ensure `<workspace>/AGENTS.md` exists** with the canonical payload. If it does not, or carries
+   no `## Agents` heading, do not synthesize one here — report that the workspace memory file needs
+   `/lr:workspace-init` and continue; registration itself has succeeded.
+2. **Rewrite the `## Agents` section body** from the shortcuts now on disk, across all three engine
+   locations (§ Engine-native shortcut locations). The section runs from its exact `## Agents`
+   heading to the line before the next `^## ` heading, or EOF, **ignoring any such line inside a
+   ``` or `~~~` fence** — a fenced example in the user's own prose is not a heading. Keep the
+   provenance comment as the first line of the body.
+
+   Each shortcut supplies *membership* and, in its boot line, the agent's absolute `<agent-dir>`.
+   Take the **role description from `<agent-dir>/role.md`'s frontmatter `description`** and the repo
+   dirname from that path — not from the shortcut, which on Claude Code is a single bootstrap line
+   carrying neither. Fall back to `Lore agent in <repo-dirname>` when `role.md` has no description,
+   matching § Resolve agent metadata. One line per agent:
+
+   ```markdown
+   - `<agent-name>` (`<repo-dirname>`) — <role description>. Boot: `lr-<agent-name>-agent`.
+   ```
+
+   With none left, emit the single line:
+   `_(No agents registered yet — run `register-agent` to add one.)_`
+
+   Render from disk rather than editing the one line you just changed: it is idempotent, it repairs
+   drift from a hand-edited file for free, and it cannot leave a stale entry behind when an
+   unregister and a register happen in the same run.
+3. **Ensure the `CLAUDE.md` import stub.** If `<workspace>/CLAUDE.md` has no line whose trimmed
+   content is exactly `@AGENTS.md`, append the two-line stub, preserving all existing content:
+
+   ```markdown
+   <!-- Lore Framework: this workspace's memory lives in AGENTS.md, shared across engines. -->
+
+   @AGENTS.md
+   ```
+
+   Claude Code does not read `AGENTS.md`. Without that line, a Claude Code session in this workspace
+   sees no workspace memory at all — including the Agents list just written — and nothing reports it.
+   Never regenerate or truncate `CLAUDE.md`; that one line is the only framework-managed content in
+   it.
+
+Full contract, including the parsing rules and the marker migration: `docs/workspace-init.md` §
+The memory-file contract. `workspace-init`'s convergence pass re-renders the same section from the
+same source, so the two writers agree by construction — **registration remains the single membership
+authority; init is only the renderer.**
+
+These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
+
 ## Register Agent
 
 **Inputs:** `[<lore-agent-repo>] <agent-name>`
@@ -129,7 +184,8 @@ description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpo
    - If it points at a different repo/agent path, warn about the collision and stop without
      overwriting.
 4. Create the parent directory if needed and write the current template.
-5. Report the created shortcut in the engine-native form:
+5. Maintain the workspace Agents section and the `CLAUDE.md` import stub (shared helper step above).
+6. Report the created shortcut in the engine-native form:
    - **Claude Code / Cursor:** `/lr-<agent-name>-agent`
    - **Codex:** `$lr-<agent-name>-agent`
 
@@ -140,7 +196,9 @@ description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpo
 1. Resolve `<lore-agent-repo>`.
 2. Scan `<lore-agent-repo>/agents/` for directories containing `role.md`.
 3. For each agent found, run the **Register Agent** procedure above.
-4. Report the created or refreshed shortcuts.
+4. Re-render the Agents section once at the end rather than per agent — it is rendered from disk, so
+   one pass after the last write is both correct and cheaper.
+5. Report the created or refreshed shortcuts.
 
 ## Unregister Agent
 
@@ -152,7 +210,9 @@ description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpo
 4. Delete the artifact:
    - **Claude Code:** delete the `.md` file.
    - **Cursor / Codex:** delete the `lr-<agent-name>-agent/` directory.
-5. Report the removed shortcut in the engine-native form.
+5. Maintain the workspace Agents section (shared helper step above) — the removed agent's line goes
+   with it.
+6. Report the removed shortcut in the engine-native form.
 
 ## Unregister Repo
 
@@ -161,7 +221,8 @@ description: "Boot the <agent-name> lore agent from <repo-name> — <agent-purpo
 1. Resolve `<lore-agent-repo>`.
 2. Scan the repo's `agents/` directory for valid agents.
 3. For each agent found, run the **Unregister Agent** procedure above.
-4. Report the removed shortcuts.
+4. Re-render the Agents section once at the end.
+5. Report the removed shortcuts.
 
 ## Collision rule
 

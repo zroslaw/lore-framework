@@ -116,7 +116,9 @@ Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engi
 |---|---|
 | `/lr:workspace-pull` | Pull the workspace repo, clone declared repos, and pull all top-level repos |
 | `/lr:pull-lore` | Refresh just the active agents' repos mid-session |
-| `/lr:workspace-init` | Bootstrap or refresh the workspace (descriptor, git root, memory file) |
+| `/lr:workspace-init` | Initialize the workspace, or converge it after anything changed (descriptor, git root, ignore lines, memory file) |
+| `/lr:workspace-push` | Commit and push the framework-managed workspace files |
+| `/lr:workspace-status` | Diagnose the workspace — every finding names the command that fixes it |
 | `/lr:list-agents` | List all agents in the workspace |
 | `/lr:list-repos` | List all agent repos in the workspace |
 
@@ -202,7 +204,8 @@ my-workspace/                       # Workspace — the directory you run your c
 ├── another-agents-repo/            # Multiple agent repos can coexist
 │   └── agents/
 │       └── ...
-├── AGENTS.md                       # Workspace memory file (Codex + Cursor; Claude uses CLAUDE.md)
+├── AGENTS.md                       # Workspace memory file — read by every engine
+├── CLAUDE.md                       # One-line `@AGENTS.md` import (Claude Code does not read AGENTS.md)
 ├── .claude/
 │   └── commands/                   # Claude Code optional registered agent commands
 │       ├── lr-researcher-agent.md

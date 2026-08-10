@@ -4,6 +4,22 @@ Work through the following checks in order. Report each issue found. At the end,
 
 > **Scope note.** `/lr:check` covers content-level static consistency — descriptors, references, structure, drift. Runtime/environmental issues that escape static checks (a skill not appearing despite the current `VERSION`, an old skill lingering after a rename, plugin-cache effects after an upgrade) are not detected here. For those, use `/lr:doctor`.
 
+> **Which diagnostic do I want?** `/lr:workspace-status` diagnoses this workspace's git and
+> descriptor state; `/lr:check` verifies content consistency inside agent repos; `/lr:doctor`
+> diagnoses engine and plugin runtime problems.
+
+> **Checks #22–#24 are workspace-scoped and share one scan.** Run it once, before check #22, and
+> read all three from its output:
+>
+> ```
+> python3 "<framework-root>/scripts/lr-core" workspace-scan --workspace "<cwd>"
+> ```
+>
+> `data.applicable: false` → skip #22, #23, and #24 entirely; this directory is not a workspace root.
+> The scanner is a **literate accelerator**: on failure apply the Script Fallback Contract
+> (`docs/conventions.md`) and execute `scripts/lr_core/workspace_scan.py`'s documented steps by hand.
+> Each check below names the findings it owns; `/lr:workspace-status` renders the complete set.
+
 ---
 
 ## 1. Agent repo discovery
@@ -238,28 +254,67 @@ If canonical and cursor wrappers drift (same doc target but different `$ARGUMENT
 
 ## 22. Workspace gitignore coverage
 
-**Workspace-scoped** — applies only when the current working directory is a **git-tracked workspace root**: `<cwd>/.git` exists *and* there is a `<cwd>/lore-workspace.md` or at least one `<cwd>/<subdir>/lore-repo.md`. If `<cwd>` is not a git repo (local-only workspace) or has no descriptors, skip this check — there is nothing to gitignore.
+**Workspace-scoped** — read from the shared scan. Report finding **S7** if present.
 
-**Standard workspace-owned lines** — verify `<cwd>/.gitignore` contains each of these exact lines:
+S7 carries two groups, and they read differently, so report them separately:
 
-- `/.worktrees/`
-- `/.lr-beings/`
-- `/.tmp/`
+- `data.repos` — child git repos on disk with no `/<dirname>/` line in `<cwd>/.gitignore` → **warn**:
+  the child repo's contents could be committed into the workspace meta-repo. Note that this covers
+  **every** child git repo on disk, declared or not: declaration governs cloning and pulling, but an
+  undeclared clone can be committed just as easily as a declared one.
+- `data.standard_lines` — any of `/.worktrees/`, `/.lr-beings/`, `/.tmp/` missing → **warn**.
 
-If any is missing → **warn** (not error). Fix: run `/lr:workspace-pull` (phase 3 appends them), or
-add the missing line by hand. First-time `/lr:workspace-init` setup and **reconfigure** also seed
-them (Step 6). `/lr:workspace-init --refresh` does **not** touch `.gitignore` — use
-`/lr:workspace-pull` for an already-initialized workspace.
+Fix for both: run `/lr:workspace-pull` (phase 3 appends them), or add the missing lines by hand.
+`/lr:workspace-init` also writes them as part of its convergence pass.
 
-**Declared child repos** — build the set of declared child dirnames: parse the `repos:` block from `<cwd>/lore-workspace.md` (if present) and from every top-level `<cwd>/<subdir>/lore-repo.md`, deriving each dirname the way `workspace-pull` does (last URL path segment with a trailing `.git` stripped; skip any URL whose derived name is unsafe). For every declared dirname that exists on disk as a top-level directory:
+Also report finding **S6** (declared repos absent from disk → **warn**, fix `/lr:workspace-pull`) and
+finding **S13** (a declared child that is not a git repo, has no origin, or whose origin disagrees
+with the declaration → **warn**; `workspace-pull` will refuse to pull it until resolved — see
+`docs/workspace-pull.md` § Conflict Handling).
 
-- Verify `<cwd>/.gitignore` contains the exact line `/<dirname>/`. If it is missing → **warn** (not error): the child repo's contents could be accidentally committed into the workspace meta-repo. Fix: run `/lr:workspace-pull` (phase 3 appends the missing entries), or add `/<dirname>/` to `.gitignore` by hand.
+Do not re-derive the declared set or the ignore lines by hand; the scanner already did, using the
+same dirname derivation `workspace-pull` uses. See `docs/workspace-status.md` for the full wording of
+each finding.
 
-This mirrors `workspace-pull` phase 3; the check catches a workspace where a child was cloned manually — or `.gitignore` was hand-edited — without re-running the pull. See `docs/workspace-pull.md` and `docs/workspace-init.md` Step 6.
-## 23. Legacy workspace-init markers
+## 23. Legacy memory-file format
 
-**Workspace-scoped** — applies to the workspace **memory file** (`<cwd>/CLAUDE.md` on Claude Code, `<cwd>/AGENTS.md` on Codex/Cursor — resolve the name from the engine profile). If the file is absent, skip.
+**Workspace-scoped** — read from the shared scan. Report finding **S10** if present.
 
-If it contains a well-formed legacy `<!-- lr:init:start -->` … `<!-- lr:init:end -->` marker pair but **no** `<!-- lr:workspace-init:start -->` pair → **warn**: the workspace was initialized by the pre-v25 `/lr:init`, and its managed section still uses the old marker names. Fix: run `/lr:workspace-init` and accept the migration offer (rewrites the markers to `lr:workspace-init:*`), or `/lr:workspace-init --refresh`.
+S10's `data.violations` lists what is wrong with the workspace memory-file contract. Report each,
+with `/lr:workspace-init` as the fix for all of them (its convergence pass rewrites the memory file
+and offers the one-time marker migration):
 
-If both marker pairs are present, or a marker appears without its pair, that is outside #23's scope — the workspace-init marker protocol handles malformed pairs itself. #23 fires only on the clean legacy-only case. See `docs/workspace-init.md`.
+| Violation | Means | Severity |
+|---|---|---|
+| `legacy_marker_format` | `AGENTS.md` still uses HTML-comment markers — either `lr:workspace-init:*` or the pre-v25 `lr:init:*` | warn |
+| `payload_in_claude_md` | The payload sits in `CLAUDE.md`, where Cursor and Codex cannot read it | warn |
+| `claude_md_import_missing` | No `@AGENTS.md` line in `CLAUDE.md`. **Claude Code does not read `AGENTS.md`** — without that line, every Claude Code session in this workspace starts with no workspace memory at all, silently | warn |
+| `agents_md_absent` | The workspace has no memory payload | warn |
+| `section_<name>_missing` / `_duplicated` | A canonical level-2 heading is gone or appears twice | warn |
+
+Section-level violations are suppressed while the file is still in marker format — the single
+`legacy_marker_format` entry already names the whole remedy.
+
+See `docs/workspace-init.md` § The memory-file contract.
+
+## 24. Workspace publication state
+
+**Workspace-scoped** — read from the shared scan. Report findings **S1**, **S2**, **S3**, and **S4**
+if present.
+
+Framework skills write workspace-root files but none of them commits (`docs/workspace-push.md`
+explains the gap this check watches).
+
+| Finding | Means | Severity | Fix |
+|---|---|---|---|
+| S1 | Framework-managed workspace files are dirty — the changes exist only on this filesystem, and a teammate's `workspace-pull` phase 0 receives a stale state. Name the paths from `data.paths` | warn | `/lr:workspace-push` |
+| S2 | N workspace commit(s) not pushed | warn | `/lr:workspace-push` |
+| S3 | Git-tracked but no `origin` — `workspace-pull` phase 0 and the README join path are inert until a remote exists | info | `git -C "<cwd>" remote add origin <url>`, or `/lr:workspace-init`, which also offers to record a deliberately local-only workspace as `sharing: local` |
+| S4 | Not a git repo (a supported local-only mode), or — when `data.enclosing_root` is set — sitting inside another git repo, where no workspace-level git operation is safe | info | `/lr:workspace-init` (offers tracking) |
+
+The **framework-managed path set is defined in code** (`scripts/lr_core/workspace_scan.py`) and
+rendered in `docs/workspace-push.md` § Framework-managed paths. Do not restate it here, and do not
+carry a remembered copy of it.
+
+Dirty workspace paths *outside* that set are not findings here — they are the user's own files
+(finding S12, informational, rendered by `/lr:workspace-status`).

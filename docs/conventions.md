@@ -52,9 +52,16 @@ Session summaries live under `sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md`
 ```
 
 The workspace root may itself be a git repo (a "workspace meta-repo") that versions
-`lore-workspace.md`, `README.md`, and the memory file, while gitignoring the child repo clones.
-`/lr:workspace-init` scaffolds this; `/lr:workspace-pull` maintains the `.gitignore` and pulls the
-root first. When the root is not a git repo, everything still works in local-only mode.
+`lore-workspace.md`, `README.md`, and the memory files, while gitignoring the child repo clones.
+`/lr:workspace-init` scaffolds and converges it; `/lr:workspace-pull` maintains the `.gitignore` and
+pulls the root first; `/lr:workspace-push` commits and pushes the framework-managed files;
+`/lr:workspace-status` reports what is off. When the root is not a git repo, everything still works
+in local-only mode.
+
+**The workspace memory file is `AGENTS.md` on every engine.** Claude Code does not read `AGENTS.md`,
+so the framework additionally ensures `<workspace>/CLAUDE.md` contains a single `@AGENTS.md` import
+line — one payload, one source of truth, no copy-drift. See `docs/workspace-init.md` § The
+memory-file contract. (This is workspace-level only; an agent repo's own files are unaffected.)
 
 On Cursor, the equivalent registered shortcuts live in workspace-local `.cursor/skills/` as
 path-scoped skills. On Codex, they live outside the workspace in `~/.codex/skills/` as personal
@@ -73,6 +80,7 @@ Three framework descriptor files carry YAML frontmatter so the framework can mac
 - **`lore-workspace.md`** — optional, at the workspace root (not inside an agent repo). Frontmatter fields:
   - `description` (string) — human label for the workspace.
   - `repos` (block-form list of strings, optional) — **workspace-level** declaration: remote URLs of the top-level repos that belong in this workspace, including the lore **agent repos themselves**. Consumed by `/lr:workspace-pull` (phase 1). The markdown body is user-owned onboarding prose. Written by `/lr:workspace-init`.
+  - `sharing` (string, optional) — the only accepted value is `local`, written by `/lr:workspace-init` when the user declines to set an `origin` remote. It records "this workspace is deliberately private" and suppresses finding S3. **Absent means "not answered yet"** and behaves exactly as it always has — there is no migration, and an older framework reading a newer descriptor ignores the unknown key. Adding a remote later clears it. It carries no enforcement: nothing refuses to push because of it. Its whole purpose is that a finding a user can never clear teaches them to skim the entire report.
 - **`role.md`** — at the root of each agent directory. Frontmatter fields: `description` (string) only. Agents do not carry their own version stamp at framework version 2+; they migrate together with the repo.
 
 **The dual meaning of `repos:`.** The same YAML key names repos at two scopes. In `lore-workspace.md`
@@ -158,12 +166,13 @@ breaks. One CLI may expose both kinds as separate subcommands.
   running code is normative, and so are its comments — there is exactly one artifact, not a
   prose copy and a code copy that can drift apart. A doc that delegates to it carries only a
   short pointer: what to call, what the output fields mean, and — on failure — *which function
-  and focused module* to go read. `scripts/lr-core`'s `discover`, `preflight`, and `scan` subcommands are the reference
-  cases: `docs/agent-boot.md`,
+  and focused module* to go read. `scripts/lr-core`'s `discover`, `preflight`, `scan`, and `workspace-scan` subcommands are the
+  reference cases: `docs/agent-boot.md`,
   `docs/auto-pull.md`, `docs/attach.md`, `docs/consult.md`, `docs/lore-search.md`,
-  `docs/process-merge.md`, `docs/pull-lore.md`, and `docs/being.md` all point into specific
-  functions in `scripts/lr_core/preflight.py` or `scripts/lr_core/scan.py` rather than restating
-  what those functions do.
+  `docs/process-merge.md`, `docs/pull-lore.md`, `docs/being.md`, `docs/workspace-status.md`,
+  `docs/workspace-init.md`, `docs/workspace-push.md`, and `docs/check.md` all point into specific
+  functions in `scripts/lr_core/preflight.py`, `scripts/lr_core/scan.py`, or
+  `scripts/lr_core/workspace_scan.py` rather than restating what those functions do.
 - **Implementation** — the script *is* the specification; there is no prose procedure and no
   comment-as-procedure to execute by hand either. `scripts/workspace-pull`,
   `scripts/session-takeover`, `scripts/sync-cursor-skills`, `scripts/lr-emit` +

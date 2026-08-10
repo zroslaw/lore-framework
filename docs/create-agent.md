@@ -68,6 +68,10 @@ Add a new agent to an existing agent repo.
    - Register just this agent: `/lr:register-agent <lore-agent-repo> <agent-name>`
    - Register every agent in the repo: `/lr:register-repo <lore-agent-repo>`
 
+   Registering is also what adds the agent to the workspace memory file's `## Agents` section — the
+   "what can I boot here" list a teammate reads on arrival. An unregistered agent is bootable but
+   invisible there (`/lr:workspace-status` finding S11).
+
    Engine-native shortcut forms:
    - **Claude Code:** `/lr-<agent-name>-agent`
    - **Cursor:** `/lr-<agent-name>-agent`

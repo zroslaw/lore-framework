@@ -74,9 +74,12 @@ A fresh agent starts nearly empty. That's expected — it fills in as you work.
 /lr:workspace-init
 ```
 
-This sets up the workspace so future sessions auto-load the framework's conventions. It writes the
-memory file your engine reads at startup — `CLAUDE.md` on Claude Code, `AGENTS.md` on Codex and
-Cursor.
+This sets up the workspace so future sessions auto-load the framework's conventions. It writes
+`AGENTS.md` — the workspace memory file, shared by all three engines — plus a one-line `CLAUDE.md`
+that imports it, because Claude Code reads `CLAUDE.md` and not `AGENTS.md`.
+
+Run it again any time something changes on disk: it converges rather than re-interviewing, and does
+nothing at all when nothing has drifted.
 
 ## Step 5 — (Optional) Register a boot shortcut
 
