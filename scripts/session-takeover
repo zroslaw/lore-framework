@@ -1099,6 +1099,29 @@ def reflection_dialogue_units(messages):
     return units
 
 
+def reflection_excluded_messages(messages):
+    """Count normalized messages that no dialogue unit will carry.
+
+    Two exclusions are deliberate (sidechain entries, and anything preceding
+    the first genuine user turn) but both are invisible in ``dialogue_units``,
+    which counts only what survived. Reporting the excluded count alongside it
+    keeps the Completion line from presenting parser-retained coverage as
+    complete coverage — the same discipline ``assistant_redactions`` applies to
+    Cursor's unavailable assistant content.
+    """
+    excluded = 0
+    seen_user = False
+    for message in messages:
+        if message.get("sidechain"):
+            excluded += 1
+            continue
+        if message.get("role") == "user" and "tool" not in message:
+            seen_user = True
+        elif not seen_user:
+            excluded += 1
+    return excluded
+
+
 def _render_reflection_unit(index, messages):
     out = [f"### Dialogue unit {index}", ""]
     for message in messages:
@@ -1222,6 +1245,14 @@ def write_reflection_input(path, engine, meta, messages, max_chars=60000):
 
     ``path`` must not exist. On failure, only paths this call created are
     unlinked and the newly created run directory is removed if empty.
+
+    Containment is enforced here rather than left to the caller: this call is
+    the only place raw main-thread dialogue is materialized on disk, so the
+    run directory must be a direct child of a ``.tmp/lr-finalize`` scratch
+    root — the location the workspace gitignores and that Cleanup is allowed
+    to delete from. Checking it in the script keeps a mistyped ``--output-dir``
+    from writing transcript text into a committable path, which prose in the
+    calling procedure cannot guarantee.
     """
     output_dir = Path(path)
     parent = output_dir.parent
@@ -1231,6 +1262,12 @@ def write_reflection_input(path, engine, meta, messages, max_chars=60000):
         raise ValueError(f"output parent is not an existing directory: {parent}")
     if parent.is_symlink():
         raise ValueError(f"output parent must not be a symlink: {parent}")
+    real_parent = parent.resolve()
+    if real_parent.name != "lr-finalize" or real_parent.parent.name != ".tmp":
+        raise ValueError(
+            "output directory must be a direct child of a .tmp/lr-finalize "
+            f"scratch root: {output_dir}"
+        )
 
     chunks, dialogue_units = build_reflection_chunks(messages, engine, max_chars)
     created = []
@@ -1261,6 +1298,7 @@ def write_reflection_input(path, engine, meta, messages, max_chars=60000):
             "session_id": meta.get("session_id"),
             "source": str(Path(meta.get("source", "")).resolve()),
             "dialogue_units": dialogue_units,
+            "excluded_messages": reflection_excluded_messages(messages),
             "assistant_redactions": int(meta.get("assistant_redactions") or 0),
             "max_chars": max_chars,
             "chunks": manifest_chunks,

@@ -8,6 +8,6 @@ argument-hint: "[--transcript]"
 
 Begin the full finalization process. `--transcript` selects transcript-backed reflection; no flag keeps the standard reflection path.
 
-Read `<framework-root>/docs/finalize.md` for detailed instructions. The doc orchestrates reflect → merge → summarize → commit and push, explains per-phase failure handling, and details the commit review gate.
+Read `<framework-root>/docs/finalize.md` for detailed instructions. The doc orchestrates reflect → merge → summarize → commit and push, explains per-phase failure handling, and details the automatic commit and push.
 
 When done, confirm what was reflected, merged, summarized, and committed — list active agents for reflect/merge, the summary path + UUID, and the commit SHA(s) pushed.

@@ -59,7 +59,8 @@ python3 "<framework-root>/scripts/session-takeover" \
 
 The command prints one absolute native-log path only when a recent candidate
 actually contains the marker. If it fails, issue the same command once more
-after a fresh tool read; do not use a timed sleep. If the retry still fails,
+by issuing the identical command a second time, so the search re-reads the logs
+on disk; do not use a timed sleep. If the retry still fails,
 stop before reflection writes and say that the current transcript could not be
 verified. Do not use the ordinary heuristic fallback for this mode.
 
@@ -83,7 +84,9 @@ not a durable session artifact. Require all of the following before dispatch:
 - its engine and source match the invocation;
 - every chunk path is absolute and is directly inside `<run-dir>`;
 - `chunks` is non-empty and has at most 16 entries;
-- each chunk's source-unit range is valid, and every listed chunk exists.
+- each chunk's `source_units` is a `[first, last]` pair of positive integers
+  with `first <= last`, each chunk's `first` is greater than the previous
+  chunk's `last`, and every listed chunk file exists.
 
 If more than 16 chunks are needed, or any validation fails, clean the run
 directory as described in **Cleanup** and stop before workers. Do not silently
@@ -101,18 +104,28 @@ Use the engine profile's native subagent mechanism. Workers must begin with a
 fresh context and may only read their assigned chunk, the host `role.md`, and
 the host `lore-context.md`.
 
-- **Codex:** use `spawn_agent` with `fork_turns: "none"` and explicit
-  read-only scope.
-- **Claude Code:** use a fresh `Agent` child with read-only scope.
-- **Cursor:** use a fresh `Task` child with read-only scope.
+- **Codex:** use `spawn_agent`, passing only arguments the active tool schema
+  exposes — do not invent one.
+- **Claude Code:** use a fresh `Agent` child.
+- **Cursor:** use a fresh `Task` child.
+
+No engine exposes a parameter that mechanically enforces read-only scope, so
+scope is stated in the brief and is a behavioral instruction, not a sandbox.
+Spawn each worker fresh — never a context-inheriting child — because
+independence from the host is what makes the worker's reading evidence rather
+than an echo. Treat the raw chunk as the most sensitive material this procedure
+touches and keep the worker's write surface at nothing.
 
 Use the concurrency capacity exposed by the engine; if none is available, use
 one worker at a time. Run chunks in bounded waves and collect every started
 worker result before beginning the next wave. A missing result is not a
 no-candidates result.
 
-Give each worker this brief after substituting absolute paths and its assigned
-chunk metadata:
+Give each worker this brief, substituting its assigned chunk's absolute path
+from the manifest for `<chunk-path>` and the host's absolute `role.md` and
+`lore-context.md` paths. Substitute nothing else: every other angle-bracket
+token in the brief is the worker's own output placeholder, and the brief tells
+it so.
 
 ```text
 Read-only transcript reflection task. Do not write files, run git, or spawn agents.
@@ -141,7 +154,10 @@ existing repository, and generalize away unnecessary identifying values. If
 suitability is ambiguous, omit it.
 
 Return every durable candidate you find, each at most 150 words. The complete
-response must be at most 1000 words. Use exactly:
+response must be at most 1000 words. Use exactly this shape, replacing every
+angle-bracket token with your own value — `<n>` and `<m>` are the first and
+last dialogue-unit numbers your evidence came from, and `[-<m>]` is present
+only when the evidence spans more than one unit:
 
 ## Candidate: <lowercase-kebab-case-name>
 Type: <knowledge|decision|operational-lesson|recommendation|role-update>
@@ -182,10 +198,16 @@ duplicates: same proposed name and same distilled body, ignoring the Evidence
 line. This removes overlap duplicates without pretending to decide semantic
 equivalence.
 
-Recheck the transcript-specific sensitive-data rule before writing. Add a
-durable host-current-context insight only if no worker returned it. For two
-non-identical candidates with the same filename, retain both: use the proposed
-name for the first and append `-chunk-<index>` to later names.
+Recheck the transcript-specific sensitive-data rule before writing. That rule
+is worker and host judgement, not a scan: nothing downstream inspects candidate
+text for secret shapes, so do not describe this path as guaranteeing redaction.
+For two non-identical candidates with the same filename, retain both: use the
+proposed name for the first and append `-chunk-<index>` to later names.
+
+A candidate whose `Type` is `role-update` must be written with a
+`role-update-` filename prefix. `process-merge.md` detects role updates by that
+prefix alone, so a role-update candidate saved under its bare proposed name is
+silently dropped at merge.
 
 Write the remaining candidates as compact, ordinary one-topic-per-file
 Markdown in:
@@ -216,8 +238,14 @@ commit.
 Before rejoining Finalize Phase 2, report:
 
 ```text
-Transcript reflection: <engine> · <dialogue-units> units · <chunks> chunks processed
+Transcript reflection: <engine> · <dialogue-units> units · <chunks> chunks processed · <excluded-messages> messages excluded
 ```
+
+Take `<excluded-messages>` from the manifest's `excluded_messages`. It counts
+sidechain entries and anything preceding the first genuine user turn, and the
+parsers additionally drop tag-wrapped user text as engine-injected context.
+Evidence here is the parser-retained main thread, not the whole session — say
+so rather than reporting the unit count as complete coverage.
 
 For Cursor with one or more omitted assistant turns, append:
 

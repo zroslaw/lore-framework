@@ -87,7 +87,9 @@ Community-sourced, **not** confirmed against an official Cursor changelog:
   procedure that needs it should check rather than assume.
 
 Do not extend `Task` use to the remaining serial-default procedures (recall, consult, attach,
-conflict resolution) without their own deliberate upgrade. Merge is already on `Task`.
+conflict resolution) without their own deliberate upgrade. Merge is already on `Task`, and so is
+transcript reflection (`process-transcript-reflection.md`, v39) — its workers must not inherit host
+context, which makes them independence-class like `trilens-loop`, not an optimization.
 
 ## Detecting "plugin not loaded"
 
@@ -205,7 +207,8 @@ one agent subtree at a time. Keep the 3-attempt cap and all existing scope limit
 
 ## Notes
 
-- Cursor has native subagents (`Task`, shipped in 2.4). **Merge** and **`trilens-loop`** use them.
+- Cursor has native subagents (`Task`, shipped in 2.4). **Merge**, **`trilens-loop`**, and
+  **transcript reflection** use them.
   Free-text briefs are confirmed. Recall / consult / attach / conflict resolution still use the
   older serial host path until deliberately upgraded.
 - A green lifecycle run alone does not prove which tool ran. When upgrading another procedure to
