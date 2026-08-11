@@ -267,11 +267,12 @@ Merge remains the semantic reducer and decides overlap with existing Lore.
 After all worker returns are collected — including on failure or cancellation —
 clean only the exact paths listed in the validated manifest: unlink each chunk,
 then `manifest.json`, then remove `<run-dir>` only if empty. First confirm
-`<run-dir>` is the path you built in step 2 and that its last two directory
-components are `.tmp/lr-finalize` — compare the components as written, not
-after resolving symlinks, matching what the writer enforces. Resolving first
-would refuse a redirected scratch root, which is supported. Never use a
-recursive delete and never remove the shared parent.
+`<run-dir>` is the path you built in step 2, that its parent directory is named
+`lr-finalize`, and that that directory's own parent is named `.tmp` — the
+run-id segment at the end is not part of the check. Compare those names as
+written, not after resolving symlinks, which is what the writer does too;
+resolving first would refuse a redirected scratch root, and those are
+supported. Never use a recursive delete and never remove the shared parent.
 
 A run killed outright — not an error the script caught — can leave chunk files
 behind with no manifest to list them. Cleanup is manifest-driven and will not
