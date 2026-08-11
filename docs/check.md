@@ -178,7 +178,7 @@ engine-native registration skill. See `register-repo.md` § Resolve the shortcut
 
 These legacy formats can break after a plugin upgrade. On framework v33 or later, run the normal
 engine-specific boot or update entry: Claude Code `/lr:boot` or `/lr:update`; Cursor `/lr-boot` or
-`/lr-update`; Codex's installed `lr:boot` or `lr:update` skill through its native skill mechanism.
+`/lr-update`; Codex's installed `$lr:boot` or `$lr:update` skill through its native skill mechanism.
 Migration 33 refreshes a registered shortcut that belongs to the repo being migrated, including
 customized generated content. Otherwise, re-register it using the equivalent engine-native
 registration skill. Do not run migration 6: its

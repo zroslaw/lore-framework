@@ -147,13 +147,21 @@ Proceed? (yes/no)
 
 ### Step 4 — Write
 
-**Re-read every file you are about to rewrite in full, here, immediately before writing it** —
-`lore-workspace.md` and the memory files. Step 1's scan is a snapshot, and Step 2's interview plus
-Step 3's gate can sit for minutes waiting on a human; the scanner never emits file bodies, so a
-body you are "preserving" is one you read earlier and may no longer match disk. Another session, or
-an unattended one, can have edited it in between, and a full-file rewrite from the stale copy
-discards that edit silently. If a re-read shows the file changed since Step 1, stop and report it
-rather than writing: the plan the user approved described a different starting state.
+**Read `lore-workspace.md`, `AGENTS.md`, and `CLAUDE.md` here, at the top of Step 4, and build each
+replacement from *that* read** — not from any copy read earlier in this session. Every one of these
+is rewritten whole while preserving user-owned content, so the content you preserve must come from
+the newest read of the file, taken after the gate rather than before it.
+
+The reason is the gap: Step 1's scan never emits file bodies, and Step 2's interview plus Step 3's
+gate can sit for minutes waiting on a human. This workspace can have another session — or an
+unattended one — writing in that window, and a whole-file rewrite built from an older read discards
+whatever it wrote, silently and with no conflict.
+
+Then check what you just read against the plan the user approved in Step 3: if the declared repo
+set, the memory-file format, or the section list is no longer what the plan described, **stop and
+report it instead of writing**. The approval was given for a starting state that no longer exists.
+(`.gitignore` and `README.md` need no such check — the first is append-only by exact line and the
+second is regenerated from scratch, so neither can discard a concurrent edit.)
 
 - **`lore-workspace.md`** — frontmatter `description` + block-form `repos:`, plus `sharing: local`
   when item 4 was declined. Preserve every other frontmatter key and the entire markdown body: the

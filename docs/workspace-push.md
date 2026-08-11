@@ -169,9 +169,12 @@ step was skipped.
 - **`fatal: Unable to create '.git/index.lock': File exists`** — another process is mid-`add` or
   mid-`commit` in this same workspace: a second `/lr:workspace-push`, another skill, or an
   unattended session. Do not delete the lock file; it is usually held by a live process, and
-  removing it corrupts the other run's index write. Report it, wait for the other run to finish,
-  and re-run `/lr:workspace-push` from Step 1 — the scan must be redone, because whatever the other
-  process was committing has changed what is dirty here.
+  removing it corrupts the other run's index write. Report it and stop; do not poll and do not wait
+  in a loop. Re-running is the user's call, and it must start from Step 1 — the scan has to be
+  redone, because whatever the other process was committing has changed what is dirty here. In an
+  unattended session, stopping with the lock reported is the correct end state: a session with
+  nobody to ask must not spin waiting for a lock that may be held for as long as a human session
+  lasts.
 
 ## What `/lr:workspace-push` does NOT do
 

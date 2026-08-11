@@ -113,9 +113,17 @@ repos:
 - Entries are remote URLs — anything `git clone` accepts (SSH, HTTPS, git, ssh://). Quoted strings
   are tolerated; unquoted is preferred.
 - The workspace directory name is derived from the URL: the last path segment with any trailing
-  `.git` stripped. `git@github.com:foo/bar.git` → `bar/`. Names that would escape the workspace
-  (path traversal, leading `-`, embedded slash) or carry a `.gitignore` metacharacter (`*`, `?`,
-  `[`, leading `!`) are rejected as conflicts.
+  `.git` stripped. `git@github.com:foo/bar.git` → `bar/`. A name is rejected as a conflict when it
+  would escape the workspace (path traversal, leading `-`, an embedded slash or backslash), carry a
+  `.gitignore` metacharacter (`*`, `?`, `[`, leading `!`), or **start with a dot**. The dot rule is
+  not cosmetic: dot-directories are skipped by the scanner and unmatched by the `*/` globs that
+  maintain `.gitignore` and enumerate pull targets, so such a repo would be cloned once and then
+  never seen again. A backslash is rejected because it is an escape character in `.gitignore`, so
+  the ignore line written for the name would not match the directory it was written for.
+
+  `derive_dirname` in `scripts/lr_core/workspace_scan.py` and `url_to_dir` in this script's own
+  source apply exactly this list, and must keep agreeing: one reports on the workspace and the other
+  acts on it, so a rule held by only one of them makes the report disagree with the disk.
 - The list is optional.
 
 ## Multi-Domain Workspaces
@@ -136,7 +144,7 @@ The script never modifies a directory it doesn't recognize. It collects and repo
 | Target dir exists but isn't a git repo | conflict |
 | Target git repo has no `origin` remote | conflict |
 | Target git repo's `origin` doesn't match the declared URL | conflict |
-| Derived dir name is unsafe (traversal, leading `-`, `.gitignore` metacharacter) | conflict |
+| Derived dir name is unsafe (traversal, leading `-`, leading `.`, backslash, `.gitignore` metacharacter) | conflict |
 | Two distinct URLs map to the same dir name | dir collision |
 | `git clone` failed | clone failure |
 | `git pull --ff-only` failed (auth, divergence, etc.) | pull failure |
