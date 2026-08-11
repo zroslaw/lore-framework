@@ -4,6 +4,12 @@ Run the full session finalization: reflect → merge → summarize → commit an
 
 This doc orchestrates the four phases. Phases 1–3 are defined in their own process docs — read them as each phase begins. Phase 4 (commit and push) is defined here, since it's orchestration-level logic rather than a reusable subroutine.
 
+## Arguments
+
+- **No flag** — run the standard current-context reflection in Phase 1.
+- **`--transcript`** — run `docs/process-transcript-reflection.md` in Phase 1 instead. It is host-only and must complete verified transcript resolution plus an explicit valid worker result for every chunk before Phase 2 may begin.
+- **Any other flag** — stop and list the supported `--transcript` flag. Do not guess or silently ignore arguments.
+
 ## Relationship to the individual skills
 
 Finalize composes three existing skills plus a final commit step:
@@ -17,7 +23,9 @@ When a phase is invoked standalone, the user is responsible for committing whate
 
 ## Phase 1 — Reflect
 
-Read `<framework-root>/docs/process-reflection.md` and follow it. Writes reflection topics into each active agent's `reflections/` directory. Reflect runs **inline**, host-first, per active agent — it needs session context (which a fresh-booted subagent wouldn't have), so the iteration stays in the host session. This is intentionally different from phase 2.
+With no flag, read `<framework-root>/docs/process-reflection.md` and follow it. Writes reflection topics into each active agent's `reflections/` directory. Reflect runs **inline**, host-first, per active agent — it needs session context (which a fresh-booted subagent wouldn't have), so the iteration stays in the host session. This is intentionally different from phase 2.
+
+With `--transcript`, read `<framework-root>/docs/process-transcript-reflection.md` instead. That alternate reflection implementation writes ordinary host reflection topics only after strict marker-based transcript verification and complete, valid read-only worker coverage. It does not support attached guests in v1. If it stops before writing reflections, do not proceed to Phase 2; report the failure and offer normal finalization. Once it reports completion, continue at Phase 2 exactly as normal.
 
 ## Phase 2 — Merge
 

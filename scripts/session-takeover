@@ -26,6 +26,7 @@ Usage:
     session-takeover <session-id | log-path> [-o digest.md] [--json out.json]
     session-takeover stats <session-id | log-path> --stats stats.json
     session-takeover archive <session-id | log-path> -o archive.md  # manual, dormant
+    session-takeover reflection-input <session-id | log-path> --engine E --output-dir DIR
 
 With no -o, the digest is written to stdout.
 """
@@ -742,6 +743,7 @@ def parse_cursor(path):
     messages = []
     paired_tools = 0
     duplicate_name_batches = False
+    assistant_redactions = 0
 
     for record in _iter_jsonl(jsonl_path):
         if record.get("type") == "turn_ended":
@@ -761,7 +763,9 @@ def parse_cursor(path):
             for item in content:
                 if item.get("type") == "text":
                     text = (item.get("text") or "").strip()
-                    if text and text != "[REDACTED]":
+                    if text == "[REDACTED]":
+                        assistant_redactions += 1
+                    elif text:
                         text_parts.append(text)
                 elif item.get("type") == "tool_use":
                     tool_uses.append(item)
@@ -799,6 +803,7 @@ def parse_cursor(path):
         meta["pairing_uncertain"] = True
     if duplicate_name_batches:
         meta["pairing_uncertain"] = True
+    meta["assistant_redactions"] = assistant_redactions
     return meta, messages
 
 
@@ -1065,6 +1070,249 @@ def render_markdown(meta, messages):
             )
         out += [note, ""]
     return "\n".join(out)
+
+
+# ---------------------------------------------- transcript reflection input
+
+REFLECTION_INPUT_SCHEMA_VERSION = 1
+
+
+def reflection_dialogue_units(messages):
+    """Group visible normalized messages into user-led dialogue units.
+
+    The parsers have already removed engine plumbing. Sidechain messages remain
+    in Claude's normalized list for archive fidelity, but transcript reflection
+    deliberately excludes them: workers receive only the main conversation.
+    Assistant/tool entries before the first genuine user turn are ignored; they
+    are not evidence in a user-led dialogue unit.
+    """
+    units = []
+    current = None
+    for message in messages:
+        if message.get("sidechain"):
+            continue
+        if message.get("role") == "user" and "tool" not in message:
+            current = [message]
+            units.append(current)
+        elif current is not None:
+            current.append(message)
+    return units
+
+
+def _render_reflection_unit(index, messages):
+    out = [f"### Dialogue unit {index}", ""]
+    for message in messages:
+        if "tool" in message:
+            result = f" -> {message['result']}" if message.get("result") else ""
+            out += [
+                f"- `[{message.get('tool', '?')}]` "
+                f"{message.get('args', '')}{result}",
+                "",
+            ]
+        else:
+            role = "User" if message.get("role") == "user" else "Assistant"
+            out += [f"#### {role}", "", message.get("content", ""), ""]
+    return "\n".join(out).rstrip()
+
+
+def render_reflection_chunk(engine, source_units, overlap_units):
+    """Render one temporary transcript-reflection evidence chunk.
+
+    ``source_units`` and ``overlap_units`` are ``(number, messages)`` pairs.
+    Keeping the renderer separate makes the packing bound exact: callers use
+    the length of this complete string, including headings and overlap labels.
+    """
+    source_numbers = [number for number, _messages in source_units]
+    overlap_numbers = [number for number, _messages in overlap_units]
+    source_label = (
+        str(source_numbers[0])
+        if len(source_numbers) == 1
+        else f"{source_numbers[0]}-{source_numbers[-1]}"
+    )
+    overlap_label = (
+        "none"
+        if not overlap_numbers
+        else str(overlap_numbers[0])
+        if len(overlap_numbers) == 1
+        else f"{overlap_numbers[0]}-{overlap_numbers[-1]}"
+    )
+    out = [
+        "# Transcript reflection evidence",
+        "",
+        f"- engine: `{engine}`",
+        f"- source dialogue units: `{source_label}`",
+        f"- overlap dialogue units: `{overlap_label}`",
+        "",
+    ]
+    if overlap_units:
+        out += ["## Overlap from preceding chunk", ""]
+        for number, messages in overlap_units:
+            out += [_render_reflection_unit(number, messages), ""]
+    out += ["## Source dialogue", ""]
+    for number, messages in source_units:
+        out += [_render_reflection_unit(number, messages), ""]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def build_reflection_chunks(messages, engine, max_chars=60000):
+    """Pack dialogue units chronologically with one labelled-unit overlap.
+
+    A chunk may exceed the bound only when an indivisible unit (or the required
+    labelled overlap plus that unit) does. The manifest's ``oversize`` flag
+    makes that visible rather than truncating evidence.
+    """
+    units = [
+        (index, unit)
+        for index, unit in enumerate(reflection_dialogue_units(messages), 1)
+    ]
+    if not units:
+        raise ValueError("no visible dialogue units found in log")
+
+    chunks = []
+    current = []
+    overlap = []
+    for unit in units:
+        proposed = current + [unit]
+        rendered = render_reflection_chunk(engine, proposed, overlap)
+        if current and len(rendered) > max_chars:
+            final = render_reflection_chunk(engine, current, overlap)
+            chunks.append(
+                {
+                    "source_units": current,
+                    "overlap_units": overlap,
+                    "text": final,
+                    "oversize": len(final) > max_chars,
+                }
+            )
+            overlap = [current[-1]]
+            current = [unit]
+        else:
+            current = proposed
+    final = render_reflection_chunk(engine, current, overlap)
+    chunks.append(
+        {
+            "source_units": current,
+            "overlap_units": overlap,
+            "text": final,
+            "oversize": len(final) > max_chars,
+        }
+    )
+    return chunks, len(units)
+
+
+def _exclusive_write_text(path, text):
+    """Create one UTF-8 file without replacing or following an existing path."""
+    path = Path(path)
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+    except Exception:
+        # A failed write can leave a partially created private file. It belongs
+        # to this invocation, so remove that exact path before propagating.
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def write_reflection_input(path, engine, meta, messages, max_chars=60000):
+    """Create a private reflection-input run directory and return its manifest.
+
+    ``path`` must not exist. On failure, only paths this call created are
+    unlinked and the newly created run directory is removed if empty.
+    """
+    output_dir = Path(path)
+    parent = output_dir.parent
+    if os.path.lexists(output_dir):
+        raise ValueError(f"output directory already exists: {output_dir}")
+    if not parent.is_dir():
+        raise ValueError(f"output parent is not an existing directory: {parent}")
+    if parent.is_symlink():
+        raise ValueError(f"output parent must not be a symlink: {parent}")
+
+    chunks, dialogue_units = build_reflection_chunks(messages, engine, max_chars)
+    created = []
+    made_dir = False
+    try:
+        os.mkdir(output_dir, 0o700)
+        made_dir = True
+        manifest_chunks = []
+        for index, chunk in enumerate(chunks, 1):
+            chunk_path = output_dir / f"chunk-{index:04d}.md"
+            _exclusive_write_text(chunk_path, chunk["text"])
+            created.append(chunk_path)
+            source_numbers = [number for number, _ in chunk["source_units"]]
+            overlap_numbers = [number for number, _ in chunk["overlap_units"]]
+            manifest_chunks.append(
+                {
+                    "index": index,
+                    "path": str(chunk_path.resolve()),
+                    "source_units": [source_numbers[0], source_numbers[-1]],
+                    "overlap_units": overlap_numbers,
+                    "chars": len(chunk["text"]),
+                    "oversize": chunk["oversize"],
+                }
+            )
+        manifest = {
+            "schema_version": REFLECTION_INPUT_SCHEMA_VERSION,
+            "engine": engine,
+            "session_id": meta.get("session_id"),
+            "source": str(Path(meta.get("source", "")).resolve()),
+            "dialogue_units": dialogue_units,
+            "assistant_redactions": int(meta.get("assistant_redactions") or 0),
+            "max_chars": max_chars,
+            "chunks": manifest_chunks,
+        }
+        manifest_path = output_dir / "manifest.json"
+        _exclusive_write_text(
+            manifest_path, json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+        )
+        created.append(manifest_path)
+        return manifest
+    except Exception:
+        for created_path in reversed(created):
+            try:
+                created_path.unlink()
+            except OSError:
+                pass
+        if made_dir:
+            try:
+                output_dir.rmdir()
+            except OSError:
+                pass
+        raise
+
+
+def cmd_reflection_input(argv):
+    ap = argparse.ArgumentParser(prog="session-takeover reflection-input")
+    ap.add_argument("session", help="session id (prefix ok) or path to a log")
+    ap.add_argument("--engine", choices=sorted(PARSERS), required=True,
+                    help="native log format")
+    ap.add_argument("--output-dir", type=Path, required=True,
+                    help="new private directory for manifest and chunk Markdown")
+    ap.add_argument("--max-chars", type=int, default=60000,
+                    help="maximum rendered chunk size (default: 60000; minimum: 10000)")
+    a = ap.parse_args(argv)
+    if a.max_chars < 10000:
+        ap.error("--max-chars must be at least 10000")
+
+    path, engine = _resolve_log_arg(a.session, a.engine)
+    meta, messages = PARSERS[engine](path)
+    if not messages:
+        sys.exit("error: no conversation messages found in log")
+    try:
+        manifest = write_reflection_input(
+            a.output_dir, engine, meta, messages, a.max_chars
+        )
+    except (OSError, ValueError) as error:
+        sys.exit(f"error: could not write reflection input: {error}")
+    print(
+        f"wrote {len(manifest['chunks'])} reflection chunks from "
+        f"{manifest['dialogue_units']} dialogue units (engine: {engine})"
+    )
+    return 0
 
 
 # ------------------------------------------------------- archive (dormant manual primitive)
@@ -1419,12 +1667,14 @@ def cmd_list(engines, limit, include_all=False):
 
 
 def main():
-    # `archive` is a sub-verb with its own argument grammar; dispatch before
-    # the main parser so the takeover flags don't collide with it.
+    # Sub-verbs have their own argument grammar; dispatch before the main
+    # parser so takeover flags do not collide with them.
     if sys.argv[1:2] == ["archive"]:
         sys.exit(cmd_archive(sys.argv[2:]))
     if sys.argv[1:2] == ["stats"]:
         sys.exit(cmd_stats(sys.argv[2:]))
+    if sys.argv[1:2] == ["reflection-input"]:
+        sys.exit(cmd_reflection_input(sys.argv[2:]))
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("session", nargs="?",
@@ -1435,6 +1685,8 @@ def main():
                     help="resolve this session's native log by a UUID printed "
                          "into its transcript (requires --engine); prints the "
                          "path, or exits non-zero if no candidate logs exist")
+    ap.add_argument("--require-verified", action="store_true",
+                    help="with --find-by-uuid, reject heuristic fallback")
     ap.add_argument("--engine", choices=sorted(LISTERS),
                     help="limit --list / force log format")
     ap.add_argument("--limit", type=int, default=None,
@@ -1448,6 +1700,9 @@ def main():
                     help="also dump the unified message list as JSON")
     args = ap.parse_args()
 
+    if args.require_verified and not args.find_by_uuid:
+        ap.error("--require-verified requires --find-by-uuid")
+
     if args.find_by_uuid:
         if not args.engine:
             sys.exit("error: --find-by-uuid requires --engine")
@@ -1457,6 +1712,12 @@ def main():
         if path is None:
             sys.exit(1)  # no candidate logs at all — caller warns and skips
         if confidence == "heuristic":
+            if args.require_verified:
+                sys.stderr.write(
+                    "error: no candidate log contained the UUID; verified "
+                    "resolution is required\n"
+                )
+                sys.exit(1)
             sys.stderr.write(
                 "warning: no candidate log contained the UUID; falling back "
                 "to the most-recently-modified log for this engine\n"
