@@ -58,9 +58,9 @@ python3 "<framework-root>/scripts/session-takeover" \
 ```
 
 The command prints one absolute native-log path only when a recent candidate
-actually contains the marker. If it fails, issue the same command once more
-by issuing the identical command a second time, so the search re-reads the logs
-on disk; do not use a timed sleep. If the retry still fails,
+actually contains the marker. If it fails, run the identical command a second
+time so the search re-reads the logs on disk; do not use a timed sleep. If the
+retry still fails,
 stop before reflection writes and say that the current transcript could not be
 verified. Do not use the ordinary heuristic fallback for this mode.
 
@@ -82,7 +82,12 @@ not a durable session artifact. Require all of the following before dispatch:
 
 - `schema_version` is `1`;
 - its engine and source match the invocation;
-- every chunk path is absolute and is directly inside `<run-dir>`;
+- every chunk path is absolute and sits directly inside `<run-dir>`. The
+  manifest stores real paths while `<run-dir>` is the logical path you built,
+  so compare them as real paths on both sides — resolve `<run-dir>` with
+  `python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))"` before
+  comparing, exactly as `version-check.md` does. A plain string prefix test
+  reports a valid run as suspect wherever a parent directory is a symlink;
 - `chunks` is non-empty and has at most 16 entries;
 - each chunk's `source_units` is a `[first, last]` pair of positive integers
   with `first <= last`, each chunk's `first` is greater than the previous
@@ -204,6 +209,15 @@ text for secret shapes, so do not describe this path as guaranteeing redaction.
 For two non-identical candidates with the same filename, retain both: use the
 proposed name for the first and append `-chunk-<index>` to later names.
 
+Transcript mode replaces standard reflection rather than supplementing it, so
+the host's own judgement about the session would otherwise be lost: the workers
+see only transcript chunks. After consolidating theirs, add your own reflection
+candidates for anything durable you know from the current session that no
+worker returned — the same material `process-reflection.md` would have had you
+write with no flag. Hold them to that doc's rules and to the sensitive-data
+rule above, and mark nothing as transcript evidence that did not come from a
+chunk.
+
 A candidate whose `Type` is `role-update` must be written with a
 `role-update-` filename prefix. `process-merge.md` detects role updates by that
 prefix alone, so a role-update candidate saved under its bare proposed name is
@@ -227,6 +241,14 @@ clean only the exact paths listed in the validated manifest: unlink each chunk,
 then `manifest.json`, then remove `<run-dir>` only if empty. First confirm its
 real path is a direct child of `<workspace>/.tmp/lr-finalize/`. Never use a
 recursive delete and never remove the shared parent.
+
+A run killed outright — not an error the script caught — can leave chunk files
+behind with no manifest to list them. Cleanup is manifest-driven and will not
+see them, so when `<run-dir>` exists but holds no `manifest.json`, unlink the
+`chunk-*.md` files directly inside it and remove the directory, after the same
+real-path confirmation. Chunk writes claim their path exclusively and never
+overwrite, but a process killed mid-write leaves a partial chunk on disk; treat
+it as raw dialogue and remove it the same way.
 
 If cleanup fails, continue only after warning the user with the exact private
 directory path. The raw native log, chunk files, manifest, and worker returns

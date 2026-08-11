@@ -1253,6 +1253,15 @@ def write_reflection_input(path, engine, meta, messages, max_chars=60000):
     to delete from. Checking it in the script keeps a mistyped ``--output-dir``
     from writing transcript text into a committable path, which prose in the
     calling procedure cannot guarantee.
+
+    The check reads the *logical* path components, deliberately not the
+    resolved ones. Resolving first would collapse a symlinked ``.tmp`` into its
+    target's name and refuse the contract path — a redirected scratch root is a
+    legitimate setup (a synced home directory, or churny writes moved off a
+    slow disk), and refusing it would fail mid-finalization. The guard exists
+    to catch a mistyped destination, not to overrule a user who deliberately
+    pointed their own scratch elsewhere; the immediate-parent symlink check
+    below and ``O_EXCL`` creation still cover the hostile case.
     """
     output_dir = Path(path)
     parent = output_dir.parent
@@ -1262,8 +1271,8 @@ def write_reflection_input(path, engine, meta, messages, max_chars=60000):
         raise ValueError(f"output parent is not an existing directory: {parent}")
     if parent.is_symlink():
         raise ValueError(f"output parent must not be a symlink: {parent}")
-    real_parent = parent.resolve()
-    if real_parent.name != "lr-finalize" or real_parent.parent.name != ".tmp":
+    logical_parent = Path(os.path.abspath(output_dir)).parent
+    if logical_parent.name != "lr-finalize" or logical_parent.parent.name != ".tmp":
         raise ValueError(
             "output directory must be a direct child of a .tmp/lr-finalize "
             f"scratch root: {output_dir}"
