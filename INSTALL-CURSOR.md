@@ -24,7 +24,7 @@ On Cursor, Lore skills invoke as **`/lr-<skill>`** (hyphen, no colon) — e.g. `
 `/lr-recall`, `/lr-finalize`. Per-agent shortcuts are `/lr-<agent-name>-agent` under
 `.cursor/skills/` after registration.
 
-Claude Code uses `/lr:<skill>`; Codex uses `$lr-<skill>`. See the README engine legend.
+Claude Code uses `/lr:<skill>`; Codex uses `$lr:<skill>`. See the README engine legend.
 
 ## Install sequence (three-step bootstrap)
 

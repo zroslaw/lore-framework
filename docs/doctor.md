@@ -87,7 +87,7 @@ The catalog is **universal** — every install of the framework carries every ai
 
 What does **not** belong:
 
-- **Workspace-specific** — a particular team's setup quirk, a custom helper script's path expectations. Capture these in the workspace's own `CLAUDE.md` or in agent lore.
+- **Workspace-specific** — a particular team's setup quirk, a custom helper script's path expectations. Capture these in the workspace's own `AGENTS.md` or in agent lore.
 - **Agent-specific** — issues tied to one agent's role, lore, or workdir contents. These belong in the agent's own lore (or in a specialist agent reachable via `/lr:consult`).
 - **Host-specific** — macOS-vs-Linux quirks for a script the framework doesn't ship; tooling-version oddities only some users hit. Address these in the affected script or surface them as separate optional notes, not framework ailments.
 

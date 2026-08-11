@@ -23,8 +23,8 @@ ailment.
 ## Remedy
 
 On framework v33 or later, use the normal engine-specific boot or update entry once: Claude Code
-`/lr:boot` or `/lr:update`; Cursor `/lr-boot` or `/lr-update`; Codex's installed `lr:boot` or
-`lr:update` skill through its native skill mechanism. Migration 33 refreshes a clean legacy
+`/lr:boot` or `/lr:update`; Cursor `/lr-boot` or `/lr-update`; Codex's installed `$lr:boot` or
+`$lr:update` skill through its native skill mechanism. Migration 33 refreshes a clean legacy
 shortcut automatically when its agent path proves it belongs to the repo being upgraded. Registered
 shortcuts are framework-owned artifacts, so customization is replaced. A broken direct shortcut
 cannot repair itself, so use the normal entry point for that first upgrade.
@@ -32,7 +32,7 @@ cannot repair itself, so use the normal entry point for that first upgrade.
 To repair it immediately, regenerate it using the currently installed framework:
 
 Use the equivalent native registration skill for your engine: Claude Code
-`/lr:register-agent`, Cursor `/lr-register-agent`, or Codex's installed `lr:register-agent` skill.
+`/lr:register-agent`, Cursor `/lr-register-agent`, or Codex's installed `$lr:register-agent` skill.
 
 Or regenerate every shortcut in the repo:
 

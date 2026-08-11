@@ -38,10 +38,10 @@ step does and what comes next.
 4. **Verify the install worked.** Confirm the Lore skills are now available — they appear in the
    engine's skill list once the plugin is loaded. Some engines need a **restart or a fresh session**
    first; if so, tell the user to restart, then continue. If you can't tell, ask the user to run the
-   list-agents skill (`/lr:list-agents`, Cursor `/lr-list-agents`, Codex `$lr-list-agents`) and
+   list-agents skill (`/lr:list-agents`, Cursor `/lr-list-agents`, Codex `$lr:list-agents`) and
    report what they see. A fresh install has no agents yet — an **empty agent list still confirms
    the plugin loaded**; don't report it as a failure. On Codex, skills are invoked by the user —
-   don't type `$lr-…` yourself.
+   don't type `$lr:…` yourself.
 
 5. **Then start the user's first agent.** Ask whether they are **joining a team that already uses
    Lore Agents** or **starting fresh**, and follow the matching path below. For the fresh path, hand them
@@ -69,7 +69,7 @@ Skills invoke with a different prefix per engine — this legend recurs througho
 |--------|--------------|---------|
 | Claude Code | `/lr:<skill>` | `/lr:boot researcher` |
 | Cursor | `/lr-<skill>` | `/lr-boot researcher` |
-| Codex | `$lr-<skill>` | `$lr-boot researcher` |
+| Codex | `$lr:<skill>` | `$lr:boot researcher` |
 
 ---
 

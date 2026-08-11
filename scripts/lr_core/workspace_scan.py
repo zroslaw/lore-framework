@@ -92,10 +92,18 @@ def derive_dirname(url):
     Manual fallback: take the last path segment of the URL and strip a trailing
     `.git`. `git@github.com:foo/bar.git` -> `bar`. Return None — meaning
     "unsafe, skip and report" — when the result would escape the workspace
-    (empty, `.`, `..`, contains a slash, starts with `-`) or would be
-    misinterpreted as a `.gitignore` pattern (`*`, `?`, `[`, leading `!`).
-    Callers must treat None as a warning, never as a silent skip: a repo whose
-    name we refuse to derive is a repo we cannot ignore either.
+    (empty, `.`, `..`, contains a slash, starts with `-`), would be
+    misinterpreted as a `.gitignore` pattern (`*`, `?`, `[`, leading `!`), or
+    starts with a dot. Callers must treat None as a warning, never as a silent
+    skip: a repo whose name we refuse to derive is a repo we cannot ignore
+    either.
+
+    The dot rule exists because `scan_children` skips dot-directories. Deriving
+    `.hidden` here would let `workspace-pull` clone it once and then leave it
+    permanently invisible: absent from `children`, so S6 reports it missing
+    forever, and unmatched by the `*/` globs that maintain `.gitignore` and
+    enumerate pull targets. Refusing the name reports the problem (S13) instead
+    of creating a directory nothing else can see.
     """
     if not url:
         return None
@@ -113,7 +121,7 @@ def derive_dirname(url):
         return None
     if "/" in segment or "\\" in segment:
         return None
-    if segment.startswith("-") or segment.startswith("!"):
+    if segment.startswith("-") or segment.startswith("!") or segment.startswith("."):
         return None
     if any(ch in segment for ch in UNSAFE_DIRNAME_CHARS):
         return None
@@ -149,6 +157,28 @@ def _frontmatter_of(path):
     return parse_frontmatter(read_text(path))
 
 
+def frontmatter_unterminated(path):
+    """True when `path` opens a `---` frontmatter block and never closes it.
+
+    Manual fallback: read the file; if the first line is `---` and no later line
+    is exactly `---`, it is unterminated.
+
+    `parse_frontmatter` degrades by consuming the rest of the file, so ordinary
+    prose containing `key: value` or `- item` lines is read as declarations —
+    a `lore-workspace.md` that lost its closing `---` in a bad merge yields a
+    plausible but wrong repo set. `workspace-pull`'s awk parser makes the same
+    assumption and says so on stderr; this exists so the Python path warns too,
+    rather than being the quiet half of two parsers that must agree.
+    """
+    text = read_text(path)
+    if not text:
+        return False
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return False
+    return not any(ln.strip() == "---" for ln in lines[1:])
+
+
 def _as_list(value):
     if value is None:
         return []
@@ -176,7 +206,11 @@ def git_state(workspace):
     enclosing repo and every later git answer would be about that repo, so
     callers must refuse to act (see `docs/version-check.md` Step 1b).
 
-    Step 3: `symbolic-ref -q HEAD` for the branch; failure means detached HEAD.
+    Step 3: `symbolic-ref -q HEAD` for the branch. If git answers and there is
+    no symbolic ref, HEAD is detached: set `detached` and record the commit with
+    `rev-parse --short HEAD` as `head`, which is what S16 names. If git could not
+    answer at all, leave `detached` false — that is ignorance, not a detached
+    head, and S16 must not fire on it.
 
     Step 4: `remote get-url origin` for the origin URL; absent is an ordinary
     state, not an error.
@@ -192,7 +226,7 @@ def git_state(workspace):
     it null and **do not guess `main`**; S8 is suppressed for that repo instead.
     """
     state = {"tracked": False, "own_root": False, "branch": None,
-             "detached": False, "origin": None, "upstream": None,
+             "detached": False, "head": None, "origin": None, "upstream": None,
              "ahead": None, "behind": None, "default_branch": None,
              "enclosing_root": None}
 
@@ -209,8 +243,13 @@ def git_state(workspace):
     rc, out, _ = git(workspace, ["symbolic-ref", "-q", "HEAD"], timeout=15)
     if git_answered(rc) and rc == 0 and out.strip():
         state["branch"] = out.strip().split("refs/heads/", 1)[-1]
-    else:
+    elif git_answered(rc):
+        # No symbolic HEAD, and git did answer: a genuine detached HEAD (S16).
+        # Record the commit so the report can name where the user is parked.
         state["detached"] = True
+        rc, out, _ = git(workspace, ["rev-parse", "--short", "HEAD"], timeout=15)
+        if git_answered(rc) and rc == 0 and out.strip():
+            state["head"] = out.strip()
 
     rc, out, _ = git(workspace, ["remote", "get-url", "origin"], timeout=15)
     if git_answered(rc) and rc == 0 and out.strip():
@@ -396,8 +435,17 @@ def scan_children(workspace, declared, ignore_lines):
 
     Step 4: read `git -C <child> remote get-url origin` and
     `git -C <child> symbolic-ref --short HEAD` / `refs/remotes/origin/HEAD`.
-    A missing `origin/HEAD` leaves `default_branch` null and suppresses S8 for
-    that child — guessing `main` would fire S8 on every `master` repo.
+    A missing `origin/HEAD` leaves `default_branch` null and suppresses the
+    branch-mismatch half of S8 for that child — guessing `main` would fire S8 on
+    every `master` repo.
+
+    When git answers the `symbolic-ref --short HEAD` call and there is no
+    symbolic ref, the child is on a **detached HEAD**: set `detached`, which S8
+    reports on its own, with or without a known `default_branch`. Being on no
+    branch is off the production state whatever the default is, so omitting this
+    silently exempts the worse of the two states S8 exists to catch. Leave
+    `detached` false when git could not answer — that is ignorance, not a
+    detached head.
 
     Step 5: it is **ignored** when `.gitignore` contains the exact line
     `/<dirname>/`. Exact-line matching only, no pattern interpretation: the
@@ -444,6 +492,7 @@ def scan_children(workspace, declared, ignore_lines):
             "origin": None,
             "default_branch": None,
             "current_branch": None,
+            "detached": False,
             "ignored": ("/%s/" % name) in lines,
             "escapes_workspace": escapes,
         }
@@ -454,6 +503,11 @@ def scan_children(workspace, declared, ignore_lines):
             rc, out, _ = git(path, ["symbolic-ref", "--short", "HEAD"], timeout=15)
             if git_answered(rc) and rc == 0 and out.strip():
                 entry["current_branch"] = out.strip()
+            elif git_answered(rc):
+                # git answered and there is no symbolic HEAD: detached. Recorded
+                # explicitly so S8 can report it. Left False when git could not
+                # answer at all, since that is ignorance, not a detached head.
+                entry["detached"] = True
             rc, out, _ = git(path, ["symbolic-ref", "--short",
                                     "refs/remotes/origin/HEAD"], timeout=15)
             if git_answered(rc) and rc == 0 and out.strip():
@@ -596,13 +650,13 @@ def shortcut_inventory(workspace):
 # --------------------------------------------------------------------------
 
 def build_findings(data):
-    """Derive S1-S15 from the collected facts. Pure — no I/O, no git.
+    """Derive S1-S16 from the collected facts. Pure — no I/O, no git.
 
     Manual fallback: the table in `docs/workspace-status.md` § Findings catalog
     lists every ID with its trigger, its severity, and its fix. This function is
     the trigger column, expressed once; that doc is the message and fix columns.
     Emit `data` payloads only. A finding is a result, never an exit code — the
-    scan that produced fifteen of them still exits 0.
+    scan that produced sixteen of them still exits 0.
     """
     findings = []
     git_data = data["git"]
@@ -675,11 +729,18 @@ def build_findings(data):
             add("S7", "warn", {"repos": uncovered,
                                "standard_lines": missing_standard})
 
+    # A detached child is reported even without a known `default_branch`: unlike
+    # "on some other branch", detached HEAD is off the production state no matter
+    # what the default is, and gating it on `default_branch` would silently exempt
+    # exactly the worse state (a child parked mid-checkout or mid-bisect).
     off_branch = [{"dirname": c["dirname"], "current": c["current_branch"],
-                   "default": c["default_branch"]}
+                   "default": c["default_branch"],
+                   "detached": c.get("detached", False)}
                   for c in data["children"]
-                  if c["git"] and c["default_branch"] and c["current_branch"]
-                  and c["current_branch"] != c["default_branch"]]
+                  if c["git"] and (
+                      c.get("detached")
+                      or (c["default_branch"] and c["current_branch"]
+                          and c["current_branch"] != c["default_branch"]))]
     if off_branch:
         add("S8", "warn", off_branch)
 
@@ -785,6 +846,16 @@ def build_findings(data):
                                 set(data["shortcuts"]["codex"])
                                 .intersection(stale_home))})
 
+    # S16: the workspace root itself is on a detached HEAD. Reported separately
+    # from S8, which covers children. This is the one root-git state that makes
+    # the rest of the git section quiet rather than loud: a detached HEAD has no
+    # upstream, so S2 and S14 (ahead / behind) cannot fire, and a commit made
+    # here — by this session or an unattended one — sits on no branch and is
+    # lost by the next checkout. Silence in the section that reports git health
+    # must not be what a user gets for the state that most needs reporting.
+    if git_data["tracked"] and git_data["own_root"] and git_data["detached"]:
+        add("S16", "warn", {"head": git_data.get("head")})
+
     order = {"error": 0, "warn": 1, "info": 2}
     findings.sort(key=lambda f: (order.get(f["severity"], 3),
                                  int(f["id"][1:])))
@@ -848,7 +919,16 @@ def cmd_workspace_scan(args, res):
         res.data["findings"] = []
         return res
 
-    ws_fm = _frontmatter_of(os.path.join(workspace, "lore-workspace.md"))
+    ws_descriptor = os.path.join(workspace, "lore-workspace.md")
+    ws_fm = _frontmatter_of(ws_descriptor)
+    if frontmatter_unterminated(ws_descriptor):
+        res.warn("lore-workspace.md has no closing --- after its frontmatter; "
+                 "declarations read from it may be incomplete or spurious")
+    for repo_path in find_repos(workspace):
+        if frontmatter_unterminated(os.path.join(repo_path, "lore-repo.md")):
+            res.warn("%s/lore-repo.md has no closing --- after its frontmatter; "
+                     "declarations read from it may be incomplete or spurious"
+                     % os.path.basename(repo_path))
     ignore_lines = gitignore_lines(workspace)
     declared = declared_repos(workspace)
 

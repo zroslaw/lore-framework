@@ -260,14 +260,21 @@ def parse_frontmatter(text):
             continue
         item = re.match(r"^\s+-\s+(.*)$", line)
         if item and current_list_key:
-            out[current_list_key].append(_unquote(item.group(1).strip()))
+            out[current_list_key].append(_strip_item_comment(item.group(1)))
             continue
         kv = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", line)
         if not kv:
             continue
         key, val = kv.group(1), kv.group(2).strip()
         if val == "":
-            out[key] = []
+            # A repeated block key — a hand-merge artifact, or a conflict
+            # resolved by keeping both sides — must not discard what the first
+            # block declared. Keep accumulating into the existing list, which
+            # is what `workspace-pull`'s awk parser already does; resetting
+            # here made the two parsers disagree about the declared repo set,
+            # and the Python side lost URLs silently.
+            if not isinstance(out.get(key), list):
+                out[key] = []
             current_list_key = key
         else:
             out[key] = _unquote(val)
@@ -279,6 +286,25 @@ def _unquote(val):
     if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
         return val[1:-1]
     return val
+
+
+def _strip_item_comment(raw):
+    """A block-sequence item, with a trailing ` # comment` removed if unquoted.
+
+    Mirrors `workspace-pull`'s awk parser exactly, and must keep mirroring it:
+    that script parses the same `repos:` blocks to decide what to clone, so a
+    rule only one side applies makes the scanner and the puller disagree about
+    which repos are declared. Leaving the comment attached produced a URL whose
+    derived directory name matched nothing on disk, so a repo that had been
+    cloned correctly was reported missing (S6) forever.
+
+    Quote-aware, like the awk side: a quoted value keeps its contents verbatim,
+    since `#` inside quotes is data, not a comment.
+    """
+    value = raw.strip()
+    if not value[:1] in ('"', "'"):
+        value = re.sub(r"\s+#.*$", "", value)
+    return _unquote(value.rstrip())
 
 
 def resolve_framework_root(explicit):

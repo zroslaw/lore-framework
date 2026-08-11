@@ -79,7 +79,10 @@ Stop with a report on the first precondition that fails:
    The scanner compares git's `rev-parse --show-toplevel` against `os.path.realpath(<workspace>)`,
    never against `pwd` — on macOS `/var` is a symlink to `/private/var`, so the logical path
    disagrees with git's physical one (see `docs/version-check.md` Step 1b).
-3. **On a branch.** `data.git.detached` is false. A detached HEAD: report and stop.
+3. **On a branch.** `data.git.detached` is false — the same state finding **S16** reports. A
+   detached HEAD: report and stop. A commit made here belongs to no branch and the next checkout
+   drops it, and the ahead count is unreadable too (a detached HEAD has no upstream), so a later
+   "nothing to push" could not be trusted either.
 
 ### Step 2 — Collect state
 
@@ -127,7 +130,20 @@ Proceed? (yes/no)
 1. Stage **only** the dirty managed paths, by explicit path argument, deletion-aware:
    `git -C "<workspace>" add -A -- <path> [<path> ...]`. Never `git add .`, never a bare `-A`,
    never a wildcard.
-2. Commit: `git -C "<workspace>" commit -m "chore(lore): publish workspace state"`.
+2. Commit **the same explicit paths**, never a bare commit:
+   `git -C "<workspace>" commit -m "chore(lore): publish workspace state" -- <path> [<path> ...]`.
+
+   A bare `git commit` commits the whole index, not what step 1 staged. This workspace can have
+   another session — or an unattended one — with content already staged, or staging some between
+   step 1 and here; a bare commit sweeps that in. The pathspec keeps *other paths* out of the
+   commit no matter what the index holds.
+
+   It does **not** freeze the content of the paths it names: a pathspec commit takes each named
+   path's current working-tree content, not the version step 1 staged. If another session rewrites
+   one of these same managed files in between, that newer content is what lands, and step 3 does
+   not catch it — step 3 verifies which *paths* the commit touched, never their contents. Publishing
+   a managed file's current state is the intended behavior, so this is a narrowed risk rather than a
+   closed one: what the pathspec rules out is committing somebody else's *unrelated* file.
 3. Verify the commit contains no path outside the framework-managed set
    (`git -C "<workspace>" show --name-only --format= HEAD`). If it does: **undo the commit** with
    `git -C "<workspace>" reset --soft HEAD^` — which restores the pre-commit state with the content
@@ -150,6 +166,12 @@ step was skipped.
   workspace repo `--ff-only`), then re-run `/lr:workspace-push`. If the pull itself fails
   (divergence), the user resolves manually.
 - **Auth / network failures** — the commit is already local; report the push error verbatim.
+- **`fatal: Unable to create '.git/index.lock': File exists`** — another process is mid-`add` or
+  mid-`commit` in this same workspace: a second `/lr:workspace-push`, another skill, or an
+  unattended session. Do not delete the lock file; it is usually held by a live process, and
+  removing it corrupts the other run's index write. Report it, wait for the other run to finish,
+  and re-run `/lr:workspace-push` from Step 1 — the scan must be redone, because whatever the other
+  process was committing has changed what is dirty here.
 
 ## What `/lr:workspace-push` does NOT do
 

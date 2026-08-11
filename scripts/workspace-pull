@@ -189,11 +189,21 @@ url_to_dir() {
   name="${name%.git}"          # strip optional `.git` suffix
 
   # Reject names that would escape the workspace or be parsed as flags.
+  #
+  # The leading-dot rule covers more than `.` and `..`: the scanner's
+  # `scan_children` skips dot-directories, and the `*/` globs below never match
+  # them either. Cloning `.hidden` would produce a repo that this script pulls
+  # once and then never sees again — absent from `.gitignore` maintenance, and
+  # reported missing forever by S6. `derive_dirname` in `lr_core/workspace_scan.py`
+  # refuses the same names; these two must agree or the scan and the pull
+  # disagree about which repos exist.
   case "$name" in
-    ''|'.'|'..'|-*) printf ''; return 0 ;;
+    ''|.*|-*) printf ''; return 0 ;;
   esac
-  # Reject any slash (path traversal via crafted URL).
-  if [[ "$name" == */* ]]; then
+  # Reject any slash (path traversal via crafted URL), and any backslash, which
+  # `derive_dirname` also refuses: `\` is an escape character in `.gitignore`,
+  # so a `/foo\bar/` line does not match the directory it was written for.
+  if [[ "$name" == */* || "$name" == *\\* ]]; then
     printf ''
     return 0
   fi

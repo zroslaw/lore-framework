@@ -13,14 +13,14 @@ engine:
 |--------|--------------|---------|
 | Claude Code | `/lr:<skill>` | `/lr:create-repo my-agents` |
 | Cursor | `/lr-<skill>` | `/lr-create-repo my-agents` |
-| Codex | `$lr-<skill>` | `$lr-create-repo my-agents` |
+| Codex | `$lr:<skill>` | `$lr:create-repo my-agents` |
 
 > **If you are the AI agent doing this for a user:** run these skills as you reach each step, and
 > explain what just happened before moving on. Several steps ask the user a question (an agent's
 > name, its role, where the workspace lives) — surface those questions instead of guessing. This is
 > a walkthrough *with* the user, not a script to run past them.
 >
-> **On Codex specifically:** don't type `$lr-<skill>` yourself — in `codex exec` it falls through to
+> **On Codex specifically:** don't type `$lr:<skill>` yourself — in `codex exec` it falls through to
 > the shell and fails. Instead read `skills/<skill>/SKILL.md` under the framework root — it names the
 > correct procedure doc to follow (the doc filename isn't always the skill name) — and carry that out,
 > or ask the user to run the command and tell you what they see.

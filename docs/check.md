@@ -307,8 +307,8 @@ See `docs/workspace-init.md` § The memory-file contract.
 
 ## 24. Workspace publication state
 
-**Workspace-scoped** — read from the shared scan. Report findings **S1**, **S2**, **S3**, and **S4**
-if present.
+**Workspace-scoped** — read from the shared scan. Report findings **S1**, **S2**, **S3**, **S4**,
+and **S16** if present.
 
 Framework skills write workspace-root files but none of them commits (`docs/workspace-push.md`
 explains the gap this check watches).
@@ -319,6 +319,7 @@ explains the gap this check watches).
 | S2 | N workspace commit(s) not pushed | warn | `/lr:workspace-push` |
 | S3 | Git-tracked but no `origin` — `workspace-pull` phase 0 and the README join path are inert until a remote exists | info | `git -C "<cwd>" remote add origin <url>`, or `/lr:workspace-init`, which also offers to record a deliberately local-only workspace as `sharing: local` |
 | S4 | Not a git repo (a supported local-only mode), or — when `data.enclosing_root` is set — sitting inside another git repo, where no workspace-level git operation is safe | info; warn in the enclosing-repo case | `/lr:workspace-init` (offers tracking) |
+| S16 | The workspace repo is on a detached HEAD, so there is nothing to publish *to*: a commit made here belongs to no branch and the next checkout drops it. S2 and S14 cannot fire in this state, so their silence is not evidence of a clean publication state | warn | `git -C "<cwd>" checkout <branch>` before `/lr:workspace-push` |
 
 The **framework-managed path set is defined in code** (`scripts/lr_core/workspace_scan.py`) and
 rendered in `docs/workspace-push.md` § Framework-managed paths. Do not restate it here, and do not

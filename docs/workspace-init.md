@@ -147,6 +147,14 @@ Proceed? (yes/no)
 
 ### Step 4 — Write
 
+**Re-read every file you are about to rewrite in full, here, immediately before writing it** —
+`lore-workspace.md` and the memory files. Step 1's scan is a snapshot, and Step 2's interview plus
+Step 3's gate can sit for minutes waiting on a human; the scanner never emits file bodies, so a
+body you are "preserving" is one you read earlier and may no longer match disk. Another session, or
+an unattended one, can have edited it in between, and a full-file rewrite from the stale copy
+discards that edit silently. If a re-read shows the file changed since Step 1, stop and report it
+rather than writing: the plan the user approved described a different starting state.
+
 - **`lore-workspace.md`** — frontmatter `description` + block-form `repos:`, plus `sharing: local`
   when item 4 was declined. Preserve every other frontmatter key and the entire markdown body: the
   body is user-owned onboarding prose.
