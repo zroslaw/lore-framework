@@ -1,7 +1,7 @@
 {
   "name": "lr",
   "version": "1.39.0",
-  "description": "Lore Agents — persistent, team-shared memory for AI coding agents",
+  "description": "Lore Agents — named AI specialists that learn and grow with you",
   "author": {
     "name": "Yaroslav Panasyuk"
   },
@@ -20,8 +20,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Lore Agents",
-    "shortDescription": "Persistent, team-shared memory for AI coding agents",
-    "longDescription": "Lore Agents turns coding agents into persistent, team-shared collaborators. Each lore agent lives in a git-backed markdown repository with a role, compact working context, and a knowledge graph of decisions, domain facts, operational runbooks, and session learnings. The framework provides skills to boot agents, recall their lore, reflect and merge new knowledge at session end, manage agent repos, initialize workspaces, and move sessions across Claude Code, Codex, and Cursor.",
+    "shortDescription": "Named AI specialists that learn and grow with you",
+    "longDescription": "Lore Agents helps you organize long-term work with AI around a team of named specialists. Each specialist has a role, durable identity, and git-backed Markdown knowledge base. As you work together, it captures useful decisions, feedback, domain knowledge, and operational wisdom, so future sessions start with experience instead of repeated context. The framework provides skills to boot agents, recall and share their knowledge, reflect and merge new learning at session end, manage agent repos, initialize workspaces, and work across Claude Code, Codex, and Cursor.",
     "developerName": "Yaroslav Panasyuk",
     "category": "Productivity",
     "capabilities": [

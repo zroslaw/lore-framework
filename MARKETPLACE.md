@@ -23,20 +23,22 @@ plugin marketplaces.
 
 Short description:
 
-> Persistent, team-shared memory for AI coding agents.
+> Named AI specialists that learn and grow with you.
 
 Medium description:
 
-> Lore Agents gives AI coding agents a persistent, team-shared memory. Agents accumulate decisions,
-> domain knowledge, and operational wisdom across sessions as a team-shared markdown knowledge graph.
+> Lore Agents helps you organize long-term work with AI around a team of named specialists. Each
+> specialist develops durable knowledge from experience — decisions, feedback, domain context, and
+> operational wisdom — stored as Markdown in Git and shared with your team.
 
 Long description:
 
-> Lore Agents turns coding agents into persistent, team-shared collaborators. Each lore agent lives in a
-> git-backed markdown repository with a role, compact working context, and a knowledge graph of
-> decisions, domain facts, operational runbooks, and session learnings. The framework provides skills
-> to boot agents, recall their lore, reflect and merge new knowledge at session end, manage agent
-> repos, initialize workspaces, and move sessions across Claude Code, Codex, and Cursor.
+> Lore Agents helps you build a team of named AI specialists that learns and grows with you. Each
+> specialist has a role, durable identity, and git-backed Markdown knowledge base. As you work
+> together, it captures useful decisions, feedback, domain knowledge, and operational wisdom, so future
+> sessions start with experience instead of repeated context. The framework provides skills to boot
+> agents, recall and share their knowledge, reflect and merge new learning at session end, manage agent
+> repos, initialize workspaces, and work across Claude Code, Codex, and Cursor.
 
 ## Keywords
 

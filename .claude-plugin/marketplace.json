@@ -1,6 +1,6 @@
 {
   "name": "lore-framework",
-  "description": "Lore Agents — persistent, team-shared memory for AI coding agents",
+  "description": "Lore Agents — named AI specialists that learn and grow with you",
   "owner": {
     "name": "Yaroslav Panasyuk"
   },
@@ -8,7 +8,7 @@
     {
       "name": "lr",
       "source": "./",
-      "description": "Persistent, team-shared memory for AI coding agents",
+      "description": "Named AI specialists that learn and grow with you",
       "version": "1.39.0",
       "repository": "https://github.com/zroslaw/lore-framework",
       "license": "MIT"

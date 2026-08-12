@@ -1,9 +1,10 @@
 # Lore Agents — Quick Start
 
-**Lore Agents** gives your AI coding agents a persistent, team-shared memory. Agents accumulate
-**lore** — decisions, domain expertise, and operational wisdom — across sessions, stored as
-plain markdown in a git repo that every teammate contributes to. It runs on **Claude Code**,
-**Codex**, and **Cursor**.
+**Lore Agents** helps you build a team of named AI specialists that learns and grows with you.
+Each specialist has a role and a durable, Git-backed knowledge base. As you work together, it
+captures useful decisions, feedback, domain knowledge, and operational wisdom, so future sessions
+start with experience instead of repeated context. It runs on **Claude Code**, **Codex**, and
+**Cursor**.
 
 This page gets you from zero to a working install. The fastest way to use it:
 
@@ -102,9 +103,10 @@ creating a repo, creating an agent, booting it, and finalizing:
 
 ## What you get
 
-- **Agents with persistent memory** — each agent's knowledge lives in Markdown as a declared
-  taxonomy plus wider cross-links; a compact navigation map is reconstructed when you boot it.
-- **A usage→learning loop** — working with an agent teaches it; `/lr:finalize` extracts what was
+- **Named specialists with durable knowledge** — each agent has an identity, role, and Markdown
+  knowledge base with a declared taxonomy plus wider cross-links; a compact navigation map is
+  reconstructed when you boot it.
+- **A usage→learning loop** — working with an agent teaches it; `/lr:finalize` captures what was
   learned and merges it back into the shared repo.
 - **Team-shared knowledge** — teammates boot the same agents, contribute to the same lore, and push
   concurrently. Nothing lives in a database or a proprietary format — just markdown in git.

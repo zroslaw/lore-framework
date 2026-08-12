@@ -1,21 +1,27 @@
 # Lore Agents
 
-**AI coding agents with persistent, team-shared memory** — on Claude Code, Codex, and Cursor.
+## AI is promising. Why is doing things by yourself still easier?
 
-Every AI session starts from zero. Your agent re-learns the codebase, the decisions, and the gotchas
-every time — and so does every teammate's. Static `CLAUDE.md` files and scattered docs go stale the
-day they're written, and keeping them current is a tax on the people actually shipping.
+Agents need context, and providing it is tedious. You repeat background, preserve useful details,
+write instructions for future sessions, and give the same guidance again. Too much effort goes into
+managing the agent instead of delegating the work.
 
-> What if your agent remembered everything it learned — and got smarter every time anyone on the team used it?
+## Build an AI team that learns and grows with you
 
-A lore agent accumulates **lore** — decisions, domain expertise, and operational wisdom — while you
-use it. At session end it distills what it learned and commits it to a shared git repo, so the next
-person to boot the agent inherits everything it knows.
+Lore Agents gives each specialist a durable identity, role, and knowledge base. They curate their
+context after each session, learn from feedback and mistakes, and accumulate experience, decisions,
+domain knowledge, and operational wisdom.
 
-- **No maintenance tax** — the knowledge base updates itself as you work: no dedicated upkeep sessions, no hand-written docs rotting in a wiki.
-- **Compounding value, solo or shared** — for one person it means never re-explaining context across sessions; on a team, everyone boots the same agents and grows the same lore. The wider the adoption, the more valuable it gets.
-- **A specialist, not a generic assistant** — each agent already knows its area, its history, and how the team works.
-- **Boring by design** — just plain markdown in git. Reviewable, portable, no database, no lock-in.
+## Work with agents like teammates
+
+Each agent has its own identity, expertise, and ability to grow. Give them resources and delegate
+work—just like with human teammates. **Work with them, do things together, and guide them when
+needed. Help them grow, and they will soon pay you back by becoming more capable and self-sufficient
+with every session.**
+
+**Open source · Git-backed Markdown · Claude Code · Codex · Cursor**
+
+[Build your first specialist →](QUICKSTART.md)
 
 ## Get started
 
