@@ -1,94 +1,123 @@
 # Lore Agents
 
-## AI is promising. Why is doing things by yourself still easier?
+> Named AI specialists that learn and grow with you.
 
-Agents need context, and providing it is tedious. You repeat background, preserve useful details,
-write instructions for future sessions, and give the same guidance again. Too much effort goes into
-managing the agent instead of delegating the work.
+AI agents are powerful, but keeping them effective is tedious: you repeatedly provide context,
+manually refine instructions, and carry important lessons between sessions.
 
-## Build an AI team that learns and grows with you
+Lore Agents are named specialists that take responsibility for maintaining the context and
+instructions they need. Guided by their roles and your feedback, they capture and curate an
+evolving body of context and knowledge—**Lore**—and reuse it in future work. You provide direction;
+they manage the context they need to learn and grow.
 
-Lore Agents gives each specialist a durable identity, role, and knowledge base. They curate their
-context after each session, learn from feedback and mistakes, and accumulate experience, decisions,
-domain knowledge, and operational wisdom.
+## How it works
 
-## Work with agents like teammates
+1. **Give every domain its own expert**
 
-Each agent has its own identity, expertise, and ability to grow. Give them resources and delegate
-work—just like with human teammates. **Work with them, do things together, and guide them when
-needed. Help them grow, and they will soon pay you back by becoming more capable and self-sufficient
-with every session.**
+   For each project or area of expertise, create a named Lore Agent responsible for it.
 
-**Open source · Git-backed Markdown · Claude Code · Codex · Cursor**
+   ```text
+   /lr:create-agent domain-expert
+   ```
 
-[Build your first specialist →](QUICKSTART.md)
+2. **Summon the right expert**
+
+   Whenever you work in that domain, use its registered shortcut to bring the agent's accumulated
+   context and knowledge into the session.
+
+   ```text
+   /lr-domain-expert-agent
+   ```
+
+   You can also use `/lr:boot domain-expert` if no shortcut is registered.
+
+3. **Work together**
+
+   Delegate real tasks as you normally would. Share additional data, guidance, and feedback when
+   needed.
+
+4. **Finalize the session**
+
+   At the end of the session, ask the agent to finalize it.
+
+   ```text
+   /lr:finalize
+   ```
+
+   For learning, finalization does two key things:
+
+   - **Reflects on the session** — reviews what happened, identifies what matters, captures new
+     knowledge, and considers how to improve.
+   - **Updates its Lore** — merges durable lessons and findings into the agent's accumulated
+     knowledge.
+
+5. **Repeat—with an agent that remembers**
+
+   The next time you summon it, its accumulated knowledge is already available. Continue from
+   experience instead of starting over.
 
 ## Get started
 
-Paste **[QUICKSTART.md](QUICKSTART.md)** into your AI coding agent and say *"set this up for me"* —
-it installs the plugin for its engine and walks you through your first agent.
+Choose the path that fits:
 
-Prefer to drive yourself? Install for your engine ([Claude Code](INSTALL-CLAUDE.md) ·
-[Codex](INSTALL-CODEX.md) · [Cursor](INSTALL-CURSOR.md)), then follow
-**[FIRST-STEPS.md](FIRST-STEPS.md)** to create your first agent.
-
-Joining a team that already uses Lore Agents? Install the plugin the same way, clone your team's
-agent repo into a workspace, and pick up at
-[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path) (path A).
+1. **Let your agent set it up** — Give **[QUICKSTART.md](QUICKSTART.md)** to your AI coding agent
+   and say *"set this up for me"*. It will install Lore Agents for its engine and guide you through
+   creating or joining an agent repo.
+2. **Install it yourself** — Follow the guide for
+   [Claude Code](INSTALL-CLAUDE.md), [Codex](INSTALL-CODEX.md), or
+   [Cursor](INSTALL-CURSOR.md), then use **[FIRST-STEPS.md](FIRST-STEPS.md)** to create your first
+   specialist.
+3. **Join an existing team** — Install Lore Agents, clone the team's agent repo into your
+   workspace, and continue at
+   **[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path)** (path A).
 
 ## Use cases
 
-**Start here: a dev team sharing lore agents on their codebase.** Design decisions, conventions,
-and hard-won gotchas land in the team's shared lore as people work. When one engineer figures
-something out — the right migration order, the trick that tames the flaky test suite — the agent
-captures it, and from then on applies it for everyone. Teammates don't even need to know the
-knowledge exists: they boot the same agent, and it just does things the way the team figured out.
+Lore Agents fit wherever expertise should deepen through repeated work instead of resetting with
+each session. Build one for yourself, share one with a team, or bring several specialists together.
 
-Beyond that, lore agents fit anywhere knowledge is worth keeping — at work and in your personal
-life:
+- **A long-running project companion** — carries status, decisions, rationale, what has already
+  been tried, and next steps across the life of a project.
+- **A personal domain specialist** — retains your history and constraints across finance, health,
+  hobbies, travel, or life administration without rebuilding the background every time.
+- **A research or evaluation partner** — preserves sources, criteria, intermediate findings, and
+  the reasoning behind earlier judgments.
+- **A shared software expert** — learns a codebase's architecture, conventions, migration paths,
+  and debugging lessons. When one engineer teaches it something, the whole team can benefit.
+- **An integrations and operations expert** — remembers third-party API quirks, rate limits,
+  procedures, and hard-won workarounds.
+- **A team of specialists** — combines expertise from several domains in one task, without making
+  you re-explain each domain from scratch.
 
-**At work**
-- **A service or system specialist** — knows the architecture, the decisions behind it, and the gotchas that bite newcomers, so the next engineer (or the next AI session) is productive immediately.
-- **An integrations expert** — remembers every third-party API's quirks, rate limits, and workarounds, so nobody rediscovers them the hard way.
-- **An evaluation assistant** — scores applications, proposals, or submissions against consistent criteria, and remembers how earlier calls were made.
-- **A long-running project companion** — tracks status, runbooks, and the *why* behind past choices across an effort that outlives any single session.
-
-**Across a team or org**
-- **Onboarding & handoffs** — a new teammate boots the agent and inherits its full history, decisions, and gotchas, instead of days of context-dumping.
-- **Cross-team work** — a task spanning two areas can draw on both teams' agents at once, so neither side has to re-explain its system.
-
-**For yourself**
-- **Personal finance & tax** — your tax situation, recurring bills, and filing decisions, with the reasoning behind past choices carried year to year.
-- **Health & wellness** — grounded in your own longitudinal data, tracking what you've tried and what actually worked.
-- **A hobby or life admin** — a home lab, 3D printing, travel planning; or licenses, registrations, and local rules — anything worth not re-researching from scratch every time.
-
-Even used entirely solo, an agent that remembers is worth it. Shared with a team, it compounds.
+The common thread is continuity: work produces knowledge, and that knowledge makes the next session
+more useful. Even solo, the value accumulates. Shared with a team, it compounds.
 
 ## Concepts
 
-Now for the vocabulary — the terms the rest of the docs lean on:
+These terms appear throughout the documentation:
 
-- **Workspace** — the directory you run your coding agent from. Holds one or more agent repos and any other repos they declare.
-- **Agent repo** — a git repo containing one or more lore agents, marked by a `lore-repo.md` at its root. Conceptually, the **domain** an agent (or set of agents) covers.
-- **Agent** — a directory under `agents/<name>/` inside an agent repo. Has a `role.md` (identity),
-  `lore-context.md` (working knowledge and taxonomy root), plus recursive areas and focused topics
-  under `lore/`.
-- **Lore** — the agent's accumulated knowledge: decisions, domain expertise, and operational wisdom. Plain markdown, tracked in git, shared across teammates.
-- **Boot** — load an agent's role, context, and reconstructed Lore map into your session.
-- **Finalize** — at session end, extract what was learned, merge it into the agent's lore, write a session summary, and commit (+ push if a remote is configured).
+| Concept | Meaning |
+|---|---|
+| **Workspace** | The directory where you run your coding agent. It contains one or more agent repos and the other repos or resources they use. |
+| **Agent repo** | A Git repo containing one or more Lore Agents, identified by `lore-repo.md`. It usually represents a domain, project, or team. |
+| **Lore Agent** | A named specialist under `agents/<name>/`, with a role, working context, Lore, session history, and a persistent `workdir/` for artifacts. |
+| **Lore** | Curated knowledge accumulated through work: decisions, feedback, domain expertise, and operational wisdom. Stored as Markdown and tracked in Git. |
+| **Boot** | Load an agent's role, working context, and compact Lore map into the current session. |
+| **Finalize** | Reflect on the session, merge useful learning into Lore, write a summary, then commit and push the result. |
 
-## Go deeper — meet the maintainer agent
+## Meet Lore Architect
 
-Lore Agents is developed *with* a lore agent: its maintainer, **lore-architect**, lives in
-**[lore-framework-dev](https://github.com/zroslaw/lore-framework-dev)**. It holds the design
-decisions and rationale behind everything here — a working demo of the idea, and the fastest way to
-learn the framework or start contributing. [Install the plugin](#get-started), clone that repo into
-a workspace, run your coding agent there, and boot the agent (`/lr:boot lore-architect`) — then
-just ask.
+The Lore Agents framework is itself developed with a Lore Agent. **Lore Architect** lives in
+**[lore-framework-dev](https://github.com/zroslaw/lore-framework-dev)** and holds the framework's
+design decisions, rationale, and operating knowledge. It is a working demonstration of the idea
+and the fastest way to understand the framework or begin contributing.
+
+[Install Lore Agents](#get-started), clone that repo into a workspace, boot `lore-architect`, and
+start asking questions.
 
 ## Engine syntax
 
-Lore skills use a different invocation prefix per engine — this legend recurs throughout the docs:
+Lore skills use engine-specific invocation syntax:
 
 | Engine | Skill syntax | Example |
 |--------|--------------|---------|
@@ -96,142 +125,160 @@ Lore skills use a different invocation prefix per engine — this legend recurs 
 | Cursor | `/lr-<skill>` | `/lr-boot lore-architect` |
 | Codex | `$lr:<skill>` | `$lr:boot lore-architect` |
 
-Per-agent shortcuts: `/lr-<agent>-agent` (Claude, Cursor) or `$lr-<agent>-agent` (Codex).
+The skills below use Claude Code syntax. Translate them for Cursor or Codex using the table above.
+Direct agent shortcuts use `/lr-<agent>-agent` in Claude Code and Cursor, or
+`$lr-<agent>-agent` in Codex.
 
-## Team-shared knowledge
+## Personal or team-shared knowledge
 
-Lore agents are **team-shared knowledge containers**, not personal notebooks. The framework converts
-tribal knowledge — domain expertise, design rationale, decisions, status, intermediate work — into
-durable, transmissible assets in shared git repos. Multiple contributors are expected to:
+Lore Agents work for an individual, a team, or both. A personal agent carries your own context
+across sessions. Share its Git repo, and its expertise becomes a durable, reviewable asset for
+everyone who works with it.
 
-- Boot the same agent in their own sessions
-- Reflect and merge into the same `lore/` and `lore-context.md`
-- Commit `sessions/` summaries teammates read for context
-- Push concurrently — conflicts are auto-resolved by the merge process
+In a shared repo, contributors can:
 
-This framing drives every design choice: directory-driven storage so git is the medium, plain
-markdown so anyone can read and edit, and sessions written as narrative artifacts for future readers.
+- Boot the same specialist in their own sessions
+- Contribute to the same shared Lore
+- Read session summaries and review Lore changes in Git
+- Work concurrently; finalization reconciles concurrent Lore changes when possible
+
+The storage model stays the same in both cases: directories provide structure, Git provides
+history and sharing, Markdown keeps the knowledge readable, and session summaries preserve a
+narrative record for future readers.
 
 ## Skills
 
-Grouped by purpose, in Claude Code's `/lr:<skill>` form — substitute your engine's prefix per the
-[Engine syntax](#engine-syntax) legend (Cursor `/lr-<skill>`, Codex `$lr:<skill>`).
+The framework provides skills for the complete agent lifecycle. Unless noted otherwise, commands
+below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix from
+[Engine syntax](#engine-syntax).
 
-**Workspace setup**
+### Workspace setup
+
 | Skill | Purpose |
 |---|---|
-| `/lr:workspace-pull` | Pull the workspace repo, clone declared repos, and pull all top-level repos |
-| `/lr:pull-lore` | Refresh just the active agents' repos mid-session |
-| `/lr:workspace-init` | Initialize the workspace, or converge it after anything changed (descriptor, git root, ignore lines, memory file) |
+| `/lr:workspace-pull` | Refresh the entire workspace: pull its repo, clone declared repos, and pull every top-level repo |
+| `/lr:pull-lore` | Refresh only the repos of active agents, then reload their roles and contexts |
+| `/lr:workspace-init` | Initialize a workspace or reconcile its framework-managed configuration with disk reality |
 | `/lr:workspace-push` | Commit and push the framework-managed workspace files |
-| `/lr:workspace-status` | Diagnose the workspace — every finding names the command that fixes it |
-| `/lr:list-agents` | List all agents in the workspace |
-| `/lr:list-repos` | List all agent repos in the workspace |
+| `/lr:workspace-status` | Diagnose workspace health; every finding includes the command that fixes it |
+| `/lr:list-agents` | Show available agents, their scope, and shortcut status |
+| `/lr:list-repos` | Show available agent repos, their scope, and shortcut status |
 
-**Working with agents**
+### Working with agents
+
 | Skill | Purpose |
 |---|---|
-| `/lr:boot <name>` | Load a lore agent by name |
-| `/lr:recall [hint]` | Search lore across loaded agents |
-| `/lr:attach <agent>` | Attach another agent as a guest in this session |
-| `/lr:consult <agent> [hint]` | Ask an unloaded agent a one-off question |
-| `/lr:spawn-teammate [<agent>...]` | **BETA** — Spawn lore agents as Agent Teams teammates |
+| `/lr:boot <agent-name>` | Load a named Lore Agent into the session |
+| `/lr:recall [hint]` | Find relevant Lore across loaded agents |
+| `/lr:attach [agent-name]` | Load another agent as a guest for sustained co-work, or list attached guests with no argument |
+| `/lr:consult <agent-name> [hint]` | Ask an unloaded agent a focused, one-off question |
+| `/lr:spawn-teammate [<agent-name>...]` | **BETA, Claude Code only** — Spawn Lore Agents as Agent Teams teammates |
 
-**Interaction style**
+### Interaction style
+
 | Skill | Purpose |
 |---|---|
-| `/lr:style [plain] [dialogue] [follow]` | Set one or more communication styles; no selector enables all, and `off` disables them |
+| `/lr:style [plain] [dialogue] [follow]`, `/lr:style all`, `/lr:style off` | Set the session's Lore communication styles; no argument enables all styles |
 
-**Background / headless**
+### Background and headless operation
+
 | Skill | Purpose |
 |---|---|
-| `/lr:wait` | Pause until an external event arrives, or sleep — for background / `claude -p` agents |
-| `/lr:being [subcommand]` | **BETA** — Manage Lore Beings and the Being Keeper from one entry point |
+| `/lr:wait` | **Claude Code only** — Wait for an external event or sleep during background operation |
+| `/lr:being [subcommand]` | **BETA** — Manage Lore Beings and the Being Keeper |
 
-**Session lifecycle**
+### Session lifecycle
+
 | Skill | Purpose |
 |---|---|
-| `/lr:reflect` | Extract session knowledge into reflections |
-| `/lr:merge` | Integrate reflections into lore |
-| `/lr:summarize` | Write a session summary |
-| `/lr:finalize` | Run full session finalization (reflect + merge + summarize + commit + push) |
+| `/lr:reflect` | Extract knowledge worth preserving into reflection topics |
+| `/lr:merge` | Integrate reflection topics into Lore |
+| `/lr:summarize` | Write a committable session summary |
+| `/lr:finalize` | Reflect, merge, summarize, then commit and push |
 | `/lr:takeover [session]` | **BETA** — Continue a session recorded by another engine |
 
-**Authoring agents and repos**
-| Skill | Purpose |
-|---|---|
-| `/lr:create-repo <name>` | Scaffold a new agent repo |
-| `/lr:create-agent [name]` | Add a new agent to a repo |
-| `/lr:register-agent [repo] <agent>` | Generate one direct boot shortcut |
-| `/lr:register-repo <name>` | Generate direct boot shortcuts for every agent in a repo |
-| `/lr:unregister-agent [repo] <agent>` | Remove one direct boot shortcut |
-| `/lr:unregister-repo <name>` | Remove direct boot shortcuts for every agent in a repo |
+### Authoring agents and repos
 
-**Reviewing changes**
 | Skill | Purpose |
 |---|---|
-| `/lr:trilens-loop [amendments]` | Review this session's changes from three independent perspectives, fix, and repeat until clean |
+| `/lr:create-repo <lore-agent-repo>` | Scaffold a new agent repo |
+| `/lr:create-agent [agent-name]` | Create a Lore Agent with an initial role and Lore structure |
+| `/lr:register-agent [repo] <agent-name>` | Create or refresh one direct boot shortcut |
+| `/lr:register-repo <repo>` | Create or refresh shortcuts for every agent in a repo |
+| `/lr:unregister-agent [repo] <agent-name>` | Remove one direct boot shortcut |
+| `/lr:unregister-repo <repo>` | Remove all direct boot shortcuts for a repo |
 
-**Maintenance**
+### Reviewing changes
+
 | Skill | Purpose |
 |---|---|
-| `/lr:update` | Apply pending framework migrations |
+| `/lr:trilens-loop [amendments]` | Review this session's changes from three independent perspectives, fix what matters, and repeat until clean |
+
+### Maintenance
+
+| Skill | Purpose |
+|---|---|
+| `/lr:update [--dry-run]` | Update domain artifacts to match the installed framework version |
 | `/lr:groom [scope] [--dry-run] [--all]` | Improve Lore structure, retrieval efficiency, and prose quality |
-| `/lr:check` | Run consistency checks |
-| `/lr:doctor` | Diagnose framework runtime issues |
+| `/lr:check` | Check consistency across the domain and all its agents |
+| `/lr:doctor` | Diagnose and repair known framework runtime issues |
 
-**Development (BETA)**
+### Development tools
+
 | Skill | Purpose |
 |---|---|
-| `/lr:df-repo-init [<repo>]` | **BETA** — Initialize the DF backbone repo (`<repo>-df`) for a source repo |
-| `/lr:df-ula-file <file>` | **BETA** — Run a ULA (unit-level analysis) pass on one file |
+| `/lr:df-repo-init [<repo>]` | **BETA** — Initialize a Dark Factory backbone repo (`<repo>-df`) for a source repo |
+| `/lr:df-ula-file <file>` | **BETA** — Analyze one file for potential bugs, test scenarios, and test gaps |
 
-## Agent shortcut commands
+## Direct boot shortcuts
 
-By default you boot with `/lr:boot <name>`. To register a direct `/lr-<name>-agent` shortcut for one
-agent or a whole repo, use `/lr:register-agent` or `/lr:register-repo`. Shortcuts land in
-`.claude/commands/` (Claude Code), `.cursor/skills/` (Cursor), or `.codex/skills/` (Codex), and
-delegate to the boot procedure with an absolute agent path. All three locations are inside the
-workspace, so `/lr:workspace-push` publishes them to teammates and their `/lr:workspace-pull`
-receives them. See [FIRST-STEPS.md](FIRST-STEPS.md) § 5.
+You can always boot an agent with `/lr:boot <agent-name>`. For agents you use often, create a direct
+shortcut with `/lr:register-agent`, or register every agent in a repo with `/lr:register-repo`.
+
+Shortcuts are stored inside the workspace under `.claude/commands/`, `.cursor/skills/`, or
+`.codex/skills/`, depending on the engine. Publish them with `/lr:workspace-push`, and teammates
+receive them through `/lr:workspace-pull`. See [FIRST-STEPS.md](FIRST-STEPS.md), Step 5.
 
 ## Directory layout
 
-```
-my-workspace/                       # Workspace — the directory you run your coding agent from
-├── my-agents/                      # An agent repo (one "domain" of agents)
+```text
+my-workspace/                       # Run your coding agent here
+├── my-agents/                      # Agent repo for one domain
+│   ├── lore-repo.md                # Declares the repo and its domain
 │   └── agents/
 │       ├── researcher/
 │       │   ├── role.md
 │       │   ├── lore-context.md
 │       │   ├── lore/
-│       │   ├── sessions/
+│       │   ├── sessions/           # Created when sessions are summarized
 │       │   └── workdir/
 │       └── analyst/
 │           └── ...
-├── another-agents-repo/            # Multiple agent repos can coexist
+├── another-agent-repo/            # Multiple domains can share a workspace
+│   ├── lore-repo.md
 │   └── agents/
 │       └── ...
-├── AGENTS.md                       # Workspace memory file — read by every engine
-├── CLAUDE.md                       # One-line `@AGENTS.md` import (Claude Code does not read AGENTS.md)
+├── AGENTS.md                       # Shared workspace guidance
+├── CLAUDE.md                       # AGENTS.md import for Claude Code
 ├── .claude/
-│   └── commands/                   # Claude Code optional registered agent commands
+│   └── commands/                   # Registered Claude Code agent shortcuts
 │       ├── lr-researcher-agent.md
 │       └── ...
 ├── .codex/
-│   └── skills/                     # Codex optional registered agent shortcuts
+│   └── skills/                     # Registered Codex agent shortcuts
 │       ├── lr-researcher-agent/
 │       └── ...
 └── .cursor/
-    └── skills/                     # Cursor optional registered agent shortcuts
+    └── skills/                     # Registered Cursor agent shortcuts
         ├── lr-researcher-agent/
         └── ...
 ```
 
-Codex reads `.codex/skills/` from the git root of your working directory, so start Codex at the
-workspace root. (Before v37 those shortcuts were written to `~/.codex/skills/`, outside the repo and
-unshareable; `/lr:update` relocates them.)
+Codex discovers `.codex/skills/` from the Git root of the working directory, so start it at the
+workspace root. Shortcuts created before v37 may still live under `~/.codex/skills/`;
+`/lr:update` moves them into the workspace.
 
 ## Reference
 
-[MARKETPLACE.md](MARKETPLACE.md) (submission metadata) · [PRIVACY.md](PRIVACY.md) (data handling) · [MIT license](LICENSE)
+[Marketplace metadata](MARKETPLACE.md) · [Privacy and data handling](PRIVACY.md) ·
+[MIT License](LICENSE)
