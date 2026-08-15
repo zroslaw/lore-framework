@@ -14,7 +14,8 @@ they manage the context they need to learn and grow.
 
 1. **Give every domain its own expert**
 
-   For each project or area of expertise, create a named Lore Agent responsible for it.
+   For each project or area of expertise, create a named Lore Agent with a clear role and domain.
+   That focus helps it learn the right things instead of storing everything.
 
    ```text
    /lr:create-agent domain-expert
@@ -51,6 +52,9 @@ they manage the context they need to learn and grow.
    - **Updates its Lore** — merges durable lessons and findings into the agent's accumulated
      knowledge.
 
+   Its role and domain guide what is worth preserving, keeping learning focused rather than
+   capturing the whole session.
+
 5. **Repeat—with an agent that remembers**
 
    The next time you summon it, its accumulated knowledge is already available. Continue from
@@ -58,7 +62,11 @@ they manage the context they need to learn and grow.
 
 ## Get started
 
-Choose the path that fits:
+Lore Agents is distributed as a plugin for Claude Code, Cursor, and Codex, backed by
+[canonical Markdown instructions](docs/) with Python scripts used only as accelerators to save
+time and context tokens.
+
+Choose how to install it:
 
 1. **Let your agent set it up** — Give **[QUICKSTART.md](QUICKSTART.md)** to your AI coding agent
    and say *"set this up for me"*. It will install Lore Agents for its engine and guide you through
@@ -70,6 +78,24 @@ Choose the path that fits:
 3. **Join an existing team** — Install Lore Agents, clone the team's agent repo into your
    workspace, and continue at
    **[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path)** (path A).
+
+## Lore technical anatomy
+
+A Lore Agent keeps its role and Lore in a Git-backed directory:
+
+- **`role.md`** defines the specialist's domain and responsibilities.
+- **`lore-context.md`** keeps only the essential knowledge needed in every session, while
+  **`lore/*.md`** holds focused topics. Their parent hierarchy forms a taxonomy, and Markdown links
+  connect them into a wider knowledge graph.
+
+At boot, the role and Lore context are loaded along with a compact, generated Lore map that helps
+the agent navigate its knowledge without loading everything at once.
+
+For complex work, the agent is instructed to search its Lore through the map and ordinary shell,
+file-search, and read tools, opening relevant topics directly. During finalization, the agent
+updates the knowledge graph itself; Git provides history, versioning, review, and sharing with a
+team or other Lore Agent users. Run `/lr:groom` periodically to improve the Lore's structure,
+links, concision, and retrieval quality.
 
 ## Use cases
 
