@@ -13,9 +13,11 @@ Merge always runs in a subagent, one per active agent, with all subagents launch
 Host responsibilities when merge is invoked:
 
 1. Collect active agents (host + any attached guests).
-2. For each, spawn a **`general-purpose`** subagent (merge needs `Write`/`Edit`/`Bash`; `Explore` does not) with a brief such as: _"Boot as agent `<name>` (repo: `<path>`) per `<framework-root>/docs/agent-boot.md`, then run the merge procedure in `<framework-root>/docs/process-merge.md` scoped to yourself. Return a short summary of topics touched, role changes, and any anomalies. Do not commit — finalize handles that."_
+2. For each, spawn a **`general-purpose`** subagent (merge needs `Write`/`Edit`/`Bash`; `Explore` does not) with a brief such as: _"Boot as agent `<name>` (repo: `<path>`) per `<framework-root>/docs/agent-boot.md`, then run the merge procedure in `<framework-root>/docs/process-merge.md` scoped to yourself. Current-session reflection topics: `<paths from a completed Reflection outcome; None if it completed with zero topics; Failed plus any known partial paths if reflection failed; or Unavailable if no outcome was retained>`. Return the required Merge handoff from Step 6. Do not commit — finalize handles that."_
 3. In a multi-agent session, spawn all subagents in parallel (single message with multiple Agent tool calls).
-4. Collect summaries and report per-agent success/failure to the user. **Retain each subagent's return** — phase 3 (summarize) uses it to compose guest summaries.
+4. Collect handoffs and report per-agent success/failure to the user. **Retain every subagent's
+   return** — summarize uses it for the canonical host Learning section, and for a guest summary
+   when applicable.
 
 Each subagent's work is independent: separate `reflections/` directory, separate lore subtree. Merge does not commit — all changes are left uncommitted on disk. Committing is handled once, at the end of `/lr:finalize`, or by the user themselves if merge is invoked standalone.
 
@@ -182,7 +184,38 @@ Delete each reflection topic only after its knowledge was successfully integrate
 was integrated, remove the now-empty `reflections/` directory. Leave blocked or failed topics in
 place and name them in the return summary so a later merge can retry without knowledge loss.
 
-Merge does not commit — leave all changes uncommitted on disk. In a multi-agent session, return a short summary of what was integrated (topics touched, role changes, any anomalies) to the host. Committing is handled at the end of `/lr:finalize`, or by the user directly if merge is invoked standalone.
+Merge does not commit — leave all changes uncommitted on disk. Return this compact handoff to the
+host, including explicit `None.` values rather than dropping a field:
+
+```text
+Merge handoff — <agent-name>
+- What mattered: <one to three concrete durable facts, decisions, or lessons from the current-session reflection topics only>
+- Lore changes:
+  - `<agent-relative-path>` — <created, updated, consolidated, simplified, or deleted> — <why; identify current-session, carried-over, or mixed origin when carried-over reflection contributed>
+- Unmerged: <remaining reflection paths, current-session or carried-over origin, and reasons; or None.>
+- Anomalies: <warnings or failures that affect confidence in the result, or None.>
+```
+
+Name changes to `lore-context.md` and `role.md` in **Lore changes** like any other material change.
+When consolidation or simplification was the meaningful operation, say that explicitly instead of
+reducing it to "updated." Make **What mattered** understandable without opening Lore: preserve the
+specific fact or decision and its useful reason, rather than naming only its category. If no
+reflection topics were available, say so under **What mattered**; if Lore did not change, use
+`- Lore changes: None.` A failed or missing merge is not the same as no learning; return the failure
+or leave the affected reflection under **Unmerged**.
+
+Treat a caller-provided **completed** current-session topic set as authoritative; do not reconstruct
+it from the directory. Only with that complete set may an unlisted reflection be classified as
+carried over from an earlier run. Do not include a carried-over theme under **What mattered**.
+Identify its origin in the affected **Lore changes** and **Unmerged** entries so the summary cannot
+attribute old learning to this session. If the caller marked the set `Failed`, use any supplied
+partial paths only as known-current evidence and treat every other origin as unknown. If it marked
+the set `Unavailable`, treat all origins as unknown. In either case, say session attribution is
+incomplete or unavailable under **What mattered** and explain it under **Anomalies**.
+
+This handoff is the authoritative merge-side input to the host summary's Learning section and to
+guest-summary lore updates. It is an audit of outcomes, not a copy of the resulting Lore. Committing
+is handled at the end of `/lr:finalize`, or by the user directly if merge is invoked standalone.
 
 ## Guidelines
 

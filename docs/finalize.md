@@ -27,17 +27,35 @@ With no flag, read `<framework-root>/docs/process-reflection.md` and follow it. 
 
 With `--transcript`, read `<framework-root>/docs/process-transcript-reflection.md` instead. That alternate reflection implementation writes ordinary host reflection topics only after strict marker-based transcript verification and complete, valid read-only worker coverage. It does not support attached guests in v1. If it stops before writing reflections, do not proceed to Phase 2; report the failure and offer normal finalization. Once it reports completion, continue at Phase 2 exactly as normal.
 
+**Preserve one Reflection outcome per active agent through Phase 3:** completed with the paths and
+one-line durable themes of the topics created in this session, completed with zero durable topics,
+or failed. These paths are the current-session set passed to Phase 2. Do not infer a zero-topic
+outcome later from an empty `reflections/` directory — a successful merge deletes the files.
+
 ## Phase 2 — Merge
 
 Read `<framework-root>/docs/process-merge.md` and follow it. Merge runs in a **subagent per active agent, in parallel**; each subagent boots as its target agent and then integrates that agent's reflections into its `lore/`, `lore-context.md`, and `role.md`. Cleans up `reflections/`. **Does not commit** — phase 4 covers it.
 
+Pass each merge subagent that agent's retained current-session reflection paths. This lets the
+handoff distinguish learning from this session from an older reflection being retried. If Phase 2
+follows a failed Reflection outcome, mark the set `Failed` and pass any known partial paths without
+claiming the set is complete. If Phase 2 is invoked standalone without a retained outcome, mark the
+set `Unavailable` rather than guessing it from the directory.
+
 Merge is parallelizable precisely because it is file-driven (`reflections/` + `lore/`) and doesn't need session context — the contrast with phase 1.
 
-**Preserve each merge subagent's return value through to phase 3.** Summarize composes each guest summary from (a) the host summary, (b) session memory, and (c) the merge subagent's return for that guest. If the returns aren't retained, phase 3 loses the list of lore changes per guest.
+**Preserve every Merge handoff through Phase 3, alongside its Reflection outcome.** Summarize uses
+each handoff for the canonical host Learning section, and a guest's handoff for that guest's short
+summary. If a merge fails or its return is missing, preserve that state rather than substituting an
+empty handoff.
 
 ## Phase 3 — Summarize
 
-Read `<framework-root>/docs/summarize.md` and follow it. Writes the canonical summary into the host agent's `sessions/YYYY/MM/` directory and — for every attached guest that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All summaries for a session share the session UUID. Summarize is additive — its failure does not roll back reflect or merge.
+Read `<framework-root>/docs/summarize.md` and follow it. Writes the canonical summary, including its
+Learning section, into the host agent's `sessions/YYYY/MM/` directory and — for every attached guest
+that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All
+summaries for a session share the session UUID. Summarize is additive — its failure does not roll
+back reflect or merge.
 
 Phase 3 includes summarize Step 1.5: a required, non-blocking attempt to collect aggregate `usage` metadata from the native session log. It must not create or commit a transcript archive. Before committing, verify that the host summary has optional `usage:` frontmatter only when the stats command succeeded, or report the exact reason it was omitted.
 

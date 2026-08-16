@@ -6,12 +6,17 @@ Here, `<framework-root>` means the parent directory of the `docs/` directory con
 
 The host agent always receives a **full summary** in its own `sessions/` directory. Each attached guest that had lore updates during merge additionally receives a **short guest summary** in its own repo, linking back to the host's canonical record. All summaries for a session share the same UUID. Consulted agents receive nothing — their involvement is recorded in the host summary only.
 
-Summaries are **public artifacts** (committed to each respective agent repo). They complement lore — lore captures *what was learned*, summaries capture *what happened*.
+Summaries are **public artifacts** (committed to each respective agent repo). Lore remains the
+durable knowledge; summaries capture *what happened* and include a compact audit of what reflection
+selected and how merge changed Lore. The audit is not a second copy of the learned knowledge.
 
 ## Relationship to reflect and merge
 
 - **Reflect and merge** iterate per active agent (host + each attached guest) and update each agent's lore.
 - **Summarize** runs **once, session-wide**, composed by the host from its perspective. The host summary is the canonical narrative; short guest summaries link back to it.
+- The host summary's **Learning** section is composed from each active agent's retained Reflection
+  outcome and Merge handoff. It records the reflection-to-merge outcome without reconstructing
+  deleted reflections or duplicating Lore.
 - Summarize is **additive and non-blocking**: if it fails (disk, model), reflect and merge stay committed.
 - Summarize runs **after** merge so the host narrative can reference the lore changes just made, and so guest summaries can enumerate those changes.
 
@@ -126,6 +131,15 @@ Guest summaries deliberately omit `start`/`end`/`artifacts`/`consulted`/`topics`
 
 <narrative — 3–7 paragraphs, past tense, third person>
 
+## Learning
+
+### <agent-name>
+
+- **What mattered:** <durable lessons, decisions, or operational insights selected in reflection>
+- **Lore changes:** <material paths created, updated, consolidated, simplified, or deleted by merge>
+- **Not merged:** <remaining reflection topics and reasons, or None.>
+- **Issues:** <confidence-affecting merge anomalies or unavailable evidence, or None.>
+
 ## Consultations
 <only if any /lr:consult calls occurred during the session>
 - **<agent-name>** — brief summary of what was asked and what came back,
@@ -133,6 +147,11 @@ Guest summaries deliberately omit `start`/`end`/`artifacts`/`consulted`/`topics`
 ```
 
 Title style: verb-led or noun-phrase, under ~10 words, specific (e.g., "Designed session summary feature for lore framework", not "Session work").
+
+The **Learning** section is mandatory in every host summary. It is a concise audit, not part of the
+3–7 narrative paragraphs. A finalize summary uses one subsection per active agent, in host-first
+order, including agents whose reflection or merge failed. The unavailable-state wording is defined
+in Process Step 6.5.
 
 ## Guest body structure
 
@@ -261,6 +280,53 @@ List all agents queried via `/lr:consult` during this session, with their repo. 
 
 Use the narrative prompt above. 3–7 paragraphs, past tense, third person. Title under 10 words.
 
+### Step 6.5: Compose the Learning section
+
+Always add `## Learning` after the narrative and before optional `## Consultations`.
+
+For a finalize run, compose one subsection per active agent, in host-first order, from that agent's
+retained **Reflection outcome** and **Merge handoff**. Use the current-session reflection themes,
+as retained by the host and distilled in the handoff, for **What mattered**; use the handoff's file
+actions for **Lore changes**, its residual reflection list for **Not merged**, and its anomalies for
+**Issues**. The Reflection outcome distinguishes a real zero-topic result from a failed or
+unavailable reflection. Never put a carried-over reflection theme under **What mattered**; preserve
+its origin when summarizing a Lore change or residual.
+
+Keep each field to one compact bullet; name material agent-relative paths. Preserve meaningful
+merge actions: if the merge consolidated or simplified Lore, say so rather than flattening the
+action to "updated." Keep the concrete learned fact or decision and its useful reason in **What
+mattered**; a category-only phrase such as "updated the monitoring-tool knowledge" is not enough for
+this audit. Include `lore-context.md` and `role.md` only when they materially changed. Summarize the
+handoffs; do not reproduce reflection files or Lore prose.
+
+Render empty and unavailable states honestly:
+
+- Reflection completed and produced no topics → **What mattered:** `No durable learning identified.`
+- Reflection failed or its outcome is missing → say the reflection outcome is unavailable under
+  **What mattered** and explain the failure or missing evidence under **Issues**.
+- Merge completed without changing Lore → **Lore changes:** `None.`
+- Nothing remained after a successful merge → **Not merged:** `None.`
+- Merge failed or its handoff is missing → say the merge outcome is unavailable and identify any
+  known pending reflections under **Not merged**; record the failure or missing handoff under
+  **Issues**. Never translate absence into "no learning."
+- Merge did not run after reflection → report the retained reflection outcome, say **Lore changes:**
+  `Not assessed; merge did not run.`, and name pending topics under **Not merged**.
+- Both phase outcomes are available, reflection succeeded, and merge completed without anomalies →
+  **Issues:** `None.` Earlier missing or failed phase evidence always takes precedence.
+
+When `/lr:summarize` is invoked directly and neither reflection nor merge ran in the current
+workflow, write exactly:
+
+```markdown
+## Learning
+
+Learning was not assessed because no completed reflection-and-merge handoff was available.
+```
+
+If standalone reflection or merge ran earlier in the same session, branch on their retained phase
+states using the rules above; do not use the direct-invocation sentence to make a claim about phases
+whose state is unknown. Never infer the learning result from a diff.
+
 ### Step 7: Choose topics tags
 
 Glance at existing frontmatter in prior summaries to reuse established tags:
@@ -275,7 +341,8 @@ Fresh repos with no prior summaries naturally introduce their own tag vocabulary
 
 ### Step 8: Assemble the host document
 
-Combine frontmatter + title + narrative + optional Consultations section.
+Combine frontmatter + title + narrative + mandatory Learning section + optional Consultations
+section.
 
 Add `framework_version` from `<framework-root>/VERSION`.
 
@@ -292,6 +359,10 @@ Derive each guest summary from:
 - **The merge subagent's return for this guest** — which files changed and why.
 
 Assemble guest frontmatter (see **Guest frontmatter schema** above) and guest body (see **Guest body structure** above). Keep each one short — a participation sentence, a one-line contribution summary, a bulleted list of lore updates with one-line reasons, and the back-reference.
+
+For guest frontmatter, normalize the Merge handoff's semantic action into the closed `kind` schema:
+`created` → `created`; `deleted` → `deleted`; and `updated`, `consolidated`, or `simplified` →
+`modified`. Preserve the more precise semantic action in the guest body's human-readable reason.
 
 ### Step 10: Write the files
 
@@ -351,7 +422,13 @@ Summarize failure never rolls back or poisons reflect or merge.
 
 Session summaries are committed (by `/lr:finalize`) to potentially public repos — and with guest summaries, **possibly multiple repos with different visibility settings**. A guest attached from a different repo may land in a repo with broader or narrower visibility than the host's. Native engine logs remain in their engine-owned locations and are not copied into agent repos by summarize or finalize.
 
-Defence relies on the **narrative guidance** baked into the composition prompt: public-audience aware, no secrets or sensitive specifics, ask the user mid-compose if unsure. Guest summaries inherit the same constraint — the one-line contribution summary should be as safe to publish as the host narrative. When writing guest summaries, consider each one **against its destination repo specifically** — content acceptable in the host's repo may not be acceptable in a differently-visible guest repo.
+Defence relies on the **composition guidance** baked into the narrative and Learning steps:
+public-audience aware, no secrets or sensitive specifics, ask the user mid-compose if unsure. The
+Learning section names only publication-safe lessons and paths; it must not quote a sensitive
+reflection merely because that reflection was later merged. Guest summaries inherit the same
+constraint — the one-line contribution summary should be as safe to publish as the host narrative.
+When writing guest summaries, consider each one **against its destination repo specifically** —
+content acceptable in the host's repo may not be acceptable in a differently-visible guest repo.
 
 The agent is the sole privacy filter at write time for summaries. Post-hoc review happens via git history — the user sees what was pushed after the fact and can amend or revert if something slipped through.
 
@@ -366,6 +443,10 @@ If no consults happened, omit the section and use `consulted: []`.
 
 ## Standalone invocation
 
-`/lr:summarize` can be called on its own without running reflect or merge first. In that case, skip any references to "after merge" — write a summary of the session as it stands now. This is useful as a mid-session checkpoint or for sessions where no lore changes were produced but the work itself is worth recording.
+`/lr:summarize` can be called on its own without running reflect or merge first. In that case, skip
+any narrative references to "after merge" and use Step 6.5's direct-invocation Learning state when
+no phase state exists. If reflection or merge did run, report its retained state instead. Do not
+present missing evidence as a negative result. This is useful as a mid-session checkpoint or for
+sessions where no lore changes were produced but the work itself is worth recording.
 
 Step 1.5 (usage metadata) runs in standalone `/lr:summarize` too, not just under finalize — the mechanism lives in one place in this doc, so it behaves the same regardless of caller. A standalone summarize writes only the summary and its optional `usage` frontmatter.

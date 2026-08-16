@@ -163,11 +163,12 @@ Follow the shared merge execution model, with Claude `Agent` swapped for Cursor 
 2. For each agent, spawn a write-capable **`Task`** (`generalPurpose` or equivalent — merge needs
    Write/Edit/Bash). Brief example: _"Boot as agent `<name>` (repo: `<path>`) per
    `<framework-root>/docs/agent-boot.md`, then run the merge procedure in
-   `<framework-root>/docs/process-merge.md` scoped to yourself. Return a short summary of topics
-   touched, role changes, and any anomalies. Do not commit — finalize handles that."_
+   `<framework-root>/docs/process-merge.md` scoped to yourself. Current-session reflection topics:
+   `<paths from a completed Reflection outcome, None, Failed plus partial paths, or Unavailable>`.
+   Return the required Merge handoff from Step 6. Do not commit — finalize handles that."_
    Inline the absolute `<framework-root>` in the brief.
 3. Multi-agent: spawn all merge `Task`s in parallel (one message / concurrent Tasks).
-4. Collect summaries; report per-agent success/failure. **Retain each return** for summarize.
+4. Collect handoffs; report per-agent success/failure. **Retain every return** for summarize.
 5. If `Task` is missing on an old CLI build, say so and stop — do not silently merge in the host
    and call it the Cursor merge path.
 
