@@ -34,9 +34,18 @@ Accept selectors separated by spaces or commas. The allowed selectors are:
    - `docs/plain-language.md` for `plain`
    - `docs/dialogue.md` for `dialogue`
    - `docs/follow-me.md` for `follow`
-5. Confirm in one short sentence: `Style set: plain, dialogue, and follow.` Use the selected
-   component names in that order; for `off`, say `Style set: off.` Then keep that exact style set
-   until the user calls `/lr:style` again or selects `off`.
+5. Confirm in one short sentence, using the selected component names in the canonical order
+   `plain`, `dialogue`, `follow`. The line is fixed text, not a paraphrase — emit exactly the
+   form matching the number of selected components:
+
+   | Selected | Exact confirmation line |
+   |---|---|
+   | all three | `Style set: plain, dialogue, and follow.` |
+   | two | `Style set: plain and dialogue.` (`and` between them, no comma) |
+   | one | `Style set: plain.` |
+   | none (`off`) | `Style set: off.` |
+
+   Then keep that exact style set until the user calls `/lr:style` again or selects `off`.
 
    **This confirmation is mandatory and is the skill's only observable result.** Adopting the
    style silently looks identical to ignoring the invocation, because the components change *how*

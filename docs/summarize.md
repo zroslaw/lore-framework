@@ -86,14 +86,14 @@ Field notes:
 - **`topics`** — free-form kebab-case tags for later analysis. Reuse tags already seen in prior summaries rather than inventing synonyms.
 - **`artifacts`** — files created, modified, or deleted during the session. `kind` is `created`, `modified`, or `deleted`. Paths relative to the workspace root.
 - **`consulted`** — agents queried via `/lr:consult` during this session. List of `{ agent, repo }` entries. Empty array if no consults.
-- **`usage`** — token/cost/model totals for the session, from Step 1.5's stats JSON. Host schema only (guests follow `host_summary_path` to reach it — not duplicated). Sub-fields:
+- **`usage`** — token/cost/model totals for the session, from Step 2's stats JSON. Host schema only (guests follow `host_summary_path` to reach it — not duplicated). Sub-fields:
   - **`models`** — ordered-unique list of model ids observed this session.
   - **`models_source`** — how the list was gathered: `per-message` (Claude/Codex, full fidelity), `session-level-last-used` (Cursor, only a single session-level `lastUsedModel` is available — not per-message), or `unavailable`.
   - **`tokens`** — `input` / `output` / `cache_read` / `cache_creation` sums. Omitted for engines with no token data (Cursor).
   - **`cost_usd`** — total USD cost. Present only when `cost_source: computed`; omitted otherwise.
   - **`cost_source`** — provenance of the cost: `reported` (engine reported an authoritative dollar figure), `computed` (derived from token totals × a confirmed, cited per-model price — Claude only in v1, and only for models with a known price), or `unavailable` (Codex/Cursor, or any Claude model whose price couldn't be confirmed — no number is guessed).
 
-Unknown fields are tolerated by design — the schema is additive. The `usage` block is additive and tolerant: it is **omitted entirely** when Step 1.5 was skipped or failed, and a consumer that doesn't know it ignores it.
+Unknown fields are tolerated by design — the schema is additive. The `usage` block is additive and tolerant: it is **omitted entirely** when Step 2 was skipped or failed, and a consumer that doesn't know it ignores it.
 
 ## Guest frontmatter schema
 
@@ -151,7 +151,7 @@ Title style: verb-led or noun-phrase, under ~10 words, specific (e.g., "Designed
 The **Learning** section is mandatory in every host summary. It is a concise audit, not part of the
 3–7 narrative paragraphs. A finalize summary uses one subsection per active agent, in host-first
 order, including agents whose reflection or merge failed. The unavailable-state wording is defined
-in Process Step 6.5.
+in Process Step 8.
 
 ## Guest body structure
 
@@ -214,7 +214,7 @@ python3 -c "import uuid; print(uuid.uuid4())"
 
 Record the full UUID. Derive `<short-uuid>` = first 8 hex chars (before the first `-`).
 
-### Step 1.5: Resolve usage metadata from the native session log
+### Step 2: Resolve usage metadata from the native session log
 
 This step captures aggregate token, cost, and model usage for the host summary. It is a **required attempt** in every summarize/finalize run, but is additive and non-blocking: every failure is warn-and-continue, and summarize proceeds without the `usage` frontmatter block. This step must never write a transcript or archive to an agent repo.
 
@@ -234,8 +234,8 @@ the omission is visible rather than silent.
    where `<framework-root>` is the framework root resolved at boot (the dir holding `VERSION`) and `<engine>` is the current engine (`claude`, `codex`, or `cursor`). This prints the resolved native log path on stdout.
 
    **How to read the result — this is the one spot models get wrong, so follow it exactly:**
-   - **A path was printed on stdout → use it and continue to sub-step 2.** This is the success case. It stays the success case *even if a `warning:` line was also printed on stderr* — the warning only means the tool couldn't confirm the UUID and fell back to the most-recently-modified log for this engine (normal for Cursor, whose printed output isn't grep-able; and for any engine whose transcript hasn't flushed the UUID line yet). A stderr warning is **not** a skip signal.
-   - **Only skip the rest of this step (warn and continue to Step 2) if the command printed _no path at all_ on stdout, or exited non-zero** — that means there were genuinely no candidate logs from which to calculate usage.
+   - **A path was printed on stdout → use it and continue to sub-step 3.** This is the success case. It stays the success case *even if a `warning:` line was also printed on stderr* — the warning only means the tool couldn't confirm the UUID and fell back to the most-recently-modified log for this engine (normal for Cursor, whose printed output isn't grep-able; and for any engine whose transcript hasn't flushed the UUID line yet). A stderr warning is **not** a skip signal.
+   - **Only skip the rest of this step (warn and continue to Step 3) if the command printed _no path at all_ on stdout, or exited non-zero** — that means there were genuinely no candidate logs from which to calculate usage.
 
 2. **Capture usage stats.** Run the stats verb before assembling final frontmatter:
 
@@ -245,18 +245,18 @@ the omission is visible rather than silent.
      --engine <engine>
    ```
 
-   The stats JSON carries the models list and `models_source`, token totals (or `tokens: null` when the engine doesn't expose them), cost (`cost_usd` + `cost_source`, the latter one of `reported` / `computed` / `unavailable`), `framework_version`, and `started` — the native log's earliest message timestamp, which also feeds Step 2's `start` (see Step 2). The file remains in `<scratch>` and is never committed.
+   The stats JSON carries the models list and `models_source`, token totals (or `tokens: null` when the engine doesn't expose them), cost (`cost_usd` + `cost_source`, the latter one of `reported` / `computed` / `unavailable`), `framework_version`, and `started` — the native log's earliest message timestamp, which also feeds Step 3's `start` (see Step 3). The file remains in `<scratch>` and is never committed.
 
 `session-takeover archive` remains available as a manual, dormant maintenance command. Summarize and finalize must not invoke it; any future use or redesign requires an explicit feature decision.
 
-### Step 2: Resolve host, participants, and timestamps
+### Step 3: Resolve host, participants, and timestamps
 
 - **Host agent and repo** — from the booted agent context. If running inside finalize after attach, the host is the originally-booted agent, not a guest.
 - **Participants** — host + any agents currently attached via `/lr:attach`. For each, record `agent`, `repo`, `role`.
 - **`end`** — now, ISO 8601 UTC: `date -u +%Y-%m-%dT%H:%M:%SZ`.
-- **`start`** — if Step 1.5 succeeded, prefer the native log's earliest message timestamp from the stats JSON — it's the true session start, strictly more accurate and free (already computed). Otherwise, best-effort from session memory, rounded to nearest 5 minutes; if memory is unclear, estimate from observable artifacts (e.g., the earliest timestamp on a file you created this session).
+- **`start`** — if Step 2 succeeded, prefer the native log's earliest message timestamp from the stats JSON — it's the true session start, strictly more accurate and free (already computed). Otherwise, best-effort from session memory, rounded to nearest 5 minutes; if memory is unclear, estimate from observable artifacts (e.g., the earliest timestamp on a file you created this session).
 
-### Step 3: Identify the user
+### Step 4: Identify the user
 
 Run, in order, until you have a username:
 
@@ -273,21 +273,21 @@ git config user.name 2>/dev/null        # fallback
 
 If the username is empty, omit `username`. If full name is empty, omit `full_name`. Do not prompt the user for missing identity fields.
 
-### Step 4: Collect the artifacts list
+### Step 5: Collect the artifacts list
 
 From the session's in-context memory, list files created, modified, or deleted during the session. For each: `path` (relative to workspace root) and `kind` (`created` / `modified` / `deleted`).
 
 When uncertain, cross-check with `git -C <lore-agent-repo> status` and `git -C <lore-agent-repo> diff --name-status <base>..HEAD` in the relevant repos. The artifacts list is a curated record, not an exhaustive git diff — include files that matter to the session's story, skip incidental touch-ups.
 
-### Step 5: Collect consulted agents
+### Step 6: Collect consulted agents
 
 List all agents queried via `/lr:consult` during this session, with their repo. Empty list if none.
 
-### Step 6: Compose the host narrative
+### Step 7: Compose the host narrative
 
 Use the narrative prompt above. 3–7 paragraphs, past tense, third person. Title under 10 words.
 
-### Step 6.5: Compose the Learning section
+### Step 8: Compose the Learning section
 
 Always add `## Learning` after the narrative and before optional `## Consultations`.
 
@@ -340,7 +340,7 @@ If standalone reflection or merge ran earlier in the same session, branch on the
 states using the rules above; do not use the direct-invocation sentence to make a claim about phases
 whose state is unknown. Never infer the learning result from a diff.
 
-### Step 7: Choose topics tags
+### Step 9: Choose topics tags
 
 Glance at existing frontmatter in prior summaries to reuse established tags:
 
@@ -352,22 +352,22 @@ If any matches exist, read a few to scan their `topics` field. Prefer reuse over
 
 Fresh repos with no prior summaries naturally introduce their own tag vocabulary — that's expected.
 
-### Step 8: Assemble the host document
+### Step 10: Assemble the host document
 
 Combine frontmatter + title + narrative + mandatory Learning section + optional Consultations
 section.
 
 Add `framework_version` from `<framework-root>/VERSION`.
 
-If Step 1.5 succeeded, add `usage:` from the stats JSON. Include `cost_usd` only when the stats JSON has a non-null value.
+If Step 2 succeeded, add `usage:` from the stats JSON. Include `cost_usd` only when the stats JSON has a non-null value.
 
-**Before writing the file, confirm Step 1.5 actually ran.** You should be able to point at a
+**Before writing the file, confirm Step 2 actually ran.** You should be able to point at a
 `session-takeover --find-by-uuid` call in this session, and — unless it printed no path — a
 `session-takeover stats` call after it. If neither appears, you skipped a required step: go back
-and run Step 1.5 now. If it ran and failed, the `usage:` block is correctly absent and the
-warning line from Step 1.5 belongs in your output.
+and run Step 2 now. If it ran and failed, the `usage:` block is correctly absent and the
+warning line from Step 2 belongs in your output.
 
-### Step 9: Compose guest summaries (if applicable)
+### Step 11: Compose guest summaries (if applicable)
 
 For each attached guest whose merge subagent reported lore updates (any topic added/modified, or `lore-context.md`/`role.md` modified), compose a short guest summary. A guest that was attached but had no lore updates gets no summary. If no guests were attached at all, skip this step.
 
@@ -383,7 +383,7 @@ For guest frontmatter, normalize the Merge handoff's semantic action into the cl
 `created` → `created`; `deleted` → `deleted`; and `updated`, `consolidated`, or `simplified` →
 `modified`. Preserve the more precise semantic action in the guest body's human-readable reason.
 
-### Step 10: Write the files
+### Step 12: Write the files
 
 Write the host summary first, then each guest summary. Create directories as needed, e.g.:
 
@@ -394,11 +394,11 @@ mkdir -p <guest-repo>/agents/<guest-agent>/sessions/<YYYY>/<MM>
 
 Use the Write tool for each file on its final path; it overwrites if needed.
 
-### Step 11: Do not commit
+### Step 13: Do not commit
 
 Summarize does not commit. When invoked as part of `/lr:finalize`, the final commit+push step covers the host and guest summaries along with reflect/merge output (each repo's changes go into its own commit). When invoked standalone via `/lr:summarize`, leave the new files uncommitted and let the user commit them themselves.
 
-### Step 12: Emit the UUID and display the host summary
+### Step 14: Emit the UUID and display the host summary
 
 Close the summarize step with a block that prints the paths, the UUID, and the host summary contents inline:
 
@@ -432,7 +432,7 @@ to find the raw session JSONL if they want to replay or inspect it. The same UUI
 | Disk write fails for any file | Report the failure with the composed text so the user can copy it manually; other files still get written |
 | `id -un` / `id -F` return empty | Omit the affected field, proceed |
 | Directory creation fails | Report error for that path, do not write there; other paths proceed |
-| Step 1.5 can't resolve the native log or write stats | Print a one-line warning, omit `usage` frontmatter; write the summary as normal |
+| Step 2 can't resolve the native log or write stats | Print a one-line warning, omit `usage` frontmatter; write the summary as normal |
 | Early session hazy due to compaction | Narrative says so plainly; do not fabricate detail |
 
 Summarize failure never rolls back or poisons reflect or merge.
@@ -463,9 +463,9 @@ If no consults happened, omit the section and use `consulted: []`.
 ## Standalone invocation
 
 `/lr:summarize` can be called on its own without running reflect or merge first. In that case, skip
-any narrative references to "after merge" and use Step 6.5's direct-invocation Learning state when
+any narrative references to "after merge" and use Step 8's direct-invocation Learning state when
 no phase state exists. If reflection or merge did run, report its retained state instead. Do not
 present missing evidence as a negative result. This is useful as a mid-session checkpoint or for
 sessions where no lore changes were produced but the work itself is worth recording.
 
-Step 1.5 (usage metadata) runs in standalone `/lr:summarize` too, not just under finalize — the mechanism lives in one place in this doc, so it behaves the same regardless of caller. A standalone summarize writes only the summary and its optional `usage` frontmatter.
+Step 2 (usage metadata) runs in standalone `/lr:summarize` too, not just under finalize — the mechanism lives in one place in this doc, so it behaves the same regardless of caller. A standalone summarize writes only the summary and its optional `usage` frontmatter.

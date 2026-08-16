@@ -57,7 +57,7 @@ that had lore updates in phase 2 — a short guest summary into the guest's `ses
 summaries for a session share the session UUID. Summarize is additive — its failure does not roll
 back reflect or merge.
 
-Phase 3 includes summarize Step 1.5: a required, non-blocking attempt to collect aggregate `usage` metadata from the native session log. It must not create or commit a transcript archive. Before committing, verify that the host summary has optional `usage:` frontmatter only when the stats command succeeded, or report the exact reason it was omitted.
+Phase 3 includes summarize Step 2: a required, non-blocking attempt to collect aggregate `usage` metadata from the native session log. It must not create or commit a transcript archive. Before committing, verify that the host summary has optional `usage:` frontmatter only when the stats command succeeded, or report the exact reason it was omitted.
 
 ## Phase 4 — Commit and Push
 
@@ -87,7 +87,7 @@ Push order across repos is undefined. If one repo's push succeeds and another's 
 ## Invariants
 
 - **One commit per touched repo.** Reflect, merge, and summarize output land in a single commit per repo — not split across phases.
-- **Fully automated.** Finalize runs end-to-end without approval prompts. Phase 3's summary display in `summarize.md` step 12 is the user's view of what was recorded; git history is the post-hoc review channel.
+- **Fully automated.** Finalize runs end-to-end without approval prompts. Phase 3's summary display in `summarize.md` step 14 is the user's view of what was recorded; git history is the post-hoc review channel.
 - **Push is part of finalize.** Standalone reflect/merge/summarize do not push; only `/lr:finalize` does.
 - **No empty commits.** If nothing was produced by phases 1–3 in a given repo, skip committing in that repo.
 
