@@ -7,8 +7,13 @@ manually refine instructions, and carry important lessons between sessions.
 
 Lore Agents are named specialists that take responsibility for maintaining the context and
 instructions they need. Guided by their roles and your feedback, they capture and curate an
-evolving body of context and knowledge—**Lore**—and reuse it in future work. You provide direction;
-they manage the context they need to learn and grow.
+evolving body of context and knowledge — **Lore** — and reuse it in future work. You provide
+direction; they manage the context they need to learn and grow.
+
+**In this README:** [How it works](#how-it-works) · [Get started](#get-started) ·
+[How Lore is stored](#how-lore-is-stored) · [Agents working together](#agents-working-together) ·
+[At workspace scale](#at-workspace-scale) · [Use cases](#use-cases) · [Concepts](#concepts) ·
+[Skills](#skills) · [Directory layout](#directory-layout)
 
 ## How it works
 
@@ -37,7 +42,7 @@ they manage the context they need to learn and grow.
    Delegate real tasks as you normally would. Share additional data, guidance, and feedback when
    needed.
 
-4. **Finalize the session**
+4. **[Finalize](docs/finalize.md) the session**
 
    At the end of the session, ask the agent to finalize it.
 
@@ -55,7 +60,7 @@ they manage the context they need to learn and grow.
    Its role and domain guide what is worth preserving, keeping learning focused rather than
    capturing the whole session.
 
-5. **Repeat—with an agent that remembers**
+5. **Repeat — with an agent that remembers**
 
    The next time you summon it, its accumulated knowledge is already available. Continue from
    experience instead of starting over.
@@ -79,23 +84,59 @@ Choose how to install it:
    workspace, and continue at
    **[QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path)** (path A).
 
-## Lore technical anatomy
+## How Lore is stored
 
-A Lore Agent keeps its role and Lore in a Git-backed directory:
+Lore lives in plain Markdown files in a Git-backed directory — no external knowledge base, no
+vector storage. Instead, Lore Agents rely on what AI coding agents already do well: exploring,
+searching, and reading the documents underneath them.
 
 - **`role.md`** defines the specialist's domain and responsibilities.
-- **`lore-context.md`** keeps only the essential knowledge needed in every session, while
-  **`lore/*.md`** holds focused topics. Their parent hierarchy forms a taxonomy, and Markdown links
-  connect them into a wider knowledge graph.
+- **`lore-context.md`** keeps only the essential knowledge needed in every session.
+- **`lore/*.md`** holds the knowledge itself, decomposed into focused **Lore topics** — each
+  describing one small piece of knowledge. Topics reference each other, forming a knowledge graph,
+  and their parent hierarchy forms a **taxonomy** — a structured map of the Lore. See
+  [Lore structure](docs/lore-structure.md) for the full contract.
 
-At boot, the role and Lore context are loaded along with a compact, generated Lore map that helps
-the agent navigate its knowledge without loading everything at once.
+At [boot](docs/agent-boot.md), the role and Lore context are loaded along with a compact, generated
+Lore map that helps the agent navigate its knowledge without loading everything at once. For
+complex work, the agent [searches its Lore](docs/lore-search.md) through the map and ordinary
+shell, file-search, and read tools, opening relevant topics directly. During finalization, the
+agent updates the knowledge graph itself; Git provides history, versioning, review, and sharing
+with a team or other Lore Agent users. Run [`/lr:groom`](docs/groom.md) periodically to improve the
+Lore's structure, links, concision, and retrieval quality.
 
-For complex work, the agent is instructed to search its Lore through the map and ordinary shell,
-file-search, and read tools, opening relevant topics directly. During finalization, the agent
-updates the knowledge graph itself; Git provides history, versioning, review, and sharing with a
-team or other Lore Agent users. Run `/lr:groom` periodically to improve the Lore's structure,
-links, concision, and retrieval quality.
+## Agents working together
+
+Some tasks need expertise from more than one domain. Three commands cover the range, from a quick
+question to full co-work:
+
+- **[`/lr:recall`](docs/recall.md)** — search the Lore of every agent already in the session.
+- **[`/lr:consult <agent>`](docs/consult.md)** — ask another specialist a one-off question without
+  loading it.
+- **[`/lr:attach <agent>`](docs/attach.md)** — summon a specialist into the current session for
+  sustained co-work. The booted agent stays in charge; each attached agent contributes its role and
+  knowledge, so the task is worked with the combined expertise of everyone present.
+
+And the learning stays focused: when you finalize a shared session, each agent reflects from its
+own perspective and updates its own Lore with what fits its role — all learn from the common
+session, but each learns only what belongs to its domain.
+
+## At workspace scale
+
+Lore Agents are at their most powerful in a large workspace, where everything they need sits side
+by side:
+
+- **Multiple domains and agent repos** — each specialist owning its own area.
+- **Source code of adjacent systems** — agents work on top of the real repos: they read the actual
+  code, ground their Lore in it, and bring their roles to bear on the systems they know.
+- **Dynamic expertise** — when a task crosses a boundary, the working agent summons the specialist
+  that owns the neighboring domain with `/lr:attach` and continues with both perspectives.
+
+Lore Agents shine brightest in big software development areas: a landscape of interconnected
+services, libraries, and teams that no single context — human or agent — holds at once. Each
+specialist carries deep, current knowledge of its own corner, attachment composes them on demand,
+and every session leaves each corner better understood. The workspace becomes a living map of the
+whole area, maintained by the agents who work in it.
 
 ## Use cases
 
@@ -151,8 +192,8 @@ Lore skills use engine-specific invocation syntax:
 | Cursor | `/lr-<skill>` | `/lr-boot lore-architect` |
 | Codex | `$lr:<skill>` | `$lr:boot lore-architect` |
 
-The skills below use Claude Code syntax. Translate them for Cursor or Codex using the table above.
-Direct agent shortcuts use `/lr-<agent>-agent` in Claude Code and Cursor, or
+This README uses Claude Code syntax throughout; translate for Cursor or Codex using the table
+above. Direct agent shortcuts use `/lr-<agent>-agent` in Claude Code and Cursor, or
 `$lr-<agent>-agent` in Codex.
 
 ## Personal or team-shared knowledge
@@ -166,7 +207,8 @@ In a shared repo, contributors can:
 - Boot the same specialist in their own sessions
 - Contribute to the same shared Lore
 - Read session summaries and review Lore changes in Git
-- Work concurrently; finalization reconciles concurrent Lore changes when possible
+- Work concurrently; finalization [reconciles concurrent Lore changes](docs/resolve-conflicts.md)
+  when possible
 
 The storage model stays the same in both cases: directories provide structure, Git provides
 history and sharing, Markdown keeps the knowledge readable, and session summaries preserve a
