@@ -218,6 +218,13 @@ Record the full UUID. Derive `<short-uuid>` = first 8 hex chars (before the firs
 
 This step captures aggregate token, cost, and model usage for the host summary. It is a **required attempt** in every summarize/finalize run, but is additive and non-blocking: every failure is warn-and-continue, and summarize proceeds without the `usage` frontmatter block. This step must never write a transcript or archive to an agent repo.
 
+**"Non-blocking" governs what happens when the commands fail — it is not permission to skip
+them.** The two sub-steps below are the attempt; not running them at all is a defect, not a
+permitted outcome. A summary whose frontmatter has no `usage:` block and whose run shows no
+`session-takeover` invocation is the signature of that defect. If you genuinely cannot complete
+the step, you must say so in one line — `warning: usage metadata unavailable — <reason>` — so
+the omission is visible rather than silent.
+
 1. **Resolve this session's native log.** The UUID generated in Step 1 has, by now, already appeared in the engine's transcript (the `python3` command that printed it *is* a recorded tool call). Use that to find which native log on disk is this session's:
 
    ```bash
@@ -323,6 +330,12 @@ workflow, write exactly:
 Learning was not assessed because no completed reflection-and-merge handoff was available.
 ```
 
+**That sentence is the entire body of the Learning section in this case.** Do not also emit the
+per-agent bullet block (`**What mattered:**` / `**Lore changes:**` / `**Not merged:**` /
+`**Issues:**`) described above, and do not merge the two shapes — the bullet block makes
+per-phase claims, which is exactly what this case has no evidence for. One heading, one sentence,
+nothing else.
+
 If standalone reflection or merge ran earlier in the same session, branch on their retained phase
 states using the rules above; do not use the direct-invocation sentence to make a claim about phases
 whose state is unknown. Never infer the learning result from a diff.
@@ -347,6 +360,12 @@ section.
 Add `framework_version` from `<framework-root>/VERSION`.
 
 If Step 1.5 succeeded, add `usage:` from the stats JSON. Include `cost_usd` only when the stats JSON has a non-null value.
+
+**Before writing the file, confirm Step 1.5 actually ran.** You should be able to point at a
+`session-takeover --find-by-uuid` call in this session, and — unless it printed no path — a
+`session-takeover stats` call after it. If neither appears, you skipped a required step: go back
+and run Step 1.5 now. If it ran and failed, the `usage:` block is correctly absent and the
+warning line from Step 1.5 belongs in your output.
 
 ### Step 9: Compose guest summaries (if applicable)
 

@@ -164,15 +164,33 @@ Only after all versions in step 2 succeed:
 
 ### Step 4: Publish the completed update
 
-Follow `docs/update.md` § **Automatic Publication** for this repo, using the pre-state captured in
-Step 1d. Treat only files written by the migrations plus `lore-repo.md` as update-owned.
+**Stamping is not the end of the upgrade — this step is not optional.** Follow
+`docs/update.md` § **Automatic Publication** for this repo now, using the
+pre-state captured in Step 1d. Treat only files written by the migrations plus `lore-repo.md` as
+update-owned. That section owns the commit-gate rules; they are not repeated here.
 
-Commit and push are best-effort. A publication failure never fails boot, never reverses a
-successful migration, and never permits a force-push or inclusion of unrelated local work.
+Commit and push are best-effort *in outcome*, not in attempt: "best-effort" licenses a
+publication that fails or is refused by the gate, never one that is silently never tried. A
+publication failure never fails boot, never reverses a successful migration, and never permits a
+force-push or inclusion of unrelated local work.
+
+**Completion check — run this before leaving Step 4:**
+
+```
+git -C "<lore-agent-repo>" status --porcelain
+```
+
+Every update-owned path must now be either (a) committed, or (b) still dirty *with a specific
+reason from update.md's commit gate that you will state in Step 5*. An update-owned path left
+dirty with no reason to report means this step did not happen — go back and do it. Stamping the
+version and continuing the boot with the stamp uncommitted is the exact outcome this step exists
+to prevent, and it is invisible to the user unless you check.
 
 ### Step 5: Inform the user
 
-Print a brief summary:
+**Print exactly one of these lines. It is Step 4's observable result, not optional commentary** —
+a boot that upgraded a repo and said nothing about publication is indistinguishable to the user
+from one that skipped Step 4 entirely:
 - `<lore-agent-repo>: upgraded from R to F; committed and pushed`
 - Or the truthful partial outcome: committed locally but push failed, or publication skipped with
   the reason and the update changes left uncommitted

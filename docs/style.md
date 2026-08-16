@@ -38,6 +38,12 @@ Accept selectors separated by spaces or commas. The allowed selectors are:
    component names in that order; for `off`, say `Style set: off.` Then keep that exact style set
    until the user calls `/lr:style` again or selects `off`.
 
+   **This confirmation is mandatory and is the skill's only observable result.** Adopting the
+   style silently looks identical to ignoring the invocation, because the components change *how*
+   you write, not *whether* you reply. If your turn does not contain a `Style set: ...` line, you
+   have not completed this procedure. When the same turn also answers a user question, print the
+   confirmation first, then answer — in the newly selected style.
+
 Examples:
 
 - `/lr:style` or `/lr:style all` — plain + dialogue + follow
