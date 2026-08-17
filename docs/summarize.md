@@ -268,6 +268,14 @@ The stats verb, for reference — you do not invoke it separately:
 
    The stats JSON carries the models list and `models_source`, token totals (or `tokens: null` when the engine doesn't expose them), cost (`cost_usd` + `cost_source`, the latter one of `reported` / `computed` / `unavailable`), `framework_version`, and `started` — the native log's earliest message timestamp, which also feeds Step 3's `start` (see Step 3). The file remains in `<scratch>` and is never committed.
 
+**Carry the result forward from here.** The stats JSON only matters if it reaches the document, so
+record now, as a pending frontmatter field, that the host summary gets a `usage:` block built from
+this JSON — `models`, `models_source`, `tokens`, and `cost_usd` / `cost_source` per the schema
+above — when you assemble frontmatter in Step 10. Do not rely on reading that later section to
+remind you: this document is long, and an agent that pages through it can reach the assembly step
+having forgotten that a `usage:` block is owed. If Step 2 produced a stats JSON, a host summary
+without `usage:` is incomplete; if it did not, the warning line above is owed instead.
+
 `session-takeover archive` remains available as a manual, dormant maintenance command. Summarize and finalize must not invoke it; any future use or redesign requires an explicit feature decision.
 
 ### Step 3: Resolve host, participants, and timestamps

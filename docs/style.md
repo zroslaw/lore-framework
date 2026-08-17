@@ -34,16 +34,12 @@ Accept selectors separated by spaces or commas. The allowed selectors are:
    - `docs/plain-language.md` for `plain`
    - `docs/dialogue.md` for `dialogue`
    - `docs/follow-me.md` for `follow`
-5. Confirm in one short sentence, using the selected component names in the canonical order
-   `plain`, `dialogue`, `follow`. The line is fixed text, not a paraphrase — emit exactly the
-   form matching the number of selected components:
+5. Confirm in one short sentence: `Style set: <names>.` — where `<names>` lists **the components
+   you actually selected in step 2**, in the canonical order `plain`, `dialogue`, `follow`. Never
+   copy the component names from this document; substitute your own resolved set.
 
-   | Selected | Exact confirmation line |
-   |---|---|
-   | all three | `Style set: plain, dialogue, and follow.` |
-   | two | `Style set: plain and dialogue.` (`and` between them, no comma) |
-   | one | `Style set: plain.` |
-   | none (`off`) | `Style set: off.` |
+   Punctuation of `<names>`, by count: three → `a, b, and c`; two → `a and b` (no comma); one →
+   `a`; none (`off`) → the word `off`.
 
    Then keep that exact style set until the user calls `/lr:style` again or selects `off`.
 
