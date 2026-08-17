@@ -57,7 +57,15 @@ that had lore updates in phase 2 — a short guest summary into the guest's `ses
 summaries for a session share the session UUID. Summarize is additive — its failure does not roll
 back reflect or merge.
 
-Phase 3 includes summarize Step 2: a required, non-blocking attempt to collect aggregate `usage` metadata from the native session log. It must not create or commit a transcript archive. Before committing, verify that the host summary has optional `usage:` frontmatter only when the stats command succeeded, or report the exact reason it was omitted.
+**Run summarize's Step 2 first, as the opening action of this phase** — before composing any
+narrative. It is a required, non-blocking attempt to collect aggregate `usage` metadata from the
+native session log, and it is the step most often lost: `summarize.md` is long, agents page
+through it, and a step whose output is only consumed hundreds of lines later is easy to read past
+and never perform. Doing it first also gives you the true session `start` timestamp for free.
+
+It must not create or commit a transcript archive. Before committing, verify that the host summary
+carries `usage:` frontmatter when the stats command succeeded, or states the exact reason it was
+omitted. A summary with neither is a defect, not a permitted outcome.
 
 ## Phase 4 — Commit and Push
 
