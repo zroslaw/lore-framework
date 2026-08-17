@@ -116,13 +116,6 @@ These files now live in the host's working context alongside the host's own role
 
 ### Step 5: Confirm
 
-**Print this report before doing anything else the user asked for in the same turn.** It is
-attach's only observable result: a guest's knowledge changes *what* you answer, not *whether* you
-answer, so an attach that loads the guest silently and goes straight to the requested work is
-indistinguishable from one that never attached. If your turn does not contain an `Attached: ` line,
-you have not completed this procedure — and summarizing the same facts in your own prose
-(naming the guest, listing active agents) does not substitute for the report.
-
 Print this standard report:
 
 ```text

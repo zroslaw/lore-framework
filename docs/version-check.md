@@ -174,17 +174,25 @@ publication that fails or is refused by the gate, never one that is silently nev
 publication failure never fails boot, never reverses a successful migration, and never permits a
 force-push or inclusion of unrelated local work.
 
-**Completion check — run this before leaving Step 4:**
+**Completion check — run both of these before leaving Step 4:**
 
 ```
 git -C "<lore-agent-repo>" status --porcelain
+git -C "<lore-agent-repo>" status -sb
 ```
 
-Every update-owned path must now be either (a) committed, or (b) still dirty *with a specific
-reason from update.md's commit gate that you will state in Step 5*. An update-owned path left
-dirty with no reason to report means this step did not happen — go back and do it. Stamping the
-version and continuing the boot with the stamp uncommitted is the exact outcome this step exists
-to prevent, and it is invisible to the user unless you check.
+The first must show every update-owned path either (a) committed, or (b) still dirty *with a
+specific reason from update.md's commit gate that you will state in Step 5*. An update-owned path
+left dirty with no reason to report means this step did not happen — go back and do it.
+
+The second must show the branch **not ahead of its upstream** (no `[ahead N]`), or you must have a
+push failure or skip reason to state in Step 5. **A clean working tree is not proof of
+publication** — committing without pushing leaves `status --porcelain` empty while the update is
+still unpublished, so checking only the first command reports success for a job half done.
+
+Stamping the version and continuing the boot with the stamp uncommitted — or committed but never
+pushed — is the exact outcome this step exists to prevent, and neither is visible to the user
+unless you check.
 
 ### Step 5: Inform the user
 
