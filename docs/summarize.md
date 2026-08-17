@@ -225,19 +225,40 @@ permitted outcome. A summary whose frontmatter has no `usage:` block and whose r
 the step, you must say so in one line — `warning: usage metadata unavailable — <reason>` — so
 the omission is visible rather than silent.
 
-1. **Resolve this session's native log.** The UUID generated in Step 1 has, by now, already appeared in the engine's transcript (the `python3` command that printed it *is* a recorded tool call). Use that to find which native log on disk is this session's:
+**Run both commands as one shell invocation.** The UUID generated in Step 1 has, by now, already
+appeared in the engine's transcript (the `python3` command that printed it *is* a recorded tool
+call), so the log can be resolved and consumed in a single pipeline:
 
-   ```bash
-   <framework-root>/scripts/session-takeover --find-by-uuid <full-uuid> --engine <engine>
-   ```
+```bash
+LR_LOG=$("<framework-root>/scripts/session-takeover" --find-by-uuid "<full-uuid>" --engine <engine>) \
+  && "<framework-root>/scripts/session-takeover" stats "$LR_LOG" \
+       --stats "<scratch>/session-stats.json" \
+       --engine <engine>
+```
 
-   where `<framework-root>` is the framework root resolved at boot (the dir holding `VERSION`) and `<engine>` is the current engine (`claude`, `codex`, or `cursor`). This prints the resolved native log path on stdout.
+where `<framework-root>` is the framework root resolved at boot (the dir holding `VERSION`) and
+`<engine>` is the current engine (`claude`, `codex`, or `cursor`).
 
-   **How to read the result — this is the one spot models get wrong, so follow it exactly:**
-   - **A path was printed on stdout → use it and continue to sub-step 3.** This is the success case. It stays the success case *even if a `warning:` line was also printed on stderr* — the warning only means the tool couldn't confirm the UUID and fell back to the most-recently-modified log for this engine (normal for Cursor, whose printed output isn't grep-able; and for any engine whose transcript hasn't flushed the UUID line yet). A stderr warning is **not** a skip signal.
-   - **Only skip the rest of this step (warn and continue to Step 3) if the command printed _no path at all_ on stdout, or exited non-zero** — that means there were genuinely no candidate logs from which to calculate usage.
+**Do not run these as two separate calls, and never retype the resolved path.** Pass it through
+the variable. The resolved path is an *encoded* project-directory name in which the engine has
+already rewritten characters — Claude Code, for example, replaces `_` with `-`, so a log under
+`/var/folders/hg/qg98pkvd2_b36f68gr_qqp7w0000gn/` resolves to a directory spelled
+`...-hg-qg98pkvd2-b36f68gr-qqp7w0000gn-...`. Retyped by hand, that reads like a typo of a path
+you have seen all session, and "correcting" the hyphens back to underscores yields
+`is neither a file nor a known session id` — the observed failure this pipeline exists to
+prevent. The path is opaque: copy it, never normalize it.
 
-2. **Capture usage stats.** Run the stats verb before assembling final frontmatter:
+**How to read the result:**
+- **The pipeline printed stats → continue to Step 3.** This is the success case, and it stays the
+  success case *even if a `warning:` line was also printed on stderr* — the warning only means the
+  tool couldn't confirm the UUID and fell back to the most-recently-modified log for this engine
+  (normal for Cursor, whose printed output isn't grep-able; and for any engine whose transcript
+  hasn't flushed the UUID line yet). A stderr warning is **not** a skip signal.
+- **Only skip the rest of this step (warn and continue to Step 3) if `--find-by-uuid` printed _no
+  path at all_ on stdout, or exited non-zero** — that means there were genuinely no candidate logs
+  from which to calculate usage.
+
+The stats verb, for reference — you do not invoke it separately:
 
    ```bash
    <framework-root>/scripts/session-takeover stats <resolved-log> \
