@@ -11,7 +11,7 @@ evolving body of context and knowledge — **Lore** — and reuse it in future w
 direction; they manage the context they need to learn and grow.
 
 **In this README:** [How it works](#how-it-works) · [Get started](#get-started) ·
-[How Lore is stored](#how-lore-is-stored) · [Agents working together](#agents-working-together) ·
+[How Lore is stored](#how-lore-is-stored) · [A team of specialists](#a-team-of-specialists) ·
 [At workspace scale](#at-workspace-scale) · [Use cases](#use-cases) · [Concepts](#concepts) ·
 [Skills](#skills) · [Directory layout](#directory-layout)
 
@@ -105,17 +105,20 @@ agent updates the knowledge graph itself; Git provides history, versioning, revi
 with a team or other Lore Agent users. Run [`/lr:groom`](docs/groom.md) periodically to improve the
 Lore's structure, links, concision, and retrieval quality.
 
-## Agents working together
+## A team of specialists
 
-Some tasks need expertise from more than one domain. Three commands cover the range, from a quick
-question to full co-work:
+Some tasks need more than one domain's expertise. Bring the specialists you need into a single
+session and work them together:
 
-- **[`/lr:recall`](docs/recall.md)** — search the Lore of every agent already in the session.
-- **[`/lr:consult <agent>`](docs/consult.md)** — ask another specialist a one-off question without
-  loading it.
-- **[`/lr:attach <agent>`](docs/attach.md)** — summon a specialist into the current session for
-  sustained co-work. The booted agent stays in charge; each attached agent contributes its role and
-  knowledge, so the task is worked with the combined expertise of everyone present.
+- **[`/lr:attach <agent>`](docs/attach.md)** — summon another specialist into the current session
+  and keep it there for sustained co-work. Attach as many as the task needs: each contributes its
+  role and its Lore, so the work proceeds with the combined expertise of everyone present. The
+  booted agent stays in charge.
+- **[`/lr:consult <agent>`](docs/consult.md)** — ask a specialist a one-off question without
+  bringing it in. It boots, answers, and steps back out. Attach it instead once the exchange turns
+  into real co-work.
+- **[`/lr:recall`](docs/recall.md)** — search deep into the Lore of every agent now in the
+  session: the booted agent and each attached specialist searching its own knowledge in parallel.
 
 And the learning stays focused: when you finalize a shared session, each agent reflects from its
 own perspective and updates its own Lore with what fits its role — all learn from the common
