@@ -703,19 +703,7 @@ def cmd_preflight(args, res):
     of those: report pull as "skipped" and version as "unknown", and run no
     git subprocess at all.
 
-    Step 7: detect an Agent-Teams teammate spawn (see detect_teammate below for
-    the exact `ps -o args= -p <ppid>` walk and the `--agent-id` flag-boundary
-    match), unless --no-teammate-check suppressed it.
-
-    On engines whose profile gates teammate detection off, this step needs no
-    suppression and the caller must not be asked to pre-decide it: Step 2 is
-    what learns the engine, so a flag chosen before the call could only be
-    guessed. Running the probe anyway is safe by construction — a sandbox that
-    blocks `ps` yields "unknown", an engine that allows it yields "no", and
-    every caller treats those two identically. --no-teammate-check remains for
-    callers that want to skip the two `ps` calls outright.
-
-    Step 8: after the whole Step 5/6 `if/else` block and before Step 7's
+    Step 7: after the whole Step 5/6 `if/else` block and before Step 8's
     teammate detection, run the workspace-level auto-refresh leg (see
     `lr_core.workspace_refresh.run_workspace_refresh`): TTL/lock-guarded,
     resolves the true workspace root under the `.worktrees/<repo>/<slug>/`
@@ -728,6 +716,18 @@ def cmd_preflight(args, res):
     way it bypasses the agent-repo pull's. Never raises: every outcome is a
     status value in `data.workspace_refresh`, never an exception that would
     turn this whole preflight call into the exit-2 manual-boot fallback.
+
+    Step 8: detect an Agent-Teams teammate spawn (see detect_teammate below for
+    the exact `ps -o args= -p <ppid>` walk and the `--agent-id` flag-boundary
+    match), unless --no-teammate-check suppressed it.
+
+    On engines whose profile gates teammate detection off, this step needs no
+    suppression and the caller must not be asked to pre-decide it: Step 2 is
+    what learns the engine, so a flag chosen before the call could only be
+    guessed. Running the probe anyway is safe by construction — a sandbox that
+    blocks `ps` yields "unknown", an engine that allows it yields "no", and
+    every caller treats those two identically. --no-teammate-check remains for
+    callers that want to skip the two `ps` calls outright.
     """
     workspace = os.path.abspath(args.workspace)
     root = resolve_framework_root(args.framework_root)
@@ -809,7 +809,7 @@ def cmd_preflight(args, res):
                                "framework": fw_version,
                                "detail": "no enclosing lore repo"}
 
-    # Step 8: workspace-level auto-refresh, regardless of which branch above
+    # Step 7: workspace-level auto-refresh, regardless of which branch above
     # ran — a repo-less agent dir says nothing about the surrounding
     # workspace. Deferred import: workspace_refresh imports workspace_scan,
     # which imports this module at load time, so importing it at this
@@ -823,7 +823,7 @@ def cmd_preflight(args, res):
         framework_root=args.framework_root,
     )
 
-    # Step 7: teammate detection, unless suppressed.
+    # Step 8: teammate detection, unless suppressed.
     res.data["teammate"] = detect_teammate() if not args.no_teammate_check else {
         "verdict": "unknown", "detail": "check suppressed by --no-teammate-check",
         "scanned": 0}
