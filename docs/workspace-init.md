@@ -334,12 +334,14 @@ user can judge the alignment as a complete set. Ask one yes/no to apply the rout
 updates. `no` leaves the routing files unchanged and continues to Step 8 with only the base init
 changes.
 
-Before proposing a target, require that exact file to be clean in both index and worktree; a
-pre-existing edit is a collision, not part of this run. Record its pre-write content hash and the
-approved post-write bytes and hash. At the write boundary, re-read every target. If its hash differs
-from the recorded pre-write hash, stop instead of overwriting concurrent work. Otherwise update only the
-`description` scalar or `repo-context` block, then regenerate both managed routing sections in
-`AGENTS.md` from the just-written canonical sources.
+Use the post-Step-4 bytes as the baseline for files Step 4 changed; those approved init writes must
+not disqualify `lore-workspace.md` or `AGENTS.md`. For every other target, require the file to have
+been clean in both index and worktree before this run; a pre-existing edit is a collision. Record
+each target's baseline hash, including `AGENTS.md`, plus its approved post-write bytes and hash. At
+the write boundary, re-read every target and stop if its hash changed. Otherwise update only the
+`description` scalar or `repo-context` block, then regenerate only the managed routing sections in
+`AGENTS.md`, preserving all user-owned content. Re-read and hash every written target again for the
+Step 8 staging guard.
 
 ### Step 8 — One publication approval
 

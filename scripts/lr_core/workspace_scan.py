@@ -436,12 +436,22 @@ def repo_context_entries(workspace):
                 break
             body.append(line)
 
-    raw_entries, parse_issues, current, in_block = [], [], None, False
-    for line_no, line in enumerate(body, 2):
-        if not in_block:
-            if line == "repo-context:":
-                in_block = True
-            continue
+    headers = [(index, line) for index, line in enumerate(body)
+               if re.match(r"^repo-context\s*:", line)]
+    parse_issues = []
+    exact_headers = [item for item in headers if item[1] == "repo-context:"]
+    for index, line in headers:
+        if line != "repo-context:":
+            parse_issues.append({"line": index + 2,
+                                 "reason": "repo-context must be a block"})
+    for index, _line in exact_headers[1:]:
+        parse_issues.append({"line": index + 2,
+                             "reason": "duplicate repo-context block"})
+
+    raw_entries, current = [], None
+    start = exact_headers[0][0] + 1 if exact_headers else len(body)
+    for body_index in range(start, len(body)):
+        line, line_no = body[body_index], body_index + 2
         if line and not line.startswith((" ", "\t")):
             break
         if not line.strip() or line.lstrip().startswith("#"):
@@ -923,10 +933,22 @@ def build_findings(data):
     if violations:
         add("S10", "warn", {"violations": violations})
 
-    registered = set()
-    for names in data["shortcuts"].values():
-        registered.update(names)
-    unregistered = [a for a in data["agents"] if a not in registered]
+    routing_agents = (data.get("routing") or {}).get("agents")
+    if routing_agents is not None:
+        name_counts = {}
+        for agent in routing_agents:
+            name_counts[agent["name"]] = name_counts.get(agent["name"], 0) + 1
+        unregistered = [
+            ("%s/%s" % (agent["repo"], agent["name"])
+             if name_counts[agent["name"]] > 1 else agent["name"])
+            for agent in routing_agents if not agent["registered"]
+        ]
+    else:
+        # Compatibility for callers constructing the pre-routing scan envelope.
+        registered = set()
+        for names in data["shortcuts"].values():
+            registered.update(names)
+        unregistered = [a for a in data["agents"] if a not in registered]
     if unregistered:
         add("S11", "info", {"agents": unregistered})
 
