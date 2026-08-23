@@ -62,6 +62,45 @@ MANAGED_PATHS = (
 # same file.
 STANDARD_IGNORE_LINES = ("/.worktrees/", "/.lr-beings/", "/.tmp/")
 
+
+def ensure_tmp_ignored(workspace):
+    """Idempotently ensure the standard `/.tmp/` line is present in the
+    workspace `.gitignore`, appending it if missing. Skipped when `workspace`
+    is not a git repo. Never raises and never commits.
+
+    The reader for this line (`gitignore_lines` + `STANDARD_IGNORE_LINES`
+    above) has never had a writer of its own — the append logic exists only in
+    bash inside `workspace-pull` phase 3. This is a second implementation of
+    one rule in two languages, which is the exact drift pattern that has
+    already cost this codebase two silent bugs elsewhere in this module (see
+    `parse_frontmatter`'s regression-risk comment). It is accepted here only
+    because the rule is a single exact-line append, and it lives next to
+    `STANDARD_IGNORE_LINES` so a future change to the ignore set has one
+    obvious place to look for both halves.
+
+    Exists so `lr_core.workspace_refresh` can guarantee `/.tmp/` is ignored
+    before its very first state-file write: on a workspace that has never run
+    `workspace-pull` or `workspace-init`, there is otherwise a window where the
+    state file exists and is not yet ignored — and this workspace has a
+    documented incident of a concurrent session's directory-wide `git add`
+    committing another session's uncommitted work.
+    """
+    try:
+        if not (os.path.isdir(os.path.join(workspace, ".git"))
+                or os.path.isfile(os.path.join(workspace, ".git"))):
+            return
+        gitignore = os.path.join(workspace, ".gitignore")
+        text = read_text(gitignore)
+        lines = (text or "").split("\n")
+        if "/.tmp/" in [ln.strip() for ln in lines]:
+            return
+        with open(gitignore, "a", encoding="utf-8") as fh:
+            if text and not text.endswith("\n"):
+                fh.write("\n")
+            fh.write("/.tmp/\n")
+    except (IOError, OSError):
+        pass
+
 # The canonical level-2 headings of the v3 memory-file payload, in canonical
 # order (docs/workspace-init.md § Canonical payload).
 MEMORY_SECTIONS = (
@@ -866,94 +905,100 @@ def build_findings(data):
 # Command
 # --------------------------------------------------------------------------
 
-def cmd_workspace_scan(args, res):
+def run_workspace_scan(workspace, framework_root=None, engine_override=None):
     """One read-only pass over the workspace. These steps ARE the procedure.
 
-    Step 1: resolve `<workspace>` to an absolute path. Not a directory ->
-    `emit_fatal` (exit 2): the caller cannot proceed on partial data.
+    This is `cmd_workspace_scan`'s body, extracted so an in-process caller
+    (the workspace-refresh leg, `lr_core.workspace_refresh`) can run a scan
+    without paying for a subprocess, a CLI re-parse, and a JSON round-trip —
+    `preflight.py` already calls sibling functions like `detect_engine` and
+    `compare_versions` the same way. `cmd_workspace_scan` below is now a thin
+    wrapper that adapts this function's return shape onto a `Result`; the CLI
+    output it produces must not change.
 
-    Step 2: decide **applicability**. This is a workspace root when
+    Assumes `workspace` is already known to be a real directory — the caller
+    is responsible for that check (see `cmd_workspace_scan` Step 1).
+
+    Step 1: decide **applicability**. This is a workspace root when
     `lore-workspace.md` exists, or at least one top-level subdirectory contains
-    `lore-repo.md`. Not applicable -> emit `applicable: false` with no findings
-    and exit 0. Every consumer skips on that flag; it is not an error, and a
-    `/lr:check` run from inside an agent repo reaches it routinely.
+    `lore-repo.md`. Not applicable -> `applicable: false` with no findings.
+    Every consumer skips on that flag; it is not an error, and a `/lr:check`
+    run from inside an agent repo reaches it routinely.
 
-    Step 3: collect git state (`git_state`), descriptors (`declared_repos`,
+    Step 2: collect git state (`git_state`), descriptors (`declared_repos`,
     `.gitignore`), children (`scan_children`), memory files (`memory_state`),
     shortcuts (`shortcut_inventory`), worktrees (`worktree_inventory`), and the
     agents present on disk (`preflight.discover_workspace`).
 
-    Step 4: classify `git status --porcelain -z` output (`status_paths`) into
+    Step 3: classify `git status --porcelain -z` output (`status_paths`) into
     `managed_paths.dirty` and `managed_paths.other_dirty` using `is_managed`.
     Emit `managed_paths.set` verbatim — `/lr:workspace-push` stages from this
     field, and no doc restates the set.
 
-    Step 5: select the engine profile via `preflight.detect_engine` — never a
+    Step 4: select the engine profile via `preflight.detect_engine` — never a
     second detector, and never the executing model's belief about itself. No
     finding is gated on it since v37 (S15 was, until Codex shortcuts became
     workspace-local); it is emitted as `data.engine` for consumers that render
     engine-native invocation syntax, and stays `unknown` on an `assumed`
     verdict rather than being guessed.
 
-    Step 6: derive findings (`build_findings`) and emit. Findings never set a
-    nonzero exit; exit 0 means the scan ran, exit 2 means it could not.
-    """
-    workspace = os.path.abspath(args.workspace)
-    if not os.path.isdir(workspace):
-        res.fail("workspace not found: %s" % workspace)
-        res.data = {"workspace": workspace, "applicable": False}
-        return res
+    Step 5: derive findings (`build_findings`) and return.
 
-    root = resolve_framework_root(getattr(args, "framework_root", None))
-    engine = detect_engine(root, override=getattr(args, "engine", None))
+    Returns `(data, warnings)` — a plain dict and a list of warning strings, in
+    the same order `cmd_workspace_scan` used to call `res.warn`.
+    """
+    warnings = []
+    root = resolve_framework_root(framework_root)
+    engine = detect_engine(root, override=engine_override)
 
     has_workspace_descriptor = os.path.isfile(
         os.path.join(workspace, "lore-workspace.md"))
     applicable = has_workspace_descriptor or bool(find_repos(workspace))
 
-    res.data["workspace"] = workspace
-    res.data["applicable"] = applicable
-    res.data["engine"] = engine["name"] if engine["confidence"] != "assumed" \
-        else "unknown"
+    data = {
+        "workspace": workspace,
+        "applicable": applicable,
+        "engine": engine["name"] if engine["confidence"] != "assumed" else "unknown",
+    }
     if not applicable:
-        res.data["findings"] = []
-        return res
+        data["findings"] = []
+        return data, warnings
 
     ws_descriptor = os.path.join(workspace, "lore-workspace.md")
     ws_fm = _frontmatter_of(ws_descriptor)
     if frontmatter_unterminated(ws_descriptor):
-        res.warn("lore-workspace.md has no closing --- after its frontmatter; "
-                 "declarations read from it may be incomplete or spurious")
+        warnings.append("lore-workspace.md has no closing --- after its frontmatter; "
+                        "declarations read from it may be incomplete or spurious")
     for repo_path in find_repos(workspace):
         if frontmatter_unterminated(os.path.join(repo_path, "lore-repo.md")):
-            res.warn("%s/lore-repo.md has no closing --- after its frontmatter; "
-                     "declarations read from it may be incomplete or spurious"
-                     % os.path.basename(repo_path))
+            warnings.append("%s/lore-repo.md has no closing --- after its frontmatter; "
+                            "declarations read from it may be incomplete or spurious"
+                            % os.path.basename(repo_path))
     ignore_lines = gitignore_lines(workspace)
     declared = declared_repos(workspace)
 
     for entry in declared:
         if entry["dirname"] is None:
-            res.warn("unsafe directory name derived from declared repo %s — "
-                     "skipped (see derive_dirname)" % entry["url"])
+            warnings.append("unsafe directory name derived from declared repo %s — "
+                            "skipped (see derive_dirname)" % entry["url"])
 
     children = scan_children(workspace, declared, ignore_lines)
     for child in children:
         if child["escapes_workspace"]:
-            res.warn("%s is a symlink resolving outside the workspace — not "
-                     "inspected" % child["dirname"])
+            warnings.append("%s is a symlink resolving outside the workspace — not "
+                            "inspected" % child["dirname"])
 
     gstate = git_state(workspace)
     if gstate["tracked"] and not gstate["own_root"]:
-        res.warn("workspace is not the root of its own git repo (encloses under "
-                 "%s) — git findings are suppressed" % gstate["enclosing_root"])
+        warnings.append("workspace is not the root of its own git repo (encloses under "
+                        "%s) — git findings are suppressed" % gstate["enclosing_root"])
 
     dirty, other_dirty = [], []
     if gstate["tracked"] and gstate["own_root"]:
         paths = status_paths(workspace)
         if paths is None:
-            res.warn("git status could not be read — dirty-path findings "
-                     "(S1, S12) are suppressed")
+            warnings.append("git status could not be read — dirty-path findings "
+                            "(S1, S12) are suppressed")
         else:
             for path in paths:
                 # Framework-owned scratch state (`.worktrees/`, `.lr-beings/`,
@@ -969,17 +1014,17 @@ def cmd_workspace_scan(args, res):
 
     _, agents = discover_workspace(workspace)
 
-    res.data["git"] = {k: v for k, v in gstate.items()}
-    res.data["descriptors"] = {
+    data["git"] = {k: v for k, v in gstate.items()}
+    data["descriptors"] = {
         "lore_workspace": has_workspace_descriptor,
         "sharing": ws_fm.get("sharing") or None,
         "declared": declared,
         "gitignore_lines": ignore_lines,
     }
-    res.data["children"] = children
-    res.data["memory"] = memory_state(workspace)
-    res.data["shortcuts"] = shortcut_inventory(workspace)
-    res.data["agents"] = [a["name"] for a in agents]
+    data["children"] = children
+    data["memory"] = memory_state(workspace)
+    data["shortcuts"] = shortcut_inventory(workspace)
+    data["agents"] = [a["name"] for a in agents]
     # Agent names grouped by their repo's directory name. No finding consumes
     # this since v37 (the old per-repo S15 did); it stays in the envelope
     # because the flat `agents` list cannot answer "which repo is this agent
@@ -989,16 +1034,40 @@ def cmd_workspace_scan(args, res):
     for agent in agents:
         repo_dir = os.path.basename(agent["repo"]) if agent["repo"] else "(no repo)"
         agents_by_repo.setdefault(repo_dir, []).append(agent["name"])
-    res.data["agents_by_repo"] = agents_by_repo
-    res.data["worktrees"] = worktree_inventory(workspace) \
+    data["agents_by_repo"] = agents_by_repo
+    data["worktrees"] = worktree_inventory(workspace) \
         if gstate["tracked"] and gstate["own_root"] else []
-    res.data["managed_paths"] = {
+    data["managed_paths"] = {
         "set": list(MANAGED_PATHS),
         "standard_ignore_lines": list(STANDARD_IGNORE_LINES),
         "dirty": dirty,
         "other_dirty": other_dirty,
     }
-    res.data["findings"] = build_findings(res.data)
+    data["findings"] = build_findings(data)
+    return data, warnings
+
+
+def cmd_workspace_scan(args, res):
+    """CLI entry point. Step 1: resolve `<workspace>` to an absolute path. Not
+    a directory -> `emit_fatal` (exit 2): the caller cannot proceed on partial
+    data. Otherwise delegate to `run_workspace_scan` and adapt its
+    `(data, warnings)` return onto `res`. See `run_workspace_scan` for the
+    rest of the procedure. Findings never set a nonzero exit; exit 0 means the
+    scan ran, exit 2 means it could not.
+    """
+    workspace = os.path.abspath(args.workspace)
+    if not os.path.isdir(workspace):
+        res.fail("workspace not found: %s" % workspace)
+        res.data = {"workspace": workspace, "applicable": False}
+        return res
+
+    data, warnings = run_workspace_scan(
+        workspace,
+        framework_root=getattr(args, "framework_root", None),
+        engine_override=getattr(args, "engine", None))
+    res.data = data
+    for w in warnings:
+        res.warn(w)
     return res
 
 

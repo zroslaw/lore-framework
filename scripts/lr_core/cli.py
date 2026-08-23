@@ -31,7 +31,14 @@ def build_parser():
                             "(default: %d; 0 disables the cache)." % DEFAULT_PULL_TTL_SEC)
     p_pre.add_argument("--fresh", action="store_true",
                        help="Bypass the TTL cache and always pull.")
-    p_pre.add_argument("--no-pull", action="store_true", help="Skip the pull entirely.")
+    p_pre.add_argument("--no-pull", action="store_true",
+                       help="Skip the agent-repo pull AND the workspace-level refresh.")
+    p_pre.add_argument("--workspace-ttl", type=int, default=DEFAULT_WORKSPACE_TTL_SEC,
+                       help="Refresh the whole workspace if the last attempt is older "
+                            "than N seconds (default: %d; 0 always refreshes)."
+                            % DEFAULT_WORKSPACE_TTL_SEC)
+    p_pre.add_argument("--no-workspace-refresh", action="store_true",
+                       help="Skip the workspace-level refresh leg entirely.")
     p_pre.add_argument("--no-teammate-check", action="store_true",
                        help="Skip the teammate process-ancestry inspection.")
     p_pre.add_argument("--engine", default=None, choices=sorted(set(ENGINE_PROGRAMS.values())),

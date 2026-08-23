@@ -25,6 +25,14 @@ PS_TIMEOUT_SEC = 10
 GIT_UNRUNNABLE = None
 DEFAULT_PULL_TTL_SEC = 600
 DEFAULT_STALE_DAYS = 180
+# Workspace-level auto-refresh (docs/agent-boot.md, the leg after the
+# agent-repo pull). 16h always clears overnight regardless of what time work
+# started; a 24h window drifts later every day it triggers.
+DEFAULT_WORKSPACE_TTL_SEC = 57600
+# Max bounded refresh is ~90s (workspace-pull) + scan time; 300s leaves margin
+# for a slow machine without letting a genuinely dead lock block a full TTL
+# window.
+WORKSPACE_LOCK_STALE_SEC = 300
 # How far up the process tree to look for the Agent-Teams marker. The engine is
 # typically the grandparent (script -> shell -> engine); the extra headroom
 # covers wrapper scripts.
@@ -236,26 +244,34 @@ def git(repo, args, timeout=GIT_TIMEOUT_SEC, env_extra=None):
     return run(["git", "-C", repo] + args, timeout, env_extra=env)
 
 
-def parse_frontmatter(text):
-    """Parse the minimal YAML subset the framework uses in descriptor files.
+def parse_yaml_subset(lines):
+    """Parse the minimal YAML subset the framework uses: `key: value`
+    (optionally quoted) and block sequences of the form `key:` followed by
+    `  - item` lines. Not a general YAML parser and does not need to be —
+    schemas that use it are fixed by docs/conventions.md (descriptor
+    frontmatter) or this feature's own state-file format (agent-boot.md's
+    workspace-refresh leg).
 
-    Supports `key: value` (optionally quoted) and block sequences of the form
-    `key:` followed by `  - item` lines. Not a general YAML parser and does not
-    need to be — descriptor schemas are fixed by docs/conventions.md.
+    ⚠ Regression risk — read before touching this function. Two scars, both
+    load-bearing:
+
+    1. Repeated block keys. A repeated `repos:` block must keep accumulating
+       into the existing list. Resetting made the Python side and
+       `workspace-pull`'s awk parser disagree about the declared repo set, and
+       URLs were lost silently.
+    2. `_strip_item_comment` must keep mirroring `workspace-pull`'s awk parser.
+       A rule applied on one side only produced a URL whose derived directory
+       name matched nothing on disk, so a correctly-cloned repo was reported
+       missing (S6) forever.
+
+    Acceptance bar for any change here: strictly behaviour-preserving. Every
+    existing test in both tests/test_lr_core.py and tests/test_workspace_scan.py
+    (including TestDuplicateBlockKey and TestListItemComments) must keep
+    passing unmodified.
     """
     out = {}
-    if not text:
-        return out
-    lines = text.split("\n")
-    if not lines or lines[0].strip() != "---":
-        return out
-    body = []
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
-        body.append(line)
     current_list_key = None
-    for line in body:
+    for line in lines:
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         item = re.match(r"^\s+-\s+(.*)$", line)
@@ -280,6 +296,29 @@ def parse_frontmatter(text):
             out[key] = _unquote(val)
             current_list_key = None
     return out
+
+
+def parse_frontmatter(text):
+    """Parse the `---`-fenced frontmatter block of a descriptor file.
+
+    Finds the fences and collects the body lines, then hands them to
+    `parse_yaml_subset` for the actual key/value and block-sequence parsing.
+    Fence detection lives here, not there: the state store (no fences) calls
+    `parse_yaml_subset` directly, and widening this function to make fences
+    optional would drop that check for every descriptor in the framework.
+    """
+    out = {}
+    if not text:
+        return out
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return out
+    body = []
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        body.append(line)
+    return parse_yaml_subset(body)
 
 
 def _unquote(val):
