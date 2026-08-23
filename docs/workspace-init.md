@@ -247,15 +247,10 @@ becomes a divergence.
 | A merge-base exists, neither is an ancestor | Diverged | **Stop.** Suggest `workspace-pull` (phase 0) then `workspace-push`. Never merge automatically |
 | **No merge-base at all** | Unrelated histories — a *join* onto someone else's workspace | **Stop** and offer two explicit choices — see *Adopting a remote* below. Never `--allow-unrelated-histories` automatically |
 
-**Fast-forwarding over Step 4's writes.** The behind case is the ordinary one, and it is the one
-where Step 4's uncommitted renders sit in the way: `git merge --ff-only origin/<branch>` aborts when
-the incoming commits touch a path Step 4 just wrote. Do **not** merge into the dirty tree, stash, or
-`checkout -f` the whole tree. Instead restore only the framework-managed paths the fast-forward
-complains about — `git checkout -- <path>` per path, never a bare `git checkout -- .` — fast-forward,
-then re-run Steps 1–5. Those paths are deterministic renders of managed sections, so discarding and
-re-rendering them loses nothing; a path outside the managed set is user content and is never
-discarded to clear the way. If the fast-forward still refuses, stop and report it rather than
-escalating to a stronger git command.
+**Fast-forwarding over Step 4's writes.** If the fetch shows that upstream advanced while this run
+was preparing files, stop and leave every file intact. Do not checkout, stash, or discard even a
+framework-managed path: `AGENTS.md` and `lore-workspace.md` may also contain user-owned content.
+Tell the user upstream changed and rerun after the workspace has been pulled or resolved.
 
 **Adopting a remote (the join case).** By the time Step 6 runs, Step 4 has already written
 `lore-workspace.md`, `.gitignore`, `README.md`, `AGENTS.md`, and possibly `CLAUDE.md` into the
@@ -339,8 +334,10 @@ user can judge the alignment as a complete set. Ask one yes/no to apply the rout
 updates. `no` leaves the routing files unchanged and continues to Step 8 with only the base init
 changes.
 
-At the write boundary, re-read every target. If any target differs from the version used to build
-the approved diff, stop instead of overwriting concurrent work. Otherwise update only the
+Before proposing a target, require that exact file to be clean in both index and worktree; a
+pre-existing edit is a collision, not part of this run. Record its pre-write content hash and the
+approved post-write bytes and hash. At the write boundary, re-read every target. If its hash differs
+from the recorded pre-write hash, stop instead of overwriting concurrent work. Otherwise update only the
 `description` scalar or `repo-context` block, then regenerate both managed routing sections in
 `AGENTS.md` from the just-written canonical sources.
 
@@ -350,12 +347,17 @@ Collect every Git root changed by this run. This may include the workspace repo 
 whose `lore-repo.md` or `role.md` changed. One approval covers the whole publication, but Git still
 requires one commit per repo.
 
-Before asking, for every affected repo:
+Before asking, for every affected child repo:
 
-1. Verify it is its own Git root, on a branch, and has no unresolved merge/rebase.
-2. Fetch its remote. Stop that repo on divergence or a non-fast-forward state; never merge or force.
+1. Verify it is its own Git root, on its default branch, and has no unresolved merge/rebase. Resolve
+   the default branch from `refs/remotes/origin/HEAD`; if it is unavailable, stop that repo.
+2. Require an origin push target, fetch it, and compare against the exact fetched
+   `origin/<default-branch>` ref. Stop on remote-only commits or divergence; never merge or force.
 3. List the exact paths this run owns, their diffstats, the commit message, push target, unrelated
    dirty paths that remain untouched, and already-committed changes that would ride along.
+
+For the workspace root, reuse Step 6's remote decision; a local-only workspace may be committed
+without being pushed.
 
 Use one final prompt:
 
@@ -369,7 +371,9 @@ Proceed? (yes/no)
 
 `no` leaves the approved file updates on disk, uncommitted.
 
-On `yes`, stage and commit only the explicit owned paths in each repo, deletion-aware. Use
+On `yes`, first verify every owned target still has the exact approved post-write hash. Stop that
+repo if any byte changed. Then stage and commit only the explicit owned paths in each repo,
+deletion-aware. Use
 `chore(lore): improve workspace routing descriptions` for repos with routing changes and
 `chore(lore): initialize lore workspace` for a founding workspace with base artifacts only. Verify
 each created commit contains no path outside its approved set; undo an invalid commit with
@@ -378,8 +382,10 @@ each created commit contains no path outside its approved set; undo an invalid c
 Push child repos first and the workspace repo last. That ordering prevents a shared `AGENTS.md` from
 advertising canonical descriptions that failed to publish. A multi-repo push is not atomic: on any
 failure, stop later pushes, never roll back or force-push the successful ones, and report exactly
-which repos were pushed, committed only, or untouched. A repo without a remote is committed only,
-as disclosed in the plan.
+which repos were pushed, committed only, or untouched. An affected child without a usable push
+target blocks the workspace push: a local-only child commit cannot make the canonical description
+available to teammates. The workspace root itself may still be committed without a remote, as
+disclosed in the plan.
 
 ### Step 9 — Summary
 

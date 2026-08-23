@@ -427,13 +427,43 @@ def repo_context_entries(workspace):
     route through workspace-status/workspace-init; malformed input must never
     be silently accepted as a usable routing description.
     """
-    fm = _frontmatter_of(os.path.join(workspace, "lore-workspace.md"))
-    raw_entries = _as_list(fm.get("repo-context"))
-    entries, issues, seen = [], [], set()
-    for index, raw in enumerate(raw_entries):
-        if not isinstance(raw, dict):
-            issues.append({"index": index, "reason": "entry is not a mapping"})
+    text = read_text(os.path.join(workspace, "lore-workspace.md")) or ""
+    lines = text.split("\n")
+    body = []
+    if lines and lines[0].strip() == "---":
+        for line in lines[1:]:
+            if line.strip() == "---":
+                break
+            body.append(line)
+
+    raw_entries, parse_issues, current, in_block = [], [], None, False
+    for line_no, line in enumerate(body, 2):
+        if not in_block:
+            if line == "repo-context:":
+                in_block = True
             continue
+        if line and not line.startswith((" ", "\t")):
+            break
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        item = re.match(r"^  - repo:\s*(.*)$", line)
+        if item:
+            current = {"repo": _strip_item_comment(item.group(1))}
+            raw_entries.append(current)
+            continue
+        field = re.match(r"^    ([A-Za-z0-9_-]+):\s*(.*)$", line)
+        if field and current is not None:
+            key, raw = field.group(1), field.group(2)
+            if key in current:
+                parse_issues.append({"line": line_no, "reason": "duplicate field",
+                                     "field": key})
+            else:
+                current[key] = _strip_item_comment(raw)
+            continue
+        parse_issues.append({"line": line_no, "reason": "malformed repo-context line"})
+
+    entries, issues, seen = [], list(parse_issues), set()
+    for index, raw in enumerate(raw_entries):
         extra_keys = sorted(set(raw).difference(("repo", "description")))
         if extra_keys:
             issues.append({"index": index, "reason": "unsupported keys",
@@ -732,6 +762,39 @@ def shortcut_inventory(workspace):
         "codex_home": _names_from_dirs(
             os.path.expanduser("~/.codex/skills")),
     }
+
+
+def shortcut_targets(workspace):
+    """Canonical agent-directory targets named by installed shortcuts.
+
+    Names are not identities: two Lore repos may both contain an agent named
+    `architect`. Registration therefore follows the absolute `from <dir>`
+    target embedded by register-agent, across every shortcut location.
+    """
+    files = []
+    claude_dir = os.path.join(workspace, ".claude", "commands")
+    try:
+        files.extend(os.path.join(claude_dir, name)
+                     for name in os.listdir(claude_dir)
+                     if name.startswith("lr-") and name.endswith("-agent.md"))
+    except (IOError, OSError):
+        pass
+    for root in (os.path.join(workspace, ".codex", "skills"),
+                 os.path.join(workspace, ".cursor", "skills"),
+                 os.path.expanduser("~/.codex/skills")):
+        try:
+            files.extend(os.path.join(root, name, "SKILL.md")
+                         for name in os.listdir(root)
+                         if name.startswith("lr-") and name.endswith("-agent"))
+        except (IOError, OSError):
+            pass
+    targets = set()
+    pattern = re.compile(r"boot as agent `[^`]+` from `([^`]+)`")
+    for path in files:
+        match = pattern.search(read_text(path) or "")
+        if match:
+            targets.add(os.path.realpath(match.group(1).rstrip("/")))
+    return targets
 
 
 # --------------------------------------------------------------------------
@@ -1075,9 +1138,7 @@ def cmd_workspace_scan(args, res):
 
     _, agents = discover_workspace(workspace)
     shortcuts = shortcut_inventory(workspace)
-    registered = set()
-    for names in shortcuts.values():
-        registered.update(names)
+    registered_targets = shortcut_targets(workspace)
     repo_routes, repo_context_issues = repository_routes(workspace, declared)
 
     res.data["git"] = {k: v for k, v in gstate.items()}
@@ -1110,7 +1171,7 @@ def cmd_workspace_scan(args, res):
             "description": str(agent.get("description") or "").strip(),
             "description_source": os.path.relpath(
                 os.path.join(agent["dir"], "role.md"), workspace),
-            "registered": agent["name"] in registered,
+            "registered": os.path.realpath(agent["dir"]) in registered_targets,
         } for agent in agents],
         "repo_context_issues": repo_context_issues,
     }
