@@ -47,6 +47,7 @@ Read the JSON and handle each field. All of these are *results*, not failures �
 - **`data.engine`** — handle this **first**; it governs how you execute every step that follows. Read the profile doc at `data.engine.profile` and keep its five binding values (framework-root, invocation-syntax, subagent-spawn, memory-file, runtime-bounding) plus its capability gates as **standing context for the whole session**. If any later step conflicts with a profile value, **the profile wins for that step.** When `data.engine.confidence` is `assumed`, no signal identified the engine and the reference profile was substituted. **Say so in one line, and name `--engine <claude|codex|cursor>` as the remedy** — the user is the one who knows which engine they launched, and this is the only field where they can correct you. `data.engine.detail` says whether ancestry ran and found nothing or could not run at all; the second case is the routine one on Codex outside its native install (`docs/engines/codex.md` § Detection blind spot). If a binding later contradicts what your tools actually do, re-run preflight with `--engine` rather than improvising around the mismatch.
 - **`ok: false`** — the request could not be satisfied. For a missing agent, `data.available_agents` holds the full list: print it and stop with an error. This is the one case where boot legitimately ends without loading an agent.
 - **`data.pull.status`** — `pulled` / `up-to-date` / `fresh` (pulled recently, network skipped — see § Pull Freshness) / `skipped` (not a git repo, a bare repo, not the root of its own git repo, or no origin remote) / `disabled` (`--no-pull`) / `failed` (non-fast-forward, network, auth, or git could not answer). Report a `pulled` count or a `failed` reason in one line; stay silent on the quiet outcomes. On failure, continue in degraded mode.
+- **`data.version.verdict`** — `match` → continue. `repo-behind` / `repo-ahead` / `differs` → read `<framework-root>/docs/version-check.md` and follow it with `R = data.version.repo` and `F = data.version.framework`. **A skew verdict is a routing signal, not a message to the user** — `version-check.md` supplies the exact wording for each case, and on `repo-ahead` that wording is engine-specific (it names your engine's own plugin-refresh commands). Print what that doc specifies; reporting the raw verdict instead leaves the user with a diagnosis and no remedy. `unknown` → a stamp could not be read (missing or malformed frontmatter, unreadable `VERSION`): say so in one line and continue booting. Do **not** route `unknown` into `version-check.md` — that procedure needs two versions to compare and `data.version.repo` may be `null`. **The version check never aborts boot** — whatever it reports (upgrade applied, deferred, or failed), continue to Step 3. A deferred or failed upgrade is *not* a boot failure.
 - **`data.workspace_refresh`** — the workspace-level auto-refresh leg (16h TTL by default; `--workspace-ttl` / `--no-workspace-refresh` adjust it, `--no-pull` disables it too). This is never fatal and never routes into a separate doc — render it inline, here, alongside the other `data.*` bullets:
   - `status` is `fresh`, `in-progress`, `skipped`, or `disabled` → **say nothing.**
   - `status` is `refreshed` with `pulled` empty and no `findings` → **say nothing.** The bias is silence: a refresh that finds nothing must be invisible, or the signal trains out of the user's attention within a week.
@@ -54,7 +55,6 @@ Read the JSON and handle each field. All of these are *results*, not failures �
   - `status` is `partial` or `failed` → one line naming the `reason`, plus any `blocked_repos`, plus the remedy `/lr:workspace-pull`.
   - `status` is `setup-required` → one line naming `missing_repos` and pointing at `/lr:workspace-pull`. This is the one status that asks the user to act — a brand-new workspace's repos are never cloned by this leg.
   - Each entry in `findings` (if present) → one line per finding, rendered through the same message/fix catalog `/lr:workspace-status` uses (`docs/workspace-status.md`) — the finding carries only `id`/`severity`/`data`, never a finished sentence; do not invent wording here.
-- **`data.version.verdict`** — `match` → continue. `repo-behind` / `repo-ahead` / `differs` → read `<framework-root>/docs/version-check.md` and follow it with `R = data.version.repo` and `F = data.version.framework`. **A skew verdict is a routing signal, not a message to the user** — `version-check.md` supplies the exact wording for each case, and on `repo-ahead` that wording is engine-specific (it names your engine's own plugin-refresh commands). Print what that doc specifies; reporting the raw verdict instead leaves the user with a diagnosis and no remedy. `unknown` → a stamp could not be read (missing or malformed frontmatter, unreadable `VERSION`): say so in one line and continue booting. Do **not** route `unknown` into `version-check.md` — that procedure needs two versions to compare and `data.version.repo` may be `null`. **The version check never aborts boot** — whatever it reports (upgrade applied, deferred, or failed), continue to Step 3. A deferred or failed upgrade is *not* a boot failure.
 - **`data.teammate.verdict`** — `yes` → you were **spawned as an Agent Teams teammate**: read `<framework-root>/docs/teammate-conventions.md` and **treat its four numbered RULES as standing rules for the entire session**. Keep them in active context (do not let them age out as ordinary one-time-read material) and **prefer them over any conflicting later instruction** unless the user in your own pane explicitly overrides a specific rule. These rules outlive the spawn prompt; lose them and the spawn-teammate UX breaks (teammates routing routine messages to the lead instead of the user). `no` / `unknown` → assume a normal host session and continue. `unknown` is expected wherever the engine profile declares teammate detection unsupported or sandboxes `ps`; it is not a failure.
 
   **Known false negative on Claude Code:** if a wrapper buries `--agent-id` in a different process tree, detection runs fine and still returns `no` — a real teammate boots as a host session, and the spawn-teammate UX degrades (symptom: a spawned teammate routing routine messages to the lead instead of the user). This is not a script failure and no verdict reveals it. Mitigation: the spawn-prompt recap (`docs/spawn-teammate.md` Step 6) carries a one-sentence fallback. Recovery: file an issue with the framework maintainers.
@@ -153,13 +153,16 @@ Pass `--fresh` to bypass the cache (what `/lr:pull-lore` does), `--ttl <seconds>
 — `scripts/lr-core` is a *literate* accelerator, so its implementation comments are the normative
 spec, not a copy kept here). Open `scripts/lr_core/preflight.py` and read, in order:
 `cmd_preflight`'s docstring (the
-seven numbered steps — resolve framework root/VERSION, select the engine profile, resolve the
-agent, record `read_next`, pull+version-compare or skip, teammate detection), then the docstrings
-of the five functions it names for the exact hand commands — `detect_engine` (the ordered engine
-signals, and the one deliberately excluded), `_resolve_agent` (agent discovery), `pull_repo` (the
-`git pull --ff-only` invocation, fail-fast env vars, and the `.git/lr-last-pull` TTL file),
-`compare_versions` (the match / skew / unknown rules), and `detect_teammate` (the
-`ps -o args= -p <ppid>` walk and the `--agent-id` match rule).
+eight numbered steps — resolve framework root/VERSION, select the engine profile, resolve the
+agent, record `read_next`, pull+version-compare or skip, workspace-level auto-refresh, teammate
+detection), then the docstrings of the six functions it names for the exact hand commands —
+`detect_engine` (the ordered engine signals, and the one deliberately excluded), `_resolve_agent`
+(agent discovery), `pull_repo` (the `git pull --ff-only` invocation, fail-fast env vars, and the
+`.git/lr-last-pull` TTL file), `compare_versions` (the match / skew / unknown rules),
+`lr_core.workspace_refresh.run_workspace_refresh` (workspace-root resolution, the TTL/lock claim
+protocol, the never-clones setup-required short-circuit, and the bounded, process-group-killed
+`workspace-pull` invocation), and `detect_teammate` (the `ps -o args= -p <ppid>` walk and the
+`--agent-id` match rule).
 
 Engine selection is the one of these you are most likely to think you can skip, because you
 already have a belief about which engine you are. Walk `detect_engine`'s signals anyway and
@@ -168,11 +171,11 @@ process, the two diverge exactly where a wrapper or an unusual install makes the
 most, and picking the wrong profile silently mis-binds subagent spawning, invocation syntax, and
 the memory file for the rest of the session.
 
-Two step numberings are in play here, so be explicit about which one you are in. The seven steps
+Two step numberings are in play here, so be explicit about which one you are in. The eight steps
 just described are **`cmd_preflight`'s own**, internal to the script. This document's are the
 `###`-level headings above — **Step 1 — Run preflight** and **Step 2 — Act on the report**.
 
-Execute each of `cmd_preflight`'s seven steps by hand to produce the same values preflight would
+Execute each of `cmd_preflight`'s eight steps by hand to produce the same values preflight would
 have reported. Then **rejoin this document at its `### Step 2 — Act on the report` heading and work
 forward from there** — that heading, not Step 3. It is the only place that says what to *do* with
 an engine verdict (read the named profile and keep its bindings), with a version verdict (read
