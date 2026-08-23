@@ -1038,8 +1038,16 @@ def build_findings(data):
     routing = data.get("routing") or {}
     missing_repos = [item["repo"] for item in routing.get("repositories", [])
                      if not item.get("description")]
-    missing_agents = [item["name"] for item in routing.get("agents", [])
-                      if item.get("registered") and not item.get("description")]
+    agent_rows = routing.get("agents", [])
+    agent_name_counts = {}
+    for item in agent_rows:
+        agent_name_counts[item["name"]] = agent_name_counts.get(item["name"], 0) + 1
+    missing_agents = [
+        ("%s/%s" % (item["repo"], item["name"])
+         if agent_name_counts[item["name"]] > 1 else item["name"])
+        for item in agent_rows
+        if item.get("registered") and not item.get("description")
+    ]
     context_issues = routing.get("repo_context_issues") or []
     if missing_repos or missing_agents or context_issues:
         add("S17", "warn", {"repositories": missing_repos,
