@@ -64,7 +64,9 @@ For every target agent:
    - **`<agent-dir>`** — absolute path to `<lore-agent-repo>/agents/<agent-name>/`
    - **`<repo-name>`** — basename of `<lore-agent-repo>`
 3. Read the `description` field from `role.md` YAML frontmatter. Use it as
-   **`<agent-purpose>`**. If missing, fall back to `Lore agent in <repo-name>`.
+   **`<agent-purpose>`**. It should state what the agent owns or knows and when to boot or attach it.
+   If missing, use `routing description missing — run workspace-init`; a visible gap is safer than a
+   plausible generic purpose.
 
 ### Resolve the shortcut bootstrap
 
@@ -147,8 +149,8 @@ For every register/unregister operation, after the artifact is written or delete
    Each shortcut supplies *membership* and, in its boot line, the agent's absolute `<agent-dir>`.
    Take the **role description from `<agent-dir>/role.md`'s frontmatter `description`** and the repo
    dirname from that path — not from the shortcut, which on Claude Code is a single bootstrap line
-   carrying neither. Fall back to `Lore agent in <repo-dirname>` when `role.md` has no description,
-   matching § Resolve agent metadata. One line per agent:
+   carrying neither. Use `(routing description missing — run workspace-init)` when `role.md` has no
+   description, matching § Resolve agent metadata. One line per agent:
 
    ```markdown
    - `<agent-name>` (`<repo-dirname>`) — <role description>. Boot: `lr-<agent-name>-agent`.

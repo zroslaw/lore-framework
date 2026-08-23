@@ -310,8 +310,9 @@ See `docs/workspace-init.md` § The memory-file contract.
 **Workspace-scoped** — read from the shared scan. Report findings **S1**, **S2**, **S3**, **S4**,
 and **S16** if present.
 
-Framework skills write workspace-root files but none of them commits (`docs/workspace-push.md`
-explains the gap this check watches).
+Framework skills write workspace-root files. `workspace-init` offers publication for its own run;
+other writers, and an init run whose publication was declined or partial, can still leave them
+dirty (`docs/workspace-push.md` explains the gap this check watches).
 
 | Finding | Means | Severity | Fix |
 |---|---|---|---|

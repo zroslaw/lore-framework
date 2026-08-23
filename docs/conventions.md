@@ -78,14 +78,24 @@ The lore framework itself is installed as a plugin (`lr`), not as a repo in the 
 Three framework descriptor files carry YAML frontmatter so the framework can machine-read them:
 
 - **`lore-repo.md`** — at the root of a lore agent repo. Frontmatter fields:
-  - `description` (string, required)
+  - `description` (string, required) — a routing description: what the repo owns, what useful
+    material it contains, and when an unfamiliar agent should inspect it. It must distinguish this
+    repo from adjacent repos, not merely repeat the repo name or category, while staying globally
+    true across every workspace that shares the repo.
   - `version` (string, required) — matches the framework `VERSION` when the repo was created or last migrated. The repo version is the single source of truth for migration state; `/lr:update` uses it to decide what migrations to apply.
   - `repos` (block-form list of strings, optional) — **domain-level** declaration: remote URLs of sibling repos the agents in this domain need. Consumed by `/lr:workspace-pull`. See `docs/workspace-pull.md`.
 - **`lore-workspace.md`** — optional, at the workspace root (not inside an agent repo). Frontmatter fields:
   - `description` (string) — human label for the workspace.
   - `repos` (block-form list of strings, optional) — **workspace-level** declaration: remote URLs of the top-level repos that belong in this workspace, including the lore **agent repos themselves**. Consumed by `/lr:workspace-pull` (phase 1). The markdown body is user-owned onboarding prose. Written by `/lr:workspace-init`.
+  - `repo-context` (block-form list of mappings, optional) — routing descriptions for declared
+    **ordinary repos** that have no `lore-repo.md`. Each entry has exactly `repo` (the derived
+    top-level dirname) and `description` (what it owns/contains and when to inspect it). Lore agent
+    repos keep their canonical description in their own `lore-repo.md`; do not duplicate them here.
   - `sharing` (string, optional) — the only accepted value is `local`, written by `/lr:workspace-init` when the user declines to set an `origin` remote. It records "this workspace is deliberately private" and suppresses finding S3. **Absent means "not answered yet"** and behaves exactly as it always has — there is no migration, and an older framework reading a newer descriptor ignores the unknown key. Adding a remote later clears it. It carries no enforcement: nothing refuses to push because of it. Its whole purpose is that a finding a user can never clear teaches them to skim the entire report.
-- **`role.md`** — at the root of each agent directory. Frontmatter fields: `description` (string) only. Agents do not carry their own version stamp at framework version 2+; they migrate together with the repo.
+- **`role.md`** — at the root of each agent directory. Frontmatter fields: `description` (string)
+  only. The description is a routing description: what the agent owns or knows and when another
+  agent should boot or attach it. Agents do not carry their own version stamp at framework version
+  2+; they migrate together with the repo.
 
 **The dual meaning of `repos:`.** The same YAML key names repos at two scopes. In `lore-workspace.md`
 it is the *workspace layout* — which top-level repos (agent repos + shared repos) should exist as

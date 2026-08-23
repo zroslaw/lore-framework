@@ -12,12 +12,15 @@ workspace-push  =  publish   (commit framework-managed workspace files, push the
 Several framework skills write workspace-root files — `/lr:workspace-init` writes the descriptor,
 memory-file managed section, `.gitignore`, and `README.md`; `/lr:register-agent` and
 `/lr:register-repo` write per-agent shortcuts; `/lr:update` migrations regenerate those shortcuts;
-`workspace-pull` phase 3 appends `.gitignore` lines — and none of them commits. Without a publish
-step those changes sit dirty indefinitely, and a teammate's `workspace-pull` phase 0 receives a
-stale descriptor. `/lr:workspace-push` closes that loop as an explicit, user-triggered step.
+`workspace-pull` phase 3 appends `.gitignore` lines. `workspace-init` offers one final publication
+approval for the changes made by that run, including routing descriptions in child repos. If that
+approval is declined or publication is partial, `/lr:workspace-push` closes the workspace-root half
+later; changes made by the other skills also remain its ordinary input.
 
-**Child repos are out of scope.** Lore agent repos publish via `/lr:finalize` phase 4; other repos
-via their own git flows. This skill touches exactly one repo: the workspace root.
+**Child repos are out of scope.** `workspace-init`'s confirmed routing-enrichment transaction is a
+narrow exception because it owns the cross-repo description writes it just proposed. Outside that
+transaction, Lore agent repos publish via `/lr:finalize` phase 4 and other repos via their own git
+flows. This skill touches exactly one repo: the workspace root.
 
 ## Framework-managed paths
 

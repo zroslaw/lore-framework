@@ -86,8 +86,9 @@ repos:
 - Block-form `repos:` only (same parser as `lore-repo.md`; inline `repos: [a, b]` is not supported).
 - **High-level list** — the top-level repos that should exist as siblings in `<workspace>/`. Include
   the lore **agent repos themselves**; their domain dependencies are cloned automatically by phase 2.
-- The markdown body is user-owned (team onboarding notes). `/lr:workspace-init` writes only the
-  frontmatter `description` + `repos:`.
+- The markdown body is user-owned (team onboarding notes). `/lr:workspace-init` writes the
+  frontmatter `description`, `repos:`, optional `sharing: local`, and optional `repo-context` routing
+  descriptions. This command consumes only `repos:`.
 
 ## Declaring Repos in `lore-repo.md` (domain level)
 

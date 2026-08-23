@@ -22,7 +22,10 @@ Scaffold a new agent repository in the workspace.
    └── README.md
    ```
 
-4. **Write `lore-repo.md`** with YAML frontmatter. Ask the user for a short description of the repo's purpose. Stamp the framework version:
+4. **Write `lore-repo.md`** with YAML frontmatter. Ask for a concise **routing description**, not
+   merely a category label: what the repo owns, what useful material it contains, and when an
+   unfamiliar agent should inspect it. If sibling repos already exist, make the distinction clear.
+   Stamp the framework version:
    ```markdown
    ---
    description: <user-provided description>
