@@ -714,6 +714,20 @@ def cmd_preflight(args, res):
     blocks `ps` yields "unknown", an engine that allows it yields "no", and
     every caller treats those two identically. --no-teammate-check remains for
     callers that want to skip the two `ps` calls outright.
+
+    Step 8: after the whole Step 5/6 `if/else` block and before Step 7's
+    teammate detection, run the workspace-level auto-refresh leg (see
+    `lr_core.workspace_refresh.run_workspace_refresh`): TTL/lock-guarded,
+    resolves the true workspace root under the `.worktrees/<repo>/<slug>/`
+    convention, and pulls every top-level repo via `scripts/workspace-pull`
+    when the last attempt is older than `--workspace-ttl` seconds (default
+    16h). This runs whether or not Step 5/6 found an enclosing agent repo —
+    an agent booted via `--agent-dir` outside any lore repo says nothing about
+    whether the surrounding workspace has repos worth pulling. `--no-pull` or
+    `--no-workspace-refresh` disables it; `--fresh` bypasses its TTL the same
+    way it bypasses the agent-repo pull's. Never raises: every outcome is a
+    status value in `data.workspace_refresh`, never an exception that would
+    turn this whole preflight call into the exit-2 manual-boot fallback.
     """
     workspace = os.path.abspath(args.workspace)
     root = resolve_framework_root(args.framework_root)
@@ -794,6 +808,20 @@ def cmd_preflight(args, res):
         res.data["version"] = {"verdict": "unknown", "repo": None,
                                "framework": fw_version,
                                "detail": "no enclosing lore repo"}
+
+    # Step 8: workspace-level auto-refresh, regardless of which branch above
+    # ran — a repo-less agent dir says nothing about the surrounding
+    # workspace. Deferred import: workspace_refresh imports workspace_scan,
+    # which imports this module at load time, so importing it at this
+    # module's top level would be a circular import.
+    from . import workspace_refresh as _workspace_refresh
+    res.data["workspace_refresh"] = _workspace_refresh.run_workspace_refresh(
+        cwd=workspace,
+        ttl=getattr(args, "workspace_ttl", DEFAULT_WORKSPACE_TTL_SEC),
+        fresh=args.fresh,
+        do_refresh=not (args.no_pull or getattr(args, "no_workspace_refresh", False)),
+        framework_root=args.framework_root,
+    )
 
     # Step 7: teammate detection, unless suppressed.
     res.data["teammate"] = detect_teammate() if not args.no_teammate_check else {
