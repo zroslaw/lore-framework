@@ -229,7 +229,7 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 |---|---|
 | `/lr:workspace-pull` | Refresh the entire workspace: pull its repo, clone declared repos, and pull every top-level repo |
 | `/lr:pull-lore` | Refresh only the repos of active agents, then reload their roles and contexts |
-| `/lr:workspace-init` | Initialize a workspace or reconcile its framework-managed configuration with disk reality |
+| `/lr:workspace-init` | Initialize/converge a workspace and maintain its AI routing map of repos and agents |
 | `/lr:workspace-push` | Commit and push the framework-managed workspace files |
 | `/lr:workspace-status` | Diagnose workspace health; every finding includes the command that fixes it |
 | `/lr:list-agents` | Show available agents, their scope, and shortcut status |

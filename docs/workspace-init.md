@@ -4,6 +4,11 @@ Initialize a lore **workspace** — or **converge** an initialized one back to d
 point, no mode flags: on an empty directory it interviews; on a live workspace it re-scans, offers
 what drifted, and writes nothing if nothing drifted.
 
+Its `Repositories` and `Agents` sections are a **routing map for an unfamiliar AI**, not merely an
+inventory. Each description must make three things clear: what the repo or agent owns, what useful
+material it contains or knows, and when to inspect, boot, or attach it. The descriptions are judged
+and aligned as one workspace-wide set so adjacent entries have clear boundaries.
+
 ```
 workspace-init    initialize / converge  (this doc)
 workspace-pull    consume   — pull the workspace repo, clone declared repos, pull every top-level repo
@@ -17,7 +22,7 @@ workspace-status  diagnose  — read-only report of the same findings this skill
 > why this doc carries no second checklist of "things to check" that could drift from the S-list.
 > Several findings' fixes belong to other commands — `workspace-pull` for what is behind or missing,
 > `workspace-push` for what is unpublished, `register-agent` for membership. A converging run leaves
-> those standing and Step 7 names them; it does not report a clean workspace on their account.
+> those standing and Step 9 names them; it does not report a clean workspace on their account.
 
 > **Precondition.** The user must already have framework context loaded to run this skill — a session
 > started with the plugin (Claude `--plugin-dir` / installed plugin; Codex `codex plugin add`; Cursor
@@ -56,7 +61,8 @@ python3 "<framework-root>/scripts/lr-core" workspace-scan --workspace "<workspac
 Quote both substituted values. Everything this skill needs in order to decide is in that output:
 descriptors and the declared repo set, memory-file format and per-section state, git/remote/branch/
 ahead-behind, children with their git and declaration status, registered shortcuts, the
-framework-managed path set with dirty classification, and the finding list.
+repository/agent routing inventory with canonical description sources, the framework-managed path
+set with dirty classification, and the finding list.
 
 **Perform no independent discovery.** A second, hand-rolled scan is how the interview comes to
 disagree with what `workspace-status` will say five minutes later.
@@ -73,12 +79,19 @@ Take the **first** row that matches, in this order:
 | # | Observed | Path |
 |---|---|---|
 | 0 | `applicable` is `false` | **Initialize** — full interview. A greenfield directory: the scan stops at the applicability gate, so `memory`, `git`, and `descriptors` are absent from the envelope and no later row can be evaluated. This is the documented cold start, not an error |
-| 1 | Zero findings **and** `memory.agents_md.format` is `v3` | **Stop.** Report `already current` and write nothing |
+| 1 | Zero findings, `memory.agents_md.format` is `v3`, **and the routing audit below passes** | **Stop.** Report `already current` and write nothing |
 | 2 | No `lore-workspace.md` **and** `memory.agents_md.format` is `absent` or `none` | **Initialize** — full interview |
 | 3 | Anything else | **Converge** — the scanner's findings are the work list |
 
 Ask only what is genuinely open. A converging run on a healthy workspace should be silent; a
 converging run that re-asks the founding interview is a bug, not thoroughness.
+
+The routing audit is semantic, so the scanner cannot decide it from length or string patterns. Read
+`data.routing.repositories` and the **registered** entries in `data.routing.agents` as one set. It
+passes only when an unfamiliar agent could choose between the entries without opening every repo.
+Missing text, category-only text, overlapping descriptions, and descriptions that never say when to
+use the entry all fail. A short description may pass; length alone is never a failure signal. Failed
+entries are handled in Step 7 after every declared repo has been materialized.
 
 **Interview items**
 
@@ -124,6 +137,10 @@ converging run that re-asks the founding interview is a bug, not thoroughness.
    may belong to a different workspace.
    `/lr:update` does the same relocation in bulk via `migrations/37.md`; this offer exists for a
    workspace whose repos are already at version 37.
+
+6. **Routing descriptions.** Do not ask the user to write better copy from memory. Record which
+   repository and registered-agent descriptions failed the routing audit; Step 7 investigates their
+   actual repos, drafts an aligned set, and asks once with scoped diffs before writing it.
 
 ### Step 3 — Confirmation gate
 
@@ -211,7 +228,7 @@ Recovery:
   3. workspace-init
 ```
 
-### Step 6 — Remote synchronization
+### Step 6 — Remote preparation
 
 Only when the workspace is git-tracked and is its own git root. **Fetch first** —
 `git -C "<workspace>" fetch origin` — then decide from history relationships.
@@ -223,10 +240,10 @@ becomes a divergence.
 
 | Observed | Meaning | Action |
 |---|---|---|
-| No `origin` remote | Local-only workspace | Skip. Report that push and team sharing are inert until a remote exists |
-| `git ls-remote --heads origin` is empty | Founding a new shared workspace | Stage the framework-managed paths, commit `chore(lore): initialize lore workspace`, `git push -u origin HEAD`. **Confirm this with its own one-line yes/no** — the Step 3 plan was built before the fetch, so it could not have disclosed a publish action, and this one goes outward to a shared remote |
-| `git merge-base --is-ancestor HEAD origin/<branch>` | Local is behind or equal | Fast-forward, re-run Steps 1–5 against what arrived, then commit and push any remaining delta — see *Fast-forwarding over Step 4's writes* below |
-| `git merge-base --is-ancestor origin/<branch> HEAD` | Local is ahead | Commit the delta and push |
+| No `origin` remote | Local-only workspace | Skip. Report that Step 8 can commit but cannot push until a remote exists |
+| `git ls-remote --heads origin` is empty | Founding a new shared workspace | Record the empty remote as Step 8's publication target; do not commit or push yet |
+| `git merge-base --is-ancestor HEAD origin/<branch>` | Local is behind or equal | When behind, fast-forward and re-run Steps 1–5 against what arrived; when equal, continue — see *Fast-forwarding over Step 4's writes* below. Defer every commit and push to Step 8 |
+| `git merge-base --is-ancestor origin/<branch> HEAD` | Local is ahead | Continue; show the commits that would ride along in Step 8's single publication plan |
 | A merge-base exists, neither is an ancestor | Diverged | **Stop.** Suggest `workspace-pull` (phase 0) then `workspace-push`. Never merge automatically |
 | **No merge-base at all** | Unrelated histories — a *join* onto someone else's workspace | **Stop** and offer two explicit choices — see *Adopting a remote* below. Never `--allow-unrelated-histories` automatically |
 
@@ -272,13 +289,103 @@ If the working tree carries uncommitted changes **outside** the framework-manage
 reaches any branch-switching case, name them and confirm separately before touching the branch.
 They are the user's own work and were never part of the Step 3 plan.
 
-### Step 7 — Summary
+### Step 7 — Investigate and align routing descriptions
 
-Report what was written, what was synchronized, and what remains. Phrase each remaining item as the
-scanner finding it corresponds to, so the wording matches what `workspace-status` says next time.
+Re-run `workspace-scan` now that Step 5 has materialized the declared repo set. Audit
+`data.routing.repositories` and the registered entries of `data.routing.agents` together, using the
+Step 2 routing test. `data.routing.repo_context_issues` is always work to resolve.
 
-If anything framework-managed is now dirty or unpushed, name `workspace-push` — this skill does not
-commit on its own outside Step 6's founding case.
+For every failed repository description, perform a **repository routing investigation**. This is a
+real repo investigation, not a README paraphrase:
+
+1. Read the repo descriptor (when present), README, workspace/agent instructions, manifests, and
+   top-level tree.
+2. Read the architecture or documentation entry points, tests, and representative implementation
+   code. Follow code far enough to establish the repo's owned behavior and its boundary with sibling
+   repos. Do not pretend that reading every file is useful; the stopping condition is that the three
+   routing questions have evidence-backed answers.
+3. For a failed registered-agent description, read its `role.md` and `lore-context.md`, then inspect
+   the referenced repo/lore areas needed to distinguish it from neighboring agents.
+4. Keep short evidence notes per entry. Draft no final line until every failed entry has been
+   investigated; writing independently is how adjacent descriptions end up overlapping.
+
+Then synthesize the **whole set** together. Use parallel grammar and shared vocabulary. Each line
+must say what the entry owns, what it contains or knows, and when to use it; it must also leave a
+clear reason to choose each neighboring entry instead. Keep it compact enough for boot context —
+normally one or two plain sentences — but never shorten by dropping a routing distinction. Keep
+canonical `lore-repo.md` and `role.md` descriptions globally true: compare them against this
+workspace to expose ambiguity, but do not bake a workspace-specific sibling list into shared repo
+metadata that another workspace would rewrite differently.
+
+Canonical write locations:
+
+- Lore agent repo description → that repo's `lore-repo.md` frontmatter `description`.
+- Registered agent description → its `role.md` frontmatter `description`.
+- Ordinary repo description → `lore-workspace.md` frontmatter `repo-context`:
+
+  ```yaml
+  repo-context:
+    - repo: product-api
+      description: Owns the product API and its tests. Inspect for API behavior or server changes.
+  ```
+
+`repo-context` contains ordinary declared repos only. If an entry now has `lore-repo.md`, move its
+description there and remove the workspace copy. Preserve every unrelated frontmatter key and all
+markdown bodies.
+
+Before writing, show one routing plan with scoped old→new diffs for every `lore-repo.md`, `role.md`,
+`lore-workspace.md`, and the resulting `AGENTS.md` sections. Name unchanged descriptions too, so the
+user can judge the alignment as a complete set. Ask one yes/no to apply the routing-description
+updates. `no` leaves the routing files unchanged and continues to Step 8 with only the base init
+changes.
+
+At the write boundary, re-read every target. If any target differs from the version used to build
+the approved diff, stop instead of overwriting concurrent work. Otherwise update only the
+`description` scalar or `repo-context` block, then regenerate both managed routing sections in
+`AGENTS.md` from the just-written canonical sources.
+
+### Step 8 — One publication approval
+
+Collect every Git root changed by this run. This may include the workspace repo plus child repos
+whose `lore-repo.md` or `role.md` changed. One approval covers the whole publication, but Git still
+requires one commit per repo.
+
+Before asking, for every affected repo:
+
+1. Verify it is its own Git root, on a branch, and has no unresolved merge/rebase.
+2. Fetch its remote. Stop that repo on divergence or a non-fast-forward state; never merge or force.
+3. List the exact paths this run owns, their diffstats, the commit message, push target, unrelated
+   dirty paths that remain untouched, and already-committed changes that would ride along.
+
+Use one final prompt:
+
+```
+Will commit and push these workspace-routing updates:
+  <repo>  <owned paths>  -> <remote/branch or "commit only: no remote">
+  ...
+One narrow commit per repo; child repos publish first, workspace repo last.
+Proceed? (yes/no)
+```
+
+`no` leaves the approved file updates on disk, uncommitted.
+
+On `yes`, stage and commit only the explicit owned paths in each repo, deletion-aware. Use
+`chore(lore): improve workspace routing descriptions` for repos with routing changes and
+`chore(lore): initialize lore workspace` for a founding workspace with base artifacts only. Verify
+each created commit contains no path outside its approved set; undo an invalid commit with
+`git reset --soft HEAD^` and stop before any push.
+
+Push child repos first and the workspace repo last. That ordering prevents a shared `AGENTS.md` from
+advertising canonical descriptions that failed to publish. A multi-repo push is not atomic: on any
+failure, stop later pushes, never roll back or force-push the successful ones, and report exactly
+which repos were pushed, committed only, or untouched. A repo without a remote is committed only,
+as disclosed in the plan.
+
+### Step 9 — Summary
+
+Report what was written, committed, pushed, and what remains. Phrase scanner-owned remaining items
+as their `workspace-status` findings. When the user declines Step 8 or publication is partial, name
+the exact recovery command or repo rather than claiming the workspace is published.
 
 ---
 
@@ -333,13 +440,13 @@ source, starting with `docs/agent-boot.md`.
 
 <!-- lr:managed — regenerated by workspace-init; edits here are overwritten -->
 
-- `<dirname>` — <description from lore-repo.md / lore-workspace.md, or "(no description)">
+- `<dirname>` — <routing description from lore-repo.md or lore-workspace.md repo-context>
 
 ## Agents
 
 <!-- lr:managed — regenerated by workspace-init and the register-agent family -->
 
-- `<agent-name>` (`<repo-dirname>`) — <role description>. Boot: `lr-<agent-name>-agent`.
+- `<agent-name>` (`<repo-dirname>`) — <routing description from role.md>. Boot: `lr-<agent-name>-agent`.
 ~~~
 
 Notes:
@@ -352,14 +459,17 @@ Notes:
   afterwards**. Renaming the workspace must not fight the tool.
 - **Repositories lists *declared* repos** — the union of `lore-workspace.md` `repos:` and every
   domain `repos:`. Undeclared git repos on disk are deliberately absent; they are finding S5, not a
-  workspace fact.
+  workspace fact. A Lore repo's routing description comes from its own `lore-repo.md`; an ordinary
+  repo's comes from `lore-workspace.md` `repo-context`. If the canonical source is missing, render
+  `(routing description missing — run workspace-init)` rather than inventing a description.
 - **Agents lists *registered* agents** — the "what can I boot here" answer. The shortcuts on disk
   across all three engines supply *membership* and, in their boot line, each agent's absolute
   `<agent-dir>`; the **role description comes from `<agent-dir>/role.md`'s frontmatter
   `description`**, and the repo dirname from that path. Do not try to read the description out of the
-  shortcut — the Claude Code artifact is a single bootstrap line and carries none. Fall back to
-  `Lore agent in <repo-dirname>` when `role.md` has no description. Agents present but unregistered
-  do not appear; they are finding S11. With none registered, emit the single line:
+  shortcut — the Claude Code artifact is a single bootstrap line and carries none. When `role.md`
+  has no description, render `(routing description missing — run workspace-init)`; the explicit gap
+  is more useful than a plausible generic fallback. Agents present but unregistered do not appear;
+  they are finding S11. With none registered, emit the single line:
   `_(No agents registered yet — run `register-agent` to add one.)_`
 
 ### Section ownership and parsing rules
@@ -422,16 +532,18 @@ until it is migrated.
 ## Idempotency and re-runs
 
 Safe to run any number of times. A workspace already at canonical state exits with `already current`
-and writes nothing — that property is what makes "init converges" safe to recommend as the routine
-follow-up to anything that changed on disk.
+after the routing audit passes and writes nothing — that property is what makes "init converges"
+safe to recommend as the routine follow-up to anything that changed on disk. Semantic routing
+quality is re-audited on each run; deep investigation runs only for entries that fail, so a healthy
+workspace does not repeatedly pay the investigation cost.
 
 ## What `/lr:workspace-init` does NOT do
 
-- Does not write any file outside the Step 3 plan, and does not touch user content outside a managed
-  section (or, in `CLAUDE.md`, outside the single import line).
-- Does not commit or push, **except** Step 6's founding case (an empty remote), which carries its own
-  one-line yes/no — the Step 3 plan was built before the fetch, so it could not have disclosed a
-  publish action. Ongoing publication is `/lr:workspace-push`.
+- Does not write any file outside the Step 3 base plan or the separately confirmed Step 7 routing
+  plan, and does not touch user content outside a managed section (or, in `CLAUDE.md`, outside the
+  single import line).
+- Does not publish without Step 8's one explicit approval. That approval may cover several repos,
+  but staging remains path-scoped and each Git repo receives its own commit.
 - Does not merge divergent histories, and never passes `--allow-unrelated-histories`.
 - Does not three-way-merge the memory file — show-diff-and-confirm is the entire user-edit protocol.
 - Does not delete child repos dropped from a descriptor (no `--prune`).
@@ -442,9 +554,9 @@ follow-up to anything that changed on disk.
 
 - `docs/workspace-status.md` — the read-only counterpart; the findings catalog this skill converges.
 - `docs/workspace-pull.md` — the consumer companion; Step 5 runs it.
-- `docs/workspace-push.md` — the publisher; where dirty framework-managed files go after this skill
-  writes them.
+- `docs/workspace-push.md` — the standalone workspace-root publisher; Step 8 uses the same narrow
+  staging discipline while additionally covering routing descriptions in child repos.
 - `docs/worktrees.md` — the convention distributed into the memory file.
-- `docs/conventions.md` — `lore-workspace.md` schema (including `sharing: local`), the dual meaning
-  of `repos:`, and the Script Fallback Contract.
+- `docs/conventions.md` — `lore-workspace.md` schema (including `sharing: local` and
+  `repo-context`), the dual meaning of `repos:`, and the Script Fallback Contract.
 - `docs/check.md` — #22 (ignore coverage), #23 (legacy memory-file format), #24 (publication state).

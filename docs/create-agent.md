@@ -8,7 +8,10 @@ Add a new agent to an existing agent repo.
 
 2. **Get the agent name.** Kebab-case, descriptive (e.g., `code-reviewer`, `data-analyst`).
 
-3. **Get a role description.** Ask the user what this agent does — its responsibilities, how it works, what are its job responsibilities and work area to cover.
+3. **Get a role description.** Ask what this agent owns or knows and when another agent should boot
+   or attach it. The one-line frontmatter description is a routing aid for an unfamiliar agent, not
+   merely a title. If sibling agents overlap, make the boundary clear. Use the role body for the
+   fuller responsibilities and working method.
 
 4. **Create the agent directory structure:**
    ```
@@ -20,7 +23,7 @@ Add a new agent to an existing agent repo.
    ```
 
 5. **Write `role.md`** with YAML frontmatter and body. The frontmatter contains:
-   - `description` — a one-line summary of the agent's purpose
+   - `description` — a one-line routing summary: scope/knowledge + when to boot or attach
 
    The body includes:
    - Agent name as heading

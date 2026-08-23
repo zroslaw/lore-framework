@@ -1,6 +1,6 @@
 ---
 name: lr-workspace-init
-description: "Initialize a lore workspace, or converge an initialized one back to disk reality — lore-workspace.md, optional git root and remote, .gitignore, README, and the framework-managed sections of AGENTS.md (plus the CLAUDE.md import stub)."
+description: "Initialize or converge a Lore workspace, including its AI routing map of repos and agents, canonical descriptions, managed workspace files, and optional confirmed publication."
 ---
 
 `<framework-root>` is the framework root — the directory that contains the `VERSION` file, two levels up from this `.cursor-skills/lr-workspace-init/SKILL.md`. Resolve it to an absolute path before using it below.

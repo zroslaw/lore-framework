@@ -77,8 +77,9 @@ fi
 #       - <url-1>
 #       - <url-2>
 #
-# Inline forms (`repos: [a, b]`), nested keys, anchors, and merge keys are not
-# supported. Comments and blank lines inside the frontmatter are ignored.
+# Inline forms (`repos: [a, b]`), nested values inside `repos:`, anchors, and
+# merge keys are not supported. Other frontmatter keys (including structured
+# `repo-context`) are ignored. Comments and blank lines are ignored.
 # The same parser reads both lore-workspace.md and lore-repo.md.
 # ----------------------------------------------------------------------------
 

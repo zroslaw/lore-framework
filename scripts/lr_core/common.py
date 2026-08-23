@@ -240,8 +240,11 @@ def parse_frontmatter(text):
     """Parse the minimal YAML subset the framework uses in descriptor files.
 
     Supports `key: value` (optionally quoted) and block sequences of the form
-    `key:` followed by `  - item` lines. Not a general YAML parser and does not
-    need to be — descriptor schemas are fixed by docs/conventions.md.
+    `key:` followed by `  - item` lines. A block sequence may also contain
+    shallow scalar mappings (`- repo: name` followed by `description: ...`),
+    which is the shape of `lore-workspace.md`'s `repo-context`. Not a general
+    YAML parser and does not need to be — descriptor schemas are fixed by
+    docs/conventions.md.
     """
     out = {}
     if not text:
@@ -255,12 +258,27 @@ def parse_frontmatter(text):
             break
         body.append(line)
     current_list_key = None
+    current_mapping = None
     for line in body:
         if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        mapping_item = re.match(
+            r"^\s+-\s+([A-Za-z0-9_-]+):(?:\s+(.*))?$", line)
+        if mapping_item and current_list_key:
+            key, raw = mapping_item.group(1), mapping_item.group(2) or ""
+            current_mapping = {key: _strip_item_comment(raw)}
+            out[current_list_key].append(current_mapping)
+            continue
+        mapping_field = re.match(
+            r"^\s+([A-Za-z0-9_-]+):(?:\s+(.*))?$", line)
+        if mapping_field and current_list_key and current_mapping is not None:
+            key, raw = mapping_field.group(1), mapping_field.group(2) or ""
+            current_mapping[key] = _strip_item_comment(raw)
             continue
         item = re.match(r"^\s+-\s+(.*)$", line)
         if item and current_list_key:
             out[current_list_key].append(_strip_item_comment(item.group(1)))
+            current_mapping = None
             continue
         kv = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", line)
         if not kv:
@@ -276,9 +294,11 @@ def parse_frontmatter(text):
             if not isinstance(out.get(key), list):
                 out[key] = []
             current_list_key = key
+            current_mapping = None
         else:
             out[key] = _unquote(val)
             current_list_key = None
+            current_mapping = None
     return out
 
 

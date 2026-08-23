@@ -412,6 +412,95 @@ def declared_repos(workspace):
     return declared
 
 
+def repo_context_entries(workspace):
+    """Workspace-owned routing descriptions for ordinary repositories.
+
+    `lore-repo.md` remains the canonical description source for Lore agent
+    repos. Repositories without that descriptor need a durable source that
+    survives AGENTS.md regeneration, so `lore-workspace.md` may carry:
+
+        repo-context:
+          - repo: product-api
+            description: Owns ... Inspect when ...
+
+    Return `(entries, issues)`. Issues are structured data for the caller to
+    route through workspace-status/workspace-init; malformed input must never
+    be silently accepted as a usable routing description.
+    """
+    fm = _frontmatter_of(os.path.join(workspace, "lore-workspace.md"))
+    raw_entries = _as_list(fm.get("repo-context"))
+    entries, issues, seen = [], [], set()
+    for index, raw in enumerate(raw_entries):
+        if not isinstance(raw, dict):
+            issues.append({"index": index, "reason": "entry is not a mapping"})
+            continue
+        extra_keys = sorted(set(raw).difference(("repo", "description")))
+        if extra_keys:
+            issues.append({"index": index, "reason": "unsupported keys",
+                           "keys": extra_keys})
+        repo = str(raw.get("repo") or "").strip()
+        description = str(raw.get("description") or "").strip()
+        if not repo:
+            issues.append({"index": index, "reason": "missing repo"})
+            continue
+        if repo in seen:
+            issues.append({"index": index, "repo": repo,
+                           "reason": "duplicate repo"})
+            continue
+        seen.add(repo)
+        if not description:
+            issues.append({"index": index, "repo": repo,
+                           "reason": "missing description"})
+        entries.append({"repo": repo, "description": description})
+    return entries, issues
+
+
+def repository_routes(workspace, declared):
+    """The declared-repository routing inventory consumed by workspace-init.
+
+    Lore agent repos own their description in `lore-repo.md`; ordinary repos
+    use the workspace's `repo-context`. The inventory names the source file so
+    the procedure can show and stage a narrow write plan rather than guessing
+    where a generated AGENTS.md line came from.
+    """
+    context, issues = repo_context_entries(workspace)
+    context_by_repo = {entry["repo"]: entry["description"] for entry in context}
+    routes = []
+    declared_names = set()
+    for item in declared:
+        dirname = item.get("dirname")
+        if not dirname:
+            continue
+        declared_names.add(dirname)
+        repo_path = os.path.join(workspace, dirname)
+        descriptor = os.path.join(repo_path, "lore-repo.md")
+        if os.path.isfile(descriptor):
+            description = _frontmatter_of(descriptor).get("description") or ""
+            source = os.path.relpath(descriptor, workspace)
+            kind = "lore"
+        else:
+            description = context_by_repo.get(dirname, "")
+            source = "lore-workspace.md"
+            kind = "ordinary"
+        routes.append({
+            "repo": dirname,
+            "url": item.get("url"),
+            "kind": kind,
+            "description": str(description).strip(),
+            "description_source": source,
+        })
+
+    for entry in context:
+        if entry["repo"] not in declared_names:
+            issues.append({"repo": entry["repo"],
+                           "reason": "repo is not declared"})
+        elif os.path.isfile(os.path.join(
+                workspace, entry["repo"], "lore-repo.md")):
+            issues.append({"repo": entry["repo"],
+                           "reason": "Lore repo description belongs in lore-repo.md"})
+    return routes, issues
+
+
 def gitignore_lines(workspace):
     text = read_text(os.path.join(workspace, ".gitignore"))
     if text is None:
@@ -650,13 +739,13 @@ def shortcut_inventory(workspace):
 # --------------------------------------------------------------------------
 
 def build_findings(data):
-    """Derive S1-S16 from the collected facts. Pure — no I/O, no git.
+    """Derive S1-S17 from the collected facts. Pure — no I/O, no git.
 
     Manual fallback: the table in `docs/workspace-status.md` § Findings catalog
     lists every ID with its trigger, its severity, and its fix. This function is
     the trigger column, expressed once; that doc is the message and fix columns.
     Emit `data` payloads only. A finding is a result, never an exit code — the
-    scan that produced sixteen of them still exits 0.
+    scan that produced seventeen of them still exits 0.
     """
     findings = []
     git_data = data["git"]
@@ -856,6 +945,22 @@ def build_findings(data):
     if git_data["tracked"] and git_data["own_root"] and git_data["detached"]:
         add("S16", "warn", {"head": git_data.get("head")})
 
+    # S17 is the deterministic floor of the routing-description audit. The
+    # semantic question — whether a present description distinguishes this
+    # repo/agent well enough for an unfamiliar AI to choose it — stays with
+    # workspace-init's judgement pass. The scanner can still prove that a
+    # description is missing or its workspace-owned entry is malformed.
+    routing = data.get("routing") or {}
+    missing_repos = [item["repo"] for item in routing.get("repositories", [])
+                     if not item.get("description")]
+    missing_agents = [item["name"] for item in routing.get("agents", [])
+                      if item.get("registered") and not item.get("description")]
+    context_issues = routing.get("repo_context_issues") or []
+    if missing_repos or missing_agents or context_issues:
+        add("S17", "warn", {"repositories": missing_repos,
+                             "agents": missing_agents,
+                             "repo_context_issues": context_issues})
+
     order = {"error": 0, "warn": 1, "info": 2}
     findings.sort(key=lambda f: (order.get(f["severity"], 3),
                                  int(f["id"][1:])))
@@ -880,8 +985,9 @@ def cmd_workspace_scan(args, res):
 
     Step 3: collect git state (`git_state`), descriptors (`declared_repos`,
     `.gitignore`), children (`scan_children`), memory files (`memory_state`),
-    shortcuts (`shortcut_inventory`), worktrees (`worktree_inventory`), and the
-    agents present on disk (`preflight.discover_workspace`).
+    shortcuts (`shortcut_inventory`), worktrees (`worktree_inventory`), the
+    agents present on disk (`preflight.discover_workspace`), and canonical
+    routing-description sources (`repository_routes`, role.md descriptions).
 
     Step 4: classify `git status --porcelain -z` output (`status_paths`) into
     `managed_paths.dirty` and `managed_paths.other_dirty` using `is_managed`.
@@ -968,6 +1074,11 @@ def cmd_workspace_scan(args, res):
                 (dirty if is_managed(path) else other_dirty).append(path)
 
     _, agents = discover_workspace(workspace)
+    shortcuts = shortcut_inventory(workspace)
+    registered = set()
+    for names in shortcuts.values():
+        registered.update(names)
+    repo_routes, repo_context_issues = repository_routes(workspace, declared)
 
     res.data["git"] = {k: v for k, v in gstate.items()}
     res.data["descriptors"] = {
@@ -978,7 +1089,7 @@ def cmd_workspace_scan(args, res):
     }
     res.data["children"] = children
     res.data["memory"] = memory_state(workspace)
-    res.data["shortcuts"] = shortcut_inventory(workspace)
+    res.data["shortcuts"] = shortcuts
     res.data["agents"] = [a["name"] for a in agents]
     # Agent names grouped by their repo's directory name. No finding consumes
     # this since v37 (the old per-repo S15 did); it stays in the envelope
@@ -990,6 +1101,19 @@ def cmd_workspace_scan(args, res):
         repo_dir = os.path.basename(agent["repo"]) if agent["repo"] else "(no repo)"
         agents_by_repo.setdefault(repo_dir, []).append(agent["name"])
     res.data["agents_by_repo"] = agents_by_repo
+    res.data["routing"] = {
+        "repositories": repo_routes,
+        "agents": [{
+            "name": agent["name"],
+            "repo": os.path.basename(agent["repo"])
+            if agent["repo"] else "(no repo)",
+            "description": str(agent.get("description") or "").strip(),
+            "description_source": os.path.relpath(
+                os.path.join(agent["dir"], "role.md"), workspace),
+            "registered": agent["name"] in registered,
+        } for agent in agents],
+        "repo_context_issues": repo_context_issues,
+    }
     res.data["worktrees"] = worktree_inventory(workspace) \
         if gstate["tracked"] and gstate["own_root"] else []
     res.data["managed_paths"] = {
