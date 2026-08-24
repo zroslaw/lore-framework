@@ -17,25 +17,25 @@ direction; they manage the context they need to learn and grow.
 
 ## How it works
 
-1. **Give every domain its own expert**
+1. **Give every project its own expert**
 
    For each project or area of expertise, create a named Lore Agent with a clear role and domain.
    That focus helps it learn the right things instead of storing everything.
 
    ```text
-   /lr:create-agent domain-expert
+   /lr:create-agent project-expert
    ```
 
 2. **Summon the right expert**
 
-   Whenever you work in that domain, use its registered shortcut to bring the agent's accumulated
+   Whenever you work with that project, use its registered shortcut to bring the agent's accumulated
    context and knowledge into the session.
 
    ```text
-   /lr-domain-expert-agent
+   /lr-project-expert-agent
    ```
 
-   You can also use `/lr:boot domain-expert` if no shortcut is registered.
+   You can also use `/lr:boot project-expert` if no shortcut is registered.
 
 3. **Work together**
 
@@ -90,7 +90,7 @@ Lore lives in plain Markdown files in a Git-backed directory — no external kno
 vector storage. Instead, Lore Agents rely on what AI coding agents already do well: exploring,
 searching, and reading the documents underneath them.
 
-- **`role.md`** defines the specialist's domain and responsibilities.
+- **`role.md`** defines the specialist's project, domain, and responsibilities.
 - **`lore-context.md`** keeps only the essential knowledge needed in every session.
 - **`lore/*.md`** holds the knowledge itself, decomposed into focused **Lore topics** — each
   describing one small piece of knowledge. Topics reference each other, forming a knowledge graph,
@@ -107,7 +107,7 @@ Lore's structure, links, concision, and retrieval quality.
 
 ## A team of specialists
 
-Some tasks need more than one domain's expertise. Bring the specialists you need into a single
+Some tasks need more than one project's expertise. Bring the specialists you need into a single
 session and work them together:
 
 - **[`/lr:attach <agent>`](docs/attach.md)** — summon another specialist into the current session
@@ -122,18 +122,18 @@ session and work them together:
 
 And the learning stays focused: when you finalize a shared session, each agent reflects from its
 own perspective and updates its own Lore with what fits its role — all learn from the common
-session, but each learns only what belongs to its domain.
+session, but each learns only what belongs to its project.
 
 ## At workspace scale
 
 Lore Agents are at their most powerful in a large workspace, where everything they need sits side
 by side:
 
-- **Multiple domains and agent repos** — each specialist owning its own area.
+- **Multiple projects and agent repos** — each specialist owning its own area.
 - **Source code of adjacent systems** — agents work on top of the real repos: they read the actual
   code, ground their Lore in it, and bring their roles to bear on the systems they know.
 - **Dynamic expertise** — when a task crosses a boundary, the working agent summons the specialist
-  that owns the neighboring domain with `/lr:attach` and continues with both perspectives.
+  that owns the neighboring project with `/lr:attach` and continues with both perspectives.
 
 Lore Agents shine brightest in big software development areas: a landscape of interconnected
 services, libraries, and teams that no single context — human or agent — holds at once. Each
@@ -148,7 +148,7 @@ each session. Build one for yourself, share one with a team, or bring several sp
 
 - **A long-running project companion** — carries status, decisions, rationale, what has already
   been tried, and next steps across the life of a project.
-- **A personal domain specialist** — retains your history and constraints across finance, health,
+- **A personal project specialist** — retains your history and constraints across finance, health,
   hobbies, travel, or life administration without rebuilding the background every time.
 - **A research or evaluation partner** — preserves sources, criteria, intermediate findings, and
   the reasoning behind earlier judgments.
@@ -156,8 +156,8 @@ each session. Build one for yourself, share one with a team, or bring several sp
   and debugging lessons. When one engineer teaches it something, the whole team can benefit.
 - **An integrations and operations expert** — remembers third-party API quirks, rate limits,
   procedures, and hard-won workarounds.
-- **A team of specialists** — combines expertise from several domains in one task, without making
-  you re-explain each domain from scratch.
+- **A team of specialists** — combines expertise from several porjects and domains in one task, without making
+  you re-explain each project from scratch.
 
 The common thread is continuity: work produces knowledge, and that knowledge makes the next session
 more useful. Even solo, the value accumulates. Shared with a team, it compounds.
