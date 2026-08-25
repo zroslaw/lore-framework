@@ -28,6 +28,7 @@ own, because it is about to make a publication decision.
 
 from .common import *
 from .preflight import detect_engine, discover_workspace, find_repos
+from .plugin_config import check_plugin_config, ENGINE_FILES
 
 # --------------------------------------------------------------------------
 # The framework-managed path set (docs/workspace-push.md § 7)
@@ -53,6 +54,13 @@ MANAGED_PATHS = (
     ".claude/commands/lr-*-agent.md",
     ".codex/skills/lr-*-agent/SKILL.md",
     ".cursor/skills/lr-*-agent/SKILL.md",
+    # Project-scope plugin settings (v43). Managed but *shared*: unlike every
+    # other path here, these two files carry team content we did not write —
+    # permissions, hooks, env. They are in this set so `workspace-push`
+    # publishes them and S1 reports them dirty; they are merged key-by-key
+    # rather than regenerated. See `plugin_config.py`.
+    ".claude/settings.json",
+    ".cursor/settings.json",
 )
 
 # The three ignore lines every git-tracked workspace carries, independent of
@@ -851,7 +859,7 @@ def shortcut_targets(workspace):
 # --------------------------------------------------------------------------
 
 def build_findings(data):
-    """Derive S1-S17 from the collected facts. Pure — no I/O, no git.
+    """Derive S1-S18 from the collected facts. Pure — no I/O, no git.
 
     Manual fallback: the table in `docs/workspace-status.md` § Findings catalog
     lists every ID with its trigger, its severity, and its fix. This function is
@@ -1093,6 +1101,17 @@ def build_findings(data):
                              "agents": missing_agents,
                              "repo_context_issues": context_issues})
 
+    # S18: the committed project-scope plugin settings are missing or
+    # unreadable, so a teammate cloning this workspace does not get `lr`
+    # without installing it by hand. `disabled` is deliberately NOT a trigger:
+    # an explicit `false` is a choice the user made, and reporting it as drift
+    # would route them to a fix that undoes it.
+    plugin_cfg = data.get("plugin_config") or {}
+    if plugin_cfg.get("missing") or plugin_cfg.get("unreadable"):
+        add("S18", "info", {"missing": plugin_cfg.get("missing", []),
+                            "unreadable": plugin_cfg.get("unreadable", []),
+                            "disabled": plugin_cfg.get("disabled", [])})
+
     order = {"error": 0, "warn": 1, "info": 2}
     findings.sort(key=lambda f: (order.get(f["severity"], 3),
                                  int(f["id"][1:])))
@@ -1252,6 +1271,8 @@ def run_workspace_scan(workspace, framework_root=None, engine_override=None):
     }
     data["worktrees"] = worktree_inventory(workspace) \
         if gstate["tracked"] and gstate["own_root"] else []
+    data["plugin_config"] = check_plugin_config(workspace)
+    data["plugin_config"]["files"] = [rel for _, rel in ENGINE_FILES]
     data["managed_paths"] = {
         "set": list(MANAGED_PATHS),
         "standard_ignore_lines": list(STANDARD_IGNORE_LINES),

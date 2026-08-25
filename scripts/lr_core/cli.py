@@ -7,6 +7,7 @@ from .lore_graph import emit_yaml_fatal, yaml_dump
 from .lore_map import cmd_lore_map
 from .lore_workset import cmd_lore_workset
 from .workspace_scan import cmd_workspace_scan
+from .plugin_config import cmd_workspace_plugin_config
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -61,6 +62,15 @@ def build_parser():
                          choices=sorted(set(ENGINE_PROGRAMS.values())),
                          help="Force the engine profile instead of detecting it.")
     p_wscan.set_defaults(func=cmd_workspace_scan)
+
+    p_wpc = sub.add_parser(
+        "workspace-plugin-config",
+        help="Write the committed project-scope plugin settings "
+             "(.claude/settings.json, .cursor/settings.json). Idempotent.")
+    p_wpc.add_argument("--workspace", default=".", help="Workspace root (default: cwd).")
+    p_wpc.add_argument("--dry-run", action="store_true",
+                       help="Report what would be written without writing it.")
+    p_wpc.set_defaults(func=cmd_workspace_plugin_config)
 
     p_map = sub.add_parser("lore-map", help="Reconstruct and validate Lore v1.")
     p_map.add_argument("--agent-dir", required=True,

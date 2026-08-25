@@ -212,6 +212,17 @@ second is regenerated from scratch, so neither can discard a concurrent edit.)
 - **`AGENTS.md`** — the v3 payload (§ Canonical payload), with the marker migration when applicable
   (§ Migration from markers).
 - **`CLAUDE.md`** — the import stub only, idempotent (§ The `CLAUDE.md` import stub).
+- **`.claude/settings.json` and `.cursor/settings.json`** — the project-scope plugin settings, so a
+  teammate who clones this workspace gets `lr` without installing it by hand (§ Project-scope plugin
+  settings). Do **not** hand-write these: run
+
+  ```
+  python3 "<framework-root>/scripts/lr-core" workspace-plugin-config --workspace "<workspace>"
+  ```
+
+  and report its `data.files[].action` per file. These two are the only managed paths whose content
+  is mostly **not ours** — they carry the team's permissions, hooks, and env — which is exactly why
+  the merge is a script and not prose here.
 
 ### Step 5 — Run `workspace-pull`
 
@@ -395,7 +406,43 @@ Report what was written, committed, pushed, and what remains. Phrase scanner-own
 as their `workspace-status` findings. When the user declines Step 8 or publication is partial, name
 the exact recovery command or repo rather than claiming the workspace is published.
 
+**Name the plugin-settings outcome in one line, including Codex.** Say which of the two files were
+created, updated, or left unchanged, name any file reported as an error with its reason, and say
+that Codex has no project-scope mechanism. A summary that lists Claude and Cursor and stops has told
+a mixed-engine team that everyone is covered.
+
 ---
+
+## Project-scope plugin settings
+
+Two committed files make `lr` available to anyone who clones this workspace, without a per-person
+install:
+
+| Engine | File | Mechanism |
+|---|---|---|
+| Claude Code | `.claude/settings.json` | `extraKnownMarketplaces` + `enabledPlugins` |
+| Cursor | `.cursor/settings.json` | `plugins."lore-framework/lr"`, carrying `gitUrl` so no prior marketplace registration is needed |
+| Codex | — | none exists |
+
+**Codex has no equivalent, and the summary must say so.** Repository-scoped marketplace registration
+plus a per-repo enable is an open upstream request (`openai/codex#18115`). Reporting two engines
+without naming the third reads as "all of them" to anyone who does not already know there are three.
+
+`lr-core workspace-plugin-config` owns the write. Three properties it guarantees, none of which
+survives being restated as prose for a model to execute:
+
+- **Merge, never rewrite.** Only our own keys are touched; everything else is re-serialised verbatim.
+- **An existing value for our keys is never overwritten.** `"lr@lore-framework": false` is a
+  deliberate choice; converging it back to `true` would make that choice unstickable. The command
+  reports such keys under `kept`.
+- **An unparseable file is refused, not clobbered.** Cursor accepts comments and trailing commas
+  where strict JSON does not, so a file that will not parse is reported as an error and left alone.
+
+A file is rewritten only when a key was actually added — an existing file keeps its own formatting.
+
+Both paths are in `MANAGED_PATHS`, so `workspace-push` publishes them and `workspace-status`
+reports drift as **finding S18**. Neither engine hot-reloads: a teammate picks the plugin up on
+their next fresh session, not mid-session.
 
 ## The memory-file contract
 
@@ -557,6 +604,10 @@ workspace does not repeatedly pay the investigation cost.
 - Does not delete child repos dropped from a descriptor (no `--prune`).
 - Does not decide agent membership. The Agents section is *rendered* from the registered shortcuts on
   disk; registration remains the single membership authority (`docs/register-repo.md`).
+- Does not regenerate `.claude/settings.json` or `.cursor/settings.json`, re-enable a plugin a user
+  explicitly disabled, or write into a settings file it could not parse (§ Project-scope plugin
+  settings).
+- Does not configure Codex plugins. No project-scope mechanism exists for it.
 
 ## See Also
 
