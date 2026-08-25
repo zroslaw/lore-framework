@@ -150,7 +150,8 @@ Install helpers: `scripts/install-cursor-plugin`, `scripts/cursor-refresh-plugin
 | Agent CLI | `cursor-agent --plugin-dir <checkout>` | **Yes** (v20+) |
 | Local plugins dir symlink | `~/.cursor/plugins/local/lore-framework` | **D2 probe** — opt-in via `install-cursor-plugin --symlink` |
 | IDE chat without `--plugin-dir` | Customize / local plugins | **D2 probe** |
-| Marketplace | TBD | **Deferred (Tier B)** |
+| Marketplace | `cursor-agent plugin marketplace add <git-url>`, then enable in the UI | **Yes** — add is scriptable; enabling is interactive only |
+| Project settings | `.cursor/settings.json` -> `plugins."lore-framework/lr"` with `gitUrl` | **Unverified on a real engine** — written by `workspace-init` (v43), read from Cursor's shipped code, never executed end to end |
 
 The documented default remains **checkout + `--plugin-dir`** until Tier B marketplace flows are
 validated on a given CLI build.

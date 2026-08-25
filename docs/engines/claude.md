@@ -25,6 +25,17 @@ fills the same five bindings; only the values differ.
   grandparent rather than the immediate parent. Agent-Teams / `spawn-teammate` features are
   available.
 
+## Project-scope plugin settings
+
+A workspace's committed `.claude/settings.json` can carry `extraKnownMarketplaces` plus
+`enabledPlugins`, which makes `lr` available to anyone who clones it — written by `workspace-init`
+(v43), reported as finding S18 when absent.
+
+**The trap: `extraKnownMarketplaces` applies only after the teammate trusts the folder.** Until
+they do, Claude Code does not load plugins from a marketplace the project file declares, and the
+symptom is indistinguishable from the file being absent. Check trust before diagnosing anything
+else. Nothing here hot-reloads either: the plugin appears in the next session, not this one.
+
 ## Registered shortcut bootstrap
 
 When `/lr:register-agent` or `/lr:register-repo` emits a Claude per-agent shortcut, use this

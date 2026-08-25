@@ -306,6 +306,10 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 You can always boot an agent with `/lr:boot <agent-name>`. For agents you use often, create a direct
 shortcut with `/lr:register-agent`, or register every agent in a repo with `/lr:register-repo`.
 
+A workspace may also carry `.claude/settings.json` and `.cursor/settings.json`, written by
+`workspace-init`, which make the `lr` plugin available to anyone who clones it without a per-person
+install. Codex has no project-scope equivalent.
+
 Shortcuts are stored inside the workspace under `.claude/commands/`, `.cursor/skills/`, or
 `.codex/skills/`, depending on the engine. Publish them with `/lr:workspace-push`, and teammates
 receive them through `/lr:workspace-pull`. See [FIRST-STEPS.md](FIRST-STEPS.md), Step 5.

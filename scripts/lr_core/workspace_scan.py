@@ -1102,14 +1102,14 @@ def build_findings(data):
                              "repo_context_issues": context_issues})
 
     # S18: the committed project-scope plugin settings are missing or
-    # unreadable, so a teammate cloning this workspace does not get `lr`
+    # unresolvable, so a teammate cloning this workspace does not get `lr`
     # without installing it by hand. `disabled` is deliberately NOT a trigger:
     # an explicit `false` is a choice the user made, and reporting it as drift
     # would route them to a fix that undoes it.
     plugin_cfg = data.get("plugin_config") or {}
-    if plugin_cfg.get("missing") or plugin_cfg.get("unreadable"):
+    if plugin_cfg.get("missing") or plugin_cfg.get("unresolvable"):
         add("S18", "info", {"missing": plugin_cfg.get("missing", []),
-                            "unreadable": plugin_cfg.get("unreadable", []),
+                            "unresolvable": plugin_cfg.get("unresolvable", []),
                             "disabled": plugin_cfg.get("disabled", [])})
 
     order = {"error": 0, "warn": 1, "info": 2}

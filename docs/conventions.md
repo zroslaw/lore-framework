@@ -180,13 +180,14 @@ breaks. One CLI may expose both kinds as separate subcommands.
   running code is normative, and so are its comments — there is exactly one artifact, not a
   prose copy and a code copy that can drift apart. A doc that delegates to it carries only a
   short pointer: what to call, what the output fields mean, and — on failure — *which function
-  and focused module* to go read. `scripts/lr-core`'s `discover`, `preflight`, `scan`, and `workspace-scan` subcommands are the
-  reference cases: `docs/agent-boot.md`,
+  and focused module* to go read. `scripts/lr-core`'s `discover`, `preflight`, `scan`, `workspace-scan`, and
+  `workspace-plugin-config` subcommands are the reference cases: `docs/agent-boot.md`,
   `docs/auto-pull.md`, `docs/attach.md`, `docs/consult.md`, `docs/lore-search.md`,
   `docs/process-merge.md`, `docs/pull-lore.md`, `docs/being.md`, `docs/workspace-status.md`,
   `docs/workspace-init.md`, `docs/workspace-push.md`, and `docs/check.md` all point into specific
-  functions in `scripts/lr_core/preflight.py`, `scripts/lr_core/scan.py`, or
-  `scripts/lr_core/workspace_scan.py` rather than restating what those functions do.
+  functions in `scripts/lr_core/preflight.py`, `scripts/lr_core/scan.py`,
+  `scripts/lr_core/workspace_scan.py`, or `scripts/lr_core/plugin_config.py` rather than restating
+  what those functions do.
 - **Implementation** — the script *is* the specification; there is no prose procedure and no
   comment-as-procedure to execute by hand either. `scripts/workspace-pull`,
   `scripts/session-takeover`, `scripts/sync-cursor-skills`, `scripts/lr-emit` +

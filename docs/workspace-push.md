@@ -39,6 +39,15 @@ readers, not a second definition — never stage from a remembered copy of it:
 | `.claude/commands/lr-*-agent.md` | `register-agent` / `register-repo`, `update` migrations |
 | `.codex/skills/lr-*-agent/SKILL.md` | `register-agent` / `register-repo`, `update` migrations |
 | `.cursor/skills/lr-*-agent/SKILL.md` | `register-agent` / `register-repo`, `update` migrations |
+| `.claude/settings.json` | `workspace-init` (merged, not regenerated) |
+| `.cursor/settings.json` | `workspace-init` (merged, not regenerated) |
+
+
+**The two `settings.json` paths are managed but not ours.** Every other path in this set is
+framework-generated end to end. These two are the team's own files — permissions, hooks, env — into
+which `workspace-init` merges two keys. So the memory-file rule in Step 3 applies to them with more
+force, not less: **note in the plan when the staged diff extends beyond our own keys**, because the
+user is confirming their own unrelated edits ride along in this commit.
 
 All three engines' per-agent shortcuts are workspace-local as of v37, so all three publish here.
 Codex shortcuts left in `~/.codex/skills/` by an earlier framework version are the exception: that

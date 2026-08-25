@@ -38,6 +38,7 @@ could go wrong:
 from .common import *
 
 import copy
+import tempfile
 
 MARKETPLACE_NAME = "lore-framework"
 PLUGIN_NAME = "lr"
@@ -143,9 +144,10 @@ MERGERS = {"claude": merge_claude, "cursor": merge_cursor}
 def read_settings(path):
     """Read a settings file. Returns (doc, existed).
 
-    A missing file yields an empty document. A file that is unreadable, is not
-    valid JSON, or whose top level is not an object raises — rule 3. The caller
-    turns that into a reported error and leaves the file alone.
+    A missing file yields an empty document. A file that cannot be read, is not
+    valid UTF-8, is not valid JSON, or whose top level is not an object raises
+    — rule 3. The caller turns that into a reported error and leaves the file
+    alone.
     """
     if not os.path.isfile(path):
         return {}, False
@@ -154,6 +156,12 @@ def read_settings(path):
             raw = handle.read()
     except OSError as exc:
         raise PluginConfigError("cannot read: %s" % exc)
+    except UnicodeDecodeError as exc:
+        # Not an OSError — it is a ValueError. Letting it escape would crash
+        # `workspace-plugin-config` out of its JSON envelope, and take every
+        # other finding in `workspace-scan` down with it, because one settings
+        # file had a stray byte.
+        raise PluginConfigError("not valid UTF-8: %s" % exc)
     if not raw.strip():
         return {}, True
     try:
@@ -215,6 +223,37 @@ def plan_file(workspace, engine, rel_path):
     return row, render_settings(doc)
 
 
+def write_atomic(path, text):
+    """Replace `path` with `text` atomically, or leave it exactly as it was.
+
+    `open(path, "w")` truncates the target the instant it succeeds, *before*
+    anything is written. A failure between those two moments — ENOSPC, a quota,
+    a killed process, a lost machine — leaves a valid settings file replaced by
+    a few bytes of garbage, while the caller reports the same tidy `error` row
+    it reports for a refusal that never touched the file at all. That is the
+    one outcome this module exists to prevent, so the write goes to a sibling
+    temporary file and lands with `os.replace`, which is atomic on POSIX and
+    Windows. A failed write leaves only the temp file behind, and we remove it.
+    """
+    parent = os.path.dirname(path)
+    if parent and not os.path.isdir(parent):
+        os.makedirs(parent)
+    fd, tmp = tempfile.mkstemp(prefix=".lr-", suffix=".tmp",
+                               dir=parent or ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def apply_plugin_config(workspace, dry_run=False):
     """Write both project-scope plugin settings files. Idempotent.
 
@@ -230,11 +269,7 @@ def apply_plugin_config(workspace, dry_run=False):
         elif rendered is not None and row["action"] != "unchanged" and not dry_run:
             path = os.path.join(workspace, rel_path)
             try:
-                parent = os.path.dirname(path)
-                if parent and not os.path.isdir(parent):
-                    os.makedirs(parent)
-                with open(path, "w", encoding="utf-8") as handle:
-                    handle.write(rendered)
+                write_atomic(path, rendered)
             except OSError as exc:
                 row["action"] = "error"
                 row["error"] = "cannot write: %s" % exc
@@ -246,42 +281,59 @@ def apply_plugin_config(workspace, dry_run=False):
 
 
 def check_plugin_config(workspace):
-    """Report which project-scope plugin files are missing or incomplete.
+    """Report which project-scope plugin files are missing or unresolvable.
 
-    Pure inspection for `workspace-scan` (finding S18). A file we cannot parse
-    counts as unresolved — the scan must not claim coverage it could not read.
-    An entry present but explicitly disabled is reported separately: that is a
-    deliberate user choice, not drift, and naming it as drift would send the
-    user to a fix they do not want.
+    Pure inspection for `workspace-scan` (finding S18).
+
+    **This asks the merger itself**, on a throwaway copy, rather than
+    re-implementing the "is it configured?" test. The two must agree: a file
+    the merger refuses but this function calls merely `missing` produces an
+    S18 row saying "run workspace-init", forever, on a file workspace-init can
+    never converge. Deriving both answers from one code path makes that
+    disagreement impossible rather than merely unlikely.
+
+    Three buckets:
+      missing      — a key we would add is absent; `workspace-init` fixes it.
+      unresolvable — the file cannot be read or cannot be safely merged
+                     (bad encoding, invalid JSON, or a key of a conflicting
+                     type). Needs a human; `workspace-init` will not touch it.
+      disabled     — configured, but explicitly turned off. A deliberate
+                     choice, reported as context and never as drift.
     """
-    missing, unreadable, disabled = [], [], []
+    missing, unresolvable, disabled = [], [], []
     for engine, rel_path in ENGINE_FILES:
         path = os.path.join(workspace, rel_path)
         try:
             doc, existed = read_settings(path)
         except PluginConfigError:
-            unreadable.append(rel_path)
+            unresolvable.append(rel_path)
             continue
         if not existed:
             missing.append(rel_path)
             continue
-        if engine == "claude":
-            enabled = (doc.get("enabledPlugins") or {})
-            value = enabled.get(CLAUDE_PLUGIN_KEY) if isinstance(enabled, dict) else None
-            known = doc.get("extraKnownMarketplaces")
-            has_market = isinstance(known, dict) and MARKETPLACE_NAME in known
-            if value is None or not has_market:
-                missing.append(rel_path)
-            elif value is False:
-                disabled.append(rel_path)
-        else:
-            plugins = doc.get("plugins")
-            entry = plugins.get(CURSOR_PLUGIN_KEY) if isinstance(plugins, dict) else None
-            if not isinstance(entry, dict):
-                missing.append(rel_path)
-            elif entry.get("enabled") is False:
-                disabled.append(rel_path)
-    return {"missing": missing, "unreadable": unreadable, "disabled": disabled}
+        try:
+            added, _kept = MERGERS[engine](copy.deepcopy(doc))
+        except PluginConfigError:
+            unresolvable.append(rel_path)
+            continue
+        if added:
+            missing.append(rel_path)
+        elif _is_disabled(engine, doc):
+            disabled.append(rel_path)
+    return {"missing": missing, "unresolvable": unresolvable,
+            "disabled": disabled}
+
+
+def _is_disabled(engine, doc):
+    """True when the plugin is configured but explicitly switched off.
+
+    Only reached for a document the merger found complete, so every lookup
+    below is known to be present and of the right type.
+    """
+    if engine == "claude":
+        return doc["enabledPlugins"].get(CLAUDE_PLUGIN_KEY) is False
+    entry = doc["plugins"].get(CURSOR_PLUGIN_KEY)
+    return isinstance(entry, dict) and entry.get("enabled") is False
 
 
 def cmd_workspace_plugin_config(args, res):

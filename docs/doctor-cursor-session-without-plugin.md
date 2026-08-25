@@ -18,6 +18,20 @@
    - **CLI:** was `cursor-agent` launched with `--plugin-dir /path/to/lore-framework`?
    - **IDE chat:** was a verified local-plugin path active (see `docs/engines/cursor.md` § Load
      surfaces)?
+   - **Cloned a Lore workspace and expected `lr` to be there already?** Since v43 a workspace can
+     carry `.cursor/settings.json` with a `plugins."lore-framework/lr"` entry, which loads the
+     plugin with no per-person install. Check that path first:
+
+     ```bash
+     python3 "<framework-root>/scripts/lr-core" workspace-scan --workspace "<workspace>"
+     ```
+
+     Read `data.plugin_config`. `missing` means the workspace never had the file — the fix is
+     `workspace-init`, not anything in this ailment. `unresolvable` means the file exists but
+     cannot be parsed or safely merged, so Cursor may be ignoring it too: fix the JSON by hand.
+     An entry present with `"enabled": false` is a deliberate opt-out, and the missing skills are
+     the intended outcome rather than a fault. Only when `data.plugin_config` is clean does the
+     rest of this ailment apply.
 
 3. **Verify the checkout on disk** (if the user has one):
 

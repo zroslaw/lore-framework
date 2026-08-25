@@ -154,6 +154,8 @@ Will write:
   README.md                  <new / unchanged / skipped: no remote>
   AGENTS.md                  <sections: Lore Framework, Repositories, Agents>
   CLAUDE.md                  <import stub: create / already present>
+  .claude/settings.json      <plugin settings: create / merge / unchanged / refuse: unparseable>
+  .cursor/settings.json      <plugin settings: create / merge / unchanged / refuse: unparseable>
 Will run:
   git init / git remote add origin <url>     (if chosen)
   workspace-pull
@@ -209,6 +211,11 @@ second is regenerated from scratch, so neither can discard a concurrent edit.)
   workspace-init        # converge: memory file, shortcuts, ignore lines
   boot <primary-agent>
   ```
+
+  On Claude Code and Cursor the joiner needs no plugin install first: the workspace's committed
+  `.claude/settings.json` / `.cursor/settings.json` supply `lr` on their next fresh session
+  (§ Project-scope plugin settings). On **Codex** it is still install-first — say so in the card
+  when the team uses Codex, rather than letting a joiner discover it at the first `/lr-` command.
 - **`AGENTS.md`** — the v3 payload (§ Canonical payload), with the marker migration when applicable
   (§ Migration from markers).
 - **`CLAUDE.md`** — the import stub only, idempotent (§ The `CLAUDE.md` import stub).
@@ -220,9 +227,16 @@ second is regenerated from scratch, so neither can discard a concurrent edit.)
   python3 "<framework-root>/scripts/lr-core" workspace-plugin-config --workspace "<workspace>"
   ```
 
-  and report its `data.files[].action` per file. These two are the only managed paths whose content
-  is mostly **not ours** — they carry the team's permissions, hooks, and env — which is exactly why
-  the merge is a script and not prose here.
+  and report each row's `action` **and its `error` when present** — Step 9 needs the reason, and
+  re-running the command to recover it is a second write attempt. These two are the only managed
+  paths whose content is mostly **not ours** — they carry the team's permissions, hooks, and env —
+  which is exactly why the merge is a script and not prose here.
+
+  **If the command cannot run** (no `python3`, exit 2, unparsable output), follow the Script
+  Fallback Contract (`docs/conventions.md`): read `scripts/lr_core/plugin_config.py` — its module
+  docstring and the `CLAUDE_PAYLOAD` / `CURSOR_PAYLOAD` constants are the normative spec — and merge
+  the two payloads by hand under the same three rules, then verify a re-run reports `unchanged`.
+  "Do not hand-write these" means do not invent the payload; it does not mean stop.
 
 ### Step 5 — Run `workspace-pull`
 
@@ -431,7 +445,9 @@ without naming the third reads as "all of them" to anyone who does not already k
 `lr-core workspace-plugin-config` owns the write. Three properties it guarantees, none of which
 survives being restated as prose for a model to execute:
 
-- **Merge, never rewrite.** Only our own keys are touched; everything else is re-serialised verbatim.
+- **Merge, never rewrite.** No existing key or value is dropped or altered. Formatting is not
+  preserved: when a key is actually added the document is re-serialised at two-space indent, so a
+  file with its own layout will come back reformatted. Content survives; whitespace may not.
 - **An existing value for our keys is never overwritten.** `"lr@lore-framework": false` is a
   deliberate choice; converging it back to `true` would make that choice unstickable. The command
   reports such keys under `kept`.
@@ -604,10 +620,9 @@ workspace does not repeatedly pay the investigation cost.
 - Does not delete child repos dropped from a descriptor (no `--prune`).
 - Does not decide agent membership. The Agents section is *rendered* from the registered shortcuts on
   disk; registration remains the single membership authority (`docs/register-repo.md`).
-- Does not regenerate `.claude/settings.json` or `.cursor/settings.json`, re-enable a plugin a user
-  explicitly disabled, or write into a settings file it could not parse (§ Project-scope plugin
-  settings).
-- Does not configure Codex plugins. No project-scope mechanism exists for it.
+- Does not regenerate, re-enable, or clobber the two project-scope settings files. The three rules
+  that govern those writes are stated once, in § Project-scope plugin settings, and are enforced in
+  `scripts/lr_core/plugin_config.py` rather than asked of the executor.
 
 ## See Also
 

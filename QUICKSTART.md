@@ -80,6 +80,12 @@ Skills invoke with a different prefix per engine — this legend recurs througho
 
 A teammate has an agent repo and pointed you at it.
 
+**If they pointed you at a shared *workspace* repo rather than a single agent repo, clone that
+instead — and on Claude Code or Cursor you can skip the plugin install above.** A workspace
+initialized with v43 or later carries `.claude/settings.json` / `.cursor/settings.json`, which
+supply `lr` on your next fresh session with nothing to install. On **Codex** the install above is
+still required; it has no project-scope plugin mechanism.
+
 1. **Clone the agent repo** into a workspace directory of your choice.
 2. **Run your coding agent from that workspace** (the parent directory).
 3. **Pull the workspace** — clones any other repos it declares and pulls everything:
