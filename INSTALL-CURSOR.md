@@ -7,12 +7,24 @@ commands here directly.
 
 ## For the AI agent reading this
 
-If a user asked you to set up Lore Agents and you are running in **Cursor**, you are the
-installer. Cursor's verified path is a **local checkout launched with `--plugin-dir`** — not a
-one-command marketplace install — so this involves cloning the repo, running a helper script, and
-relaunching. Before you clone into a directory, run the helper, or create a symlink, tell the user
-what you're about to do and where, and get their go-ahead. Cursor does **not** hot-reload skills, so
-new skills appear only after you relaunch with `--plugin-dir`; tell the user to expect that restart.
+If a user asked you to set up Lore Agents and you are running in **Cursor**, you are the installer.
+
+The install has **two steps, and you can only do the first one.**
+
+1. **You** add the Lore Agents marketplace to the user's Cursor account. This is one command.
+2. **The user** enables the plugin in Cursor's UI. You cannot do this — there is no non-interactive
+   install command in Cursor today. Do not try to fake it, and do not edit any file under
+   `~/.cursor/plugins/` to simulate it (see § Do not hand-edit the plugin manifest).
+
+So: run Step 1, then **show the user the highlighted block in Step 2 and stop**. Wait for them to
+confirm they clicked Add before you continue.
+
+Before you run a command that changes their account or their disk, say what you are about to do and
+get their go-ahead.
+
+Cursor does **not** hot-reload plugins. After the user enables it, they need a **fresh session**
+before `/lr-*` skills appear. Tell them to expect that.
+
 When the plugin is loaded, ask whether the user is joining a team that already uses Lore Agents or
 starting fresh — for joining, point them to
 [QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path); for starting fresh,
@@ -26,81 +38,128 @@ On Cursor, Lore skills invoke as **`/lr-<skill>`** (hyphen, no colon) — e.g. `
 
 Claude Code uses `/lr:<skill>`; Codex uses `$lr:<skill>`. See the README engine legend.
 
-## Install sequence (three-step bootstrap)
+## Install
 
-There is no single self-contained one-command install for a user with no prior checkout. Use this
-documented sequence:
+### Step 1 — Add the marketplace (the agent can do this)
 
-### Step 1 — Bootstrap checkout (user or agent)
+```bash
+cursor-agent plugin marketplace add https://github.com/zroslaw/lore-framework
+```
+
+Expected output:
+
+```
+✓ Added marketplace lore-framework (1 plugin)
+  lr - Lore Agents — named AI specialists that learn and grow with you
+```
+
+Verify it landed before moving on:
+
+```bash
+cursor-agent plugin marketplace list --format json
+```
+
+The list must contain an entry whose `gitUrl` is `https://github.com/zroslaw/lore-framework`. If it
+does not, Step 1 failed — fix that before showing the user Step 2.
+
+This registers the marketplace on the user's **Cursor account**, not just this machine.
+
+### Step 2 — Enable the plugin (only the user can do this)
+
+> ## ⚠️ ACTION REQUIRED — the install is not finished
+>
+> **Adding the marketplace does not install the plugin.** You must enable it yourself in Cursor.
+> Nothing else in this guide will work until you do.
+>
+> **In the Cursor app:**
+>
+> 1. Open **Customize** in the sidebar, then the **Plugins** tab.
+> 2. Click **+ Add**, then **From Marketplace**.
+>    (The Plugins tab looks empty until you do this — that is expected.)
+> 3. Scroll to the **Lore Framework** section.
+> 4. On the **Lore Agents** row, click **Add**.
+> 5. If Cursor asks for a scope, choose **user** — it then follows you to every project and machine.
+>
+> **Or do it in the terminal instead:**
+>
+> 1. Run `cursor-agent`.
+> 2. Type **`/plugin`**.
+> 3. Press **Tab** (or →) to switch to the **Marketplace** tab.
+> 4. Type `Lore` to search, and select **Lore Agents (lore-framework)**. Press Enter.
+> 5. Choose the scope. Press Enter.
+>    - **Install for you (user scope)** — follows you to every project and machine.
+>    - **Install for all collaborators on this repository (project scope)** — scoped to this repo.
+>
+> **Then start a fresh Cursor session.** Cursor does not hot-reload plugins.
+>
+> **Don't see a "Lore Framework" section?** Add the marketplace by hand: in that same browse view,
+> click the **+ Add Marketplace** chip and paste
+> `https://github.com/zroslaw/lore-framework`. Then repeat steps 3–4.
+
+You only do this **once per Cursor account**. The install syncs to your other machines and to your
+CLI sessions — you do not repeat it per laptop.
+
+### Step 3 — Confirm it worked
+
+In a new session, type `/lr-` and check that Lore skills appear (`/lr-boot`, `/lr-workspace-init`,
+`/lr-finalize`, …).
+
+If nothing appears, see § Troubleshooting.
+
+## Keeping it up to date
+
+Once installed from the marketplace, Cursor owns the update. Re-index after the framework ships a
+new version:
+
+```bash
+cursor-agent plugin marketplace update lore-framework
+```
+
+Then start a fresh session.
+
+To have pushes flow through without running that command, enable **Auto Refresh** and install the
+**Cursor GitHub App** on the repo. Cursor then re-indexes at most once every 10 minutes. A fresh
+session is still required — no hot reload, on any path.
+
+### Pinning to a specific ref
+
+`marketplace add` tracks the repo's default branch unless told otherwise:
+
+```bash
+cursor-agent plugin marketplace add https://github.com/zroslaw/lore-framework --git-ref <branch-or-tag>
+```
+
+A tag pins permanently — you will not receive later versions until you re-add. A branch tracks
+whatever that branch points at.
+
+## Do not hand-edit the plugin manifest
+
+`~/.cursor/plugins/cache/.cloud-plugin-manifest.json` looks like an install record. It lists plugin
+names, ids and resolved commits, so it is tempting to write an install into it.
+
+**It is a downloaded cache of server-side state.** Cursor overwrites it on the next sync, and your
+edit disappears. Installs live on the Cursor account, not on disk. There is no supported file you
+can write to install a plugin.
+
+## Development path — local checkout with `--plugin-dir`
+
+Use this **only when working on the framework itself**, against a tree that is not pushed yet. It is
+not managed by Cursor: no update checks, no account sync, no marketplace.
 
 ```bash
 git clone https://github.com/zroslaw/lore-framework.git "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
-```
-
-Or update an existing checkout:
-
-```bash
-git -C "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}" pull --ff-only
-```
-
-### Step 2 — Post-clone helper
-
-```bash
 bash "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}/scripts/install-cursor-plugin" "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
-```
-
-The helper validates that `VERSION` exists (i.e. you cloned first). It optionally runs
-`git pull --ff-only` and can create a local-plugins symlink with `--symlink` — see § Local plugins
-symlink below.
-
-### Step 3 — Launch (the user must do this)
-
-> **Agents: you cannot perform this step.** Relaunching Cursor is the user's action — you're running
-> inside the current, plugin-less session and can't restart it with a new flag. Tell the user to run
-> this (or add `--plugin-dir` to their launch config), then continue once they're in the new session.
-> While you wait, you can still help via the mid-session fallback in `docs/engines/cursor.md`.
-
-```bash
 cursor-agent --plugin-dir "${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
 ```
 
+> **Agents: you cannot perform the launch step.** Relaunching Cursor is the user's action — you are
+> running inside the current session and cannot restart it with a new flag. Tell the user to run it,
+> then continue once they are in the new session. While you wait, you can still help via the
+> mid-session fallback in `docs/engines/cursor.md`.
+
 Some installs expose `agent` as an alias for `cursor-agent`; all examples here use `cursor-agent`.
 
-After launch, Lore skills appear as `/lr-boot`, `/lr-workspace-init`, `/lr-finalize`, etc.
-
-## Verified install path today
-
-The reliable, reproducible path is **local checkout + `--plugin-dir`**. The framework ships
-`.cursor-plugin/plugin.json` and `.cursor-skills/` wrappers, but treat `--plugin-dir` as the
-deterministic way to load Lore until a Cursor-native marketplace install has been verified on your
-build.
-
-## Local plugins symlink (optional)
-
-`install-cursor-plugin --symlink` can create:
-
-```
-~/.cursor/plugins/local/lore-framework → /your/checkout
-```
-
-**Only use `--symlink` after confirming** your Cursor build loads Lore skills from
-`~/.cursor/plugins/local/` *without* `--plugin-dir`. If you haven't confirmed that, skip `--symlink`
-and use `--plugin-dir` every time. The install helper **defaults to no symlink** (`--symlink` is
-opt-in).
-
-## Refresh after the framework updates
-
-Cursor does not hot-reload plugin skills mid-session. After updating the checkout on disk, start a
-**fresh** session.
-
-### Manual refresh
-
-```bash
-git -C /absolute/path/to/lore-framework pull --ff-only
-cursor-agent --plugin-dir /absolute/path/to/lore-framework
-```
-
-### Helper script
+To refresh this path after changing the checkout:
 
 ```bash
 bash /absolute/path/to/lore-framework/scripts/cursor-refresh-plugin /absolute/path/to/lore-framework
@@ -110,25 +169,20 @@ cursor-agent --plugin-dir /absolute/path/to/lore-framework
 `cursor-refresh-plugin` exits non-zero if `git pull --ff-only` fails — fix the git state before
 continuing.
 
-If you are on an unpushed local branch, use whatever action brings the checkout to the desired
-commit; the important part is a **new session** with `--plugin-dir` pointing at that tree.
+### Local plugins symlink (optional, same development path)
 
-If skills are listed but show **stale or wrong content** after upgrading, the checkout may be
-current but the session still holds an old plugin tree — run `cursor-refresh-plugin`, start a fresh
-`cursor-agent --plugin-dir` session, and see the troubleshooting table below. On Claude Code, see
-`docs/doctor-stale-plugin-cache.md`.
+`install-cursor-plugin --symlink` can create:
 
-## Team automation
-
-Wrap refresh before launch so teammates always pick up the latest framework:
-
-```bash
-LORE_FRAMEWORK_DIR="${LORE_FRAMEWORK_DIR:-$HOME/src/lore-framework}"
-bash "$LORE_FRAMEWORK_DIR/scripts/cursor-refresh-plugin" "$LORE_FRAMEWORK_DIR"
-cursor-agent --plugin-dir "$LORE_FRAMEWORK_DIR"
+```
+~/.cursor/plugins/local/lore-framework → /your/checkout
 ```
 
-Set `LORE_FRAMEWORK_DIR` in your shell profile or team dotfiles when the checkout lives elsewhere.
+This is the same unmanaged class as `--plugin-dir`, not a lighter-weight install. **Only use
+`--symlink` after confirming** your Cursor build loads Lore skills from `~/.cursor/plugins/local/`
+*without* `--plugin-dir`. The helper **defaults to no symlink** (`--symlink` is opt-in).
+
+If you have installed from the marketplace, remove this symlink so the two copies cannot shadow each
+other.
 
 ## Mid-session fallback (plugin not loaded)
 
@@ -146,12 +200,6 @@ After the plugin is loaded, register workspace-local shortcuts:
 
 These create `.cursor/skills/lr-<agent>-agent/` wrappers scoped to the matching repo.
 
-## Cursor-native plugin installs (not yet verified)
-
-Marketplace / IDE-native install flows are **not** documented as verified here. Don't assume a
-marketplace install works until you've checked it on your own CLI build
-(`cursor-agent --help | grep -i plugin`); until then, use the `--plugin-dir` path above.
-
 ## Optional Cursor configuration
 
 If you want Lore's full git-backed lifecycle on Cursor:
@@ -164,18 +212,22 @@ plugin itself.
 
 ## Version mismatch symptom
 
-If boot says your agent repo is stamped at a version newer than the installed framework, the usual
-cause is that the repo moved forward but the Cursor session still holds an older plugin tree.
-Refresh the checkout, start a fresh `cursor-agent --plugin-dir` session, then boot again. See
-`docs/version-check.md`.
+If boot says your agent repo is stamped at a version newer than the installed framework, the plugin
+tree is behind. Re-index the marketplace (or refresh the checkout), start a fresh session, then boot
+again. See `docs/version-check.md`.
 
 ## Troubleshooting
 
-| Symptom | See |
-|---------|-----|
-| No `/lr-*` skills at all | `docs/doctor-cursor-session-without-plugin.md` |
-| Skills present but old content | Refresh + new session; `doctor-stale-plugin-cache.md` (Claude) |
-| Need Lore mid-session without plugin | `docs/engines/cursor.md` § Mid-session fallback |
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Marketplace added, but no `/lr-*` skills | The plugin was never enabled — Step 1 is not Step 2 | Do § Step 2, then start a fresh session |
+| Plugins tab looks completely empty | That is the empty state, not an error | Click **+ Add** → **From Marketplace** |
+| No **Lore Framework** section in the browse view | Marketplace not registered on this account | Re-run Step 1, or use the **+ Add Marketplace** chip |
+| Enabled, but still no `/lr-*` skills | Session predates the install | Start a fresh session — Cursor has no hot reload |
+| Skills present but old content | Plugin tree is stale | `cursor-agent plugin marketplace update lore-framework`, fresh session |
+| Two marketplaces for the same repo | Added once by CLI and once by the UI | Keep one: `cursor-agent plugin marketplace remove <name>` |
+| No `/lr-*` skills at all | — | `docs/doctor-cursor-session-without-plugin.md` |
+| Need Lore mid-session without plugin | — | `docs/engines/cursor.md` § Mid-session fallback |
 
 ## After install
 

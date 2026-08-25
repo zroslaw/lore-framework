@@ -62,7 +62,7 @@ Each install is a few commands. Full detail lives in the per-engine page.
 |--------|-------------------------|-------|
 | **Claude Code** | Add the marketplace, install the `lr` plugin | [INSTALL-CLAUDE.md](INSTALL-CLAUDE.md) |
 | **Codex** | Add the marketplace, add the `lr` plugin, restart | [INSTALL-CODEX.md](INSTALL-CODEX.md) |
-| **Cursor** | Clone the repo, run the helper, launch with `--plugin-dir` | [INSTALL-CURSOR.md](INSTALL-CURSOR.md) |
+| **Cursor** | Add the marketplace, then enable the plugin in Cursor's UI | [INSTALL-CURSOR.md](INSTALL-CURSOR.md) |
 
 Skills invoke with a different prefix per engine — this legend recurs throughout the docs:
 
