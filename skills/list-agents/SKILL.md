@@ -4,6 +4,15 @@ description: "Show which lore agents are available here, what each one covers, a
 
 `<framework-root>` is the framework root — the directory that contains the `VERSION` file, two levels up from this `skills/list-agents/SKILL.md`. Resolve it to an absolute path before using it below.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Listing every agent available in this workspace — its name, which lore agent repo it lives in,
+> what it covers, and whether it has a shortcut. **An agent without a shortcut still works**: any
+> agent can be started with `/lr:boot <agent-name>`, so a missing shortcut means it was never
+> registered here, not that the agent is unusable.
+
 List all lore agents available in this workspace.
 
 **Method 1 — From registered shortcuts (if any exist):**

@@ -10,6 +10,15 @@ Diagnose and heal **framework runtime issues** — the things that go wrong with
 > descriptor state; `/lr:check` verifies content consistency inside agent repos; `/lr:doctor`
 > diagnoses engine and plugin runtime problems.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Diagnosing a framework problem — the framework misbehaving, rather than anything wrong with your
+> agents' content. Things like a command that should exist but doesn't, or an update that seems not
+> to have landed. I match what you describe against a catalog of known problems, each with a known
+> cause and a known fix. **I'll name the cause and the fix before applying anything.**
+
 ## How It Works
 
 `/lr:doctor` is a **catalog of ailments**. *Ailment* is the framework's term for one well-understood runtime failure mode, with a known signature and a known fix. Each ailment is its own topic doc (`doctor-<slug>.md`) describing:

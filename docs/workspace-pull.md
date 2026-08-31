@@ -9,6 +9,19 @@ other repositories they declare. One command for first-time bootstrap and ongoin
 > `/lr:workspace-init` runs this for you as one of its steps. Follow up with `/lr:workspace-init` to
 > converge the memory file and the ignore lines against whatever just arrived.
 
+## Step 0 — Announce
+
+**Skip this announcement when another procedure reached this doc** rather than the user
+invoking the skill directly — that caller has already announced, and `conventions.md`
+§ Skill Purpose Announcement allows one announcement per user invocation.
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Fetching everything this workspace should contain. **Declarations come from two levels**: the
+> workspace names the top-level repos that belong here — lore agent repos and ordinary source repos
+> alike — and each lore agent repo names the further repos its agents need to work on. I follow
+> both, cloning what's missing and pulling what's already here. Run this first on a fresh workspace.
+
 ## Two levels of repo declarations
 
 `workspace-pull` reconciles repos declared at two levels, in order:

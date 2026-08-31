@@ -12,6 +12,15 @@ Usage:
 Resolve `<framework-root>` from the invoking skill and `<agent-dir>` from the currently booted
 agent. If no agent is booted, ask which agent to groom and resolve it through normal discovery.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Grooming this agent's lore — making it easier to search and cheaper to load. Knowledge accumulates
+> unevenly: topics overlap, some go stale, some fill with padding that costs tokens without adding
+> meaning. I work a bounded slice at a time and keep every unique claim, reason, and exception.
+> **I'll show you the plan before touching files, and grooming never commits or pushes.**
+
 ## Safety Rules
 
 - Markdown and Git remain canonical; the map supplies facts and the agent supplies judgment.

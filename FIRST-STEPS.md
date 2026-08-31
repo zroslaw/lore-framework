@@ -81,9 +81,10 @@ that imports it, because Claude Code reads `CLAUDE.md` and not `AGENTS.md`.
 Run it again any time something changes on disk: it converges rather than re-interviewing, and does
 nothing at all when nothing has drifted.
 
-## Step 5 — (Optional) Register a boot shortcut
+## Step 5 — Your agent's boot shortcut
 
-By default you boot with `/lr:boot <name>`. To get a direct command instead:
+`create-agent` already registered a direct command for this agent, so `/lr-<name>-agent` works now,
+and `/lr:boot <name>` works too. To restore a shortcut that is missing or stale:
 
 ```
 /lr:register-agent my-agents my-agent-name

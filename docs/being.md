@@ -4,6 +4,15 @@
 Being Keeper CLI (`scripts/lrb.py`) and owns the guided workflows for creating `being.md`
 descriptors. Users should not need to remember raw `lrb` commands for normal operation.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Managing **Lore Beings** — agents that run on their own in the background and pick up work
+> without you starting a session. This is the front door: see what's running, create a being, pause
+> or resume one. **Their schedule, budget, and stop rules are enforced by plain code, not by the
+> agent's own judgement** — an agent can't be trusted as its own off switch.
+
 ## Command parsing
 
 Parse the first argument as the subcommand. If there is no argument, run **Status**. If the first

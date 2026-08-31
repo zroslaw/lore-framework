@@ -17,6 +17,8 @@ Framework docs use a small set of angle-bracket placeholders. The surrounding te
 - **`<lore-agent-repo>`** — filesystem path to a lore agent repo (directory that contains `lore-repo.md`). Used for repo-scoped operations (`git -C <lore-agent-repo>`, path references). In iterating flows (`/lr:check`, `/lr:update`), substitutes the current iteration's repo. In single-repo flows (`/lr:boot`, `/lr:reflect`), substitutes that repo. Conceptually: a single **domain** of agents.
 - **`<guest-lore-agent-repo>`** — same as `<lore-agent-repo>` but specifically identifies the guest being attached (vs the host repo) in `/lr:attach`.
 - **`<agent-name>`** — the kebab-case name of an agent (matches the directory name under `agents/`).
+- **`<agent-dir>`** — absolute path to an agent's directory. Correct for a runtime value that never outlives the process computing it, and the form `lore-map --agent-dir` expects. `preflight --agent-dir` accepts either form, locating a relative one by searching upward from the session directory for the agent's `role.md`, so a shortcut's `<agent-dir-rel>` can be passed straight through. Other `--agent-dir` callers (`scan`, `lore-map`, `lore-workset`) still expect the absolute form.
+- **`<agent-dir-rel>`** — the same directory **relative to `<workspace>`** (e.g. `lore-agents/agents/tax-advisor/`). This is the form that goes into anything committed — generated per-agent shortcuts above all. See § Committed Artifacts Carry Relative Paths.
 - **`<domain>`** — *legacy* placeholder retired in v11; no longer used in framework docs. The parent-dir concept is now `<workspace>`; the conceptual scope of an agent repo is "domain" in prose (no brackets). If you encounter `<domain>` in older release notes or third-party material, read it as `<workspace>`.
 - **`<framework-root>`** — the install path of the `lr` plugin. Resolve it per the active engine profile; do not hardcode.
 
@@ -169,6 +171,81 @@ Same shape as CWD Safety: a portability landmine hidden inside an emitted shell 
 Directly-runnable shipped scripts default to Bash-on-BSD (§ Tooling: Portable Shell). The exception is a **server component that must speak a protocol** where bash is impractical — most notably an **MCP stdio server** (newline-delimited JSON-RPC). Those may be written in **`python3`, standard library only** (no `pip install`), so they need no dependency install and run anywhere `python3` is present — any Linux, and any macOS with the Xcode Command Line Tools (a bare macOS may prompt to install them). `scripts/wait-server.py` is the first instance; it parallels the Node ULA module (`df/aiqa/workflows/ula-file-pass.js`) as a language-specific module the framework ships and drives, not a portable one-liner. Keep companion tooling in Bash where practical (e.g. `scripts/lr-emit`). Don't reach for `python3` for work a portable shell script can do.
 
 The second sanctioned class is a **deterministic substrate** with real data structures, structured output, and per-platform edge cases that bash handles badly: `scripts/lrb.py` (the Being Keeper) and `scripts/lr-core` (§ Script Fallback Contract below). Same rules — stdlib only, no `pip`, Python 3.9 floor. A small script may stay in one file; a larger substrate may keep a stable executable wrapper and split focused modules beneath it, as `scripts/lr-core` does in `scripts/lr_core/`.
+
+## Committed Artifacts Carry Relative Paths
+
+**Any path written into a file that gets committed — to the workspace repo or to a lore agent repo —
+is relative to that repo's root.** An absolute path is true on exactly one machine; committing one
+publishes local configuration as if it were shared configuration.
+
+This is not a style preference. A workspace exists to be cloned: `workspace-init` writes committed
+project-scope plugin settings so a teammate gets `lr` on their next session, and `workspace-push`
+publishes the shortcuts, the descriptor, and the memory file. Every absolute path in that set is a
+file that works for its author and silently fails for everyone else.
+
+Two failure shapes, and the second is the reason this rule is stated here rather than left to taste:
+
+- **The artifact breaks.** A shortcut naming `/Users/alice/ws/repo/agents/foo/` sends a teammate's
+  agent to a directory that does not exist.
+- **A checker that compares paths misreads it as absent.** `workspace-status` matches registered
+  shortcuts by their embedded target, so before v44 a cloned workspace reported every agent as
+  unregistered — the shortcut was right there in git, and the finding said it was missing. A wrong
+  path does not merely fail; it makes a diagnostic lie about a different thing.
+
+Applies to: generated per-agent shortcuts (`<agent-dir-rel>`), descriptor fields, memory-file
+content, `.gitignore` entries, and anything else a skill writes into a tracked file. It does **not**
+apply to runtime values — a resolved `<framework-root>`, a `--agent-dir` argument, a path in a log
+line — which are computed per session and never committed.
+
+When reading a committed path, resolve it against the repo root rather than the current working
+directory, and accept an absolute one as a legacy form so a repo mid-migration still reads correctly
+(`workspace_scan.py`'s `shortcut_targets` is the worked example).
+
+## Skill Purpose Announcement
+
+**Every skill announces its purpose before it starts working.** A skill that goes quiet and begins
+running commands is legible to whoever wrote it and opaque to everyone else; the announcement is
+what makes the command surface teachable to someone meeting it for the first time.
+
+The announcement is **authored per skill and lives in that skill's own doc** — there is no shared
+template to point at, because the whole value is in text written for this specific command. It goes
+in a `## Step 0 — Announce` section, placed before the skill's first procedural step, holding one
+instruction line and the announcement as a blockquote. Where a doc backs several skills
+(`register-repo.md`), Step 0 branches on the invoked operation.
+
+What the text does:
+
+- **Says what will happen, why, and what to expect** — in three or four plain sentences. It is
+  written for a newcomer, so it explains the framework primitives it touches (lore, roles, lore
+  agent repos, subagents) rather than assuming them.
+- **Names framework concepts, never internals.** Say "I pull its lore agent repo," not the script
+  or function that does it. The reader is an engineer, but not one who has read our source.
+- **Bolds the one thing a newcomer is most likely to get wrong** — often what the skill does to
+  their files (reads only, asks first, writes, writes and pushes), but just as often a scope
+  boundary, a distinction from a neighbouring skill, or a surprising default. One bold per
+  announcement; a fixed slot for it defeats the purpose.
+- **Uses `<placeholder>` slots for anything invocation-specific**, with the standing instruction to
+  substitute them. Models print examples verbatim, so the instruction is not optional
+  (`style.md` § Procedure step 5 carries the same guard for the same reason).
+- **Names any command in the active engine's own syntax.** Announcement text is written once in
+  Claude Code form (`/lr:boot`), but it is *printed to a user on whatever engine is running*, so
+  render it as `/lr-boot` on Cursor and `$lr:boot` on Codex before printing — the engine profile
+  selected at boot carries the invocation-syntax binding. This is a print-time substitution, like
+  the `<placeholder>` rule above; do not fork the announcement text per engine. It matters most in
+  a `SKILL.md`-hosted announcement, where `scripts/sync-cursor-skills` rewrites only the
+  frontmatter `description` and leaves the body in Claude form.
+
+**One announcement per user invocation.** A skill doc read as a *sub-procedure* of another — an
+orchestrator running its phases, a skill continuing into a neighbouring one, a booted subagent
+running a shared procedure — does not print its own Step 0. The user asked for one command and gets
+one announcement; a chain that announces at every hop buries the step the user is actually waiting
+on. The doc that owns the user's invocation announces, and it alone.
+
+This is a rule about the *invocation*, not the doc: the same doc announces when the user calls it
+directly and stays silent when another procedure reaches it.
+
+A skill whose only output is a confirmation may fold the announcement into that confirmation rather
+than printing both.
 
 ## Script Fallback Contract
 

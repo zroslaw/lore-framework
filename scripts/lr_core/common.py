@@ -351,7 +351,7 @@ def resolve_framework_root(explicit):
 
     Defaults to this module's great-grandparent directory — the implementation
     lives at <framework-root>/scripts/lr_core/common.py.
-    Boot Step 0 resolves the root for the *engine*; this is the script's own
+    Boot's § Framework root section resolves the root for the *engine*; this is the script's own
     independent resolution so it can be run standalone.
     """
     if explicit:

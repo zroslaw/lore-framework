@@ -5,6 +5,15 @@ description: "Show which lore agent repos are available here, what each one cove
 
 `<framework-root>` is the framework root — the directory that contains the `VERSION` file, two levels up from this `.cursor-skills/lr-list-repos/SKILL.md`. Resolve it to an absolute path before using it below.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Listing the **lore agent repos** in this workspace — how many agents each holds, what it covers,
+> and which framework version it carries. Ordinary source repos aren't listed here; only the ones
+> holding agents. **That version stamp is how the framework knows whether a repo needs migrating**,
+> which is what `/lr:update` acts on.
+
 List all lore agent repos in this workspace.
 
 Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root.

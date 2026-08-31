@@ -2,6 +2,16 @@
 
 This skill is invoked by the user mid-session when they want the loaded agent to pull lore context relevant to the current work into its working memory.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Searching the agent's lore for anything useful to `<the current task / your hint>`. Lore is what
+> this agent learned in past sessions, stored as many small topics. **There's almost always more
+> lore than fits in a session, so recall is selective — it pulls in what matters now, not
+> everything.** I dispatch one read-only subagent per loaded agent and bring back a short synthesis
+> plus the topic names it came from.
+
 ## Usage
 
 - `/lr:recall` — contextual: the agent uses the current session/task as the search brief

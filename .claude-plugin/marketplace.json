@@ -9,7 +9,7 @@
       "name": "lr",
       "source": "./",
       "description": "Named AI specialists that learn and grow with you",
-      "version": "1.43.0",
+      "version": "1.44.0",
       "repository": "https://github.com/zroslaw/lore-framework",
       "license": "MIT"
     }

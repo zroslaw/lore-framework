@@ -10,6 +10,18 @@ Summaries are **public artifacts** (committed to each respective agent repo). Lo
 durable knowledge; summaries capture *what happened* and include a compact audit of what reflection
 selected and how merge changed Lore. The audit is not a second copy of the learned knowledge.
 
+## Step 0 — Announce
+
+**Skip this announcement when another procedure reached this doc** rather than the user
+invoking the skill directly — that caller has already announced, and `conventions.md`
+§ Skill Purpose Announcement allows one announcement per user invocation.
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Writing a record of this session into the agent's `sessions/` folder. **A summary is not lore**:
+> lore is durable knowledge the agent reuses later, a summary is the story of what happened here —
+> what changed, what was decided, what was learned. It's a shared artifact your team can read back.
+
 ## Relationship to reflect and merge
 
 - **Reflect and merge** iterate per active agent (host + each attached guest) and update each agent's lore.

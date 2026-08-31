@@ -4,6 +4,17 @@
 
 This is the framework's first integration with Agent Teams. It is intentionally **minimal**: a thin name-resolution and spawn-prompt-composition layer over Agent Teams' `Agent`-tool interface. It does not introduce any new state, file format, or per-agent metadata.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`. When invoked with
+no argument the agent set is inferred later, so say "the agents this work spans" in place of
+`<agent-names>` rather than printing the placeholder or guessing a list:
+
+> Starting `<agent-names>` as separate teammates, each in its own pane. **This is not the same as
+> attaching**: attaching loads another agent's knowledge into *this* session, while each teammate is
+> a fully independent session working in parallel, with this one as the lead. Each boots as its
+> named agent with that agent's knowledge.
+
 ## Status — BETA
 
 - The skill name and high-level behavior (resolve names → spawn teammates booted as the named agents) are stable for the duration of the beta.

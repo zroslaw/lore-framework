@@ -6,6 +6,15 @@ selection.
 
 The examples below use Claude Code syntax. In Cursor, use `/lr-style`; in Codex, use `$lr:style`.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Changing how I write to you for the rest of this session. Three parts combine: **plain** (simple
+> wording, one idea per sentence), **dialogue** (short turns, you steer between them), and **follow**
+> (you own the direction; I suggest rather than take over). **Each invocation replaces the previous
+> setting rather than adding to it** — so naming one part switches the others off.
+
 ## Selectors
 
 Accept selectors separated by spaces or commas. The allowed selectors are:
@@ -43,7 +52,7 @@ Accept selectors separated by spaces or commas. The allowed selectors are:
 
    Then keep that exact style set until the user calls `/lr:style` again or selects `off`.
 
-   **This confirmation is mandatory and is the skill's only observable result.** Adopting the
+   **This confirmation is mandatory and is the skill's only result you can check.** Adopting the
    style silently looks identical to ignoring the invocation, because the components change *how*
    you write, not *whether* you reply. If your turn does not contain a `Style set: ...` line, you
    have not completed this procedure. When the same turn also answers a user question, print the

@@ -22,6 +22,15 @@ Work through the following checks in order. Report each issue found. At the end,
 
 ---
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Checking the lore agent repos here for content problems — descriptors that disagree, broken
+> references between files, structure that has drifted. **This looks at agent content, not at the
+> framework itself**; if a command is missing or an update didn't land, `/lr:doctor` is the one you
+> want. I only report, with a count at the end.
+
 ## 1. Agent repo discovery
 
 Scan all directories in the working directory for lore agent repos — directories containing a `lore-repo.md` file at the root.
@@ -77,10 +86,15 @@ For every registered shortcut artifact:
 - **Cursor:** `lr-*-agent/SKILL.md` in `.cursor/skills/`
 - **Codex:** `lr-*-agent/SKILL.md` in `<workspace>/.codex/skills/` and in `~/.codex/skills/`
 
-Extract only the absolute agent directory following `from` in the boot instruction. Verify that
-directory exists. Do **not** treat the relative prose references `SKILL.md` and
-`docs/agent-boot.md` as filesystem links: they intentionally describe the session's active boot
-skill rather than a pinned installation path. Report any missing agent directory as an error.
+Extract only the agent directory following `from` in the boot instruction, and verify that
+directory exists. Since v44 that target is normally **relative to the workspace root**, so resolve it
+against `<workspace>` before checking — not against the current directory. A target in the
+user-global `~/.codex/skills/` is absolute instead (§ 18 explains why) and is checked as given.
+
+Do **not** treat the relative prose references `SKILL.md` and `docs/agent-boot.md` as filesystem
+links: they intentionally describe the session's active boot skill rather than a pinned installation
+path. Distinguishing them from the agent directory is what the `from` anchor is for — take only the
+backtick-quoted path that follows it. Report any missing agent directory as an error.
 
 ## 8. Agent directory structure
 
@@ -158,15 +172,22 @@ Scan `<workspace>/.claude/commands/` for files matching `lr-*.md` that do **not*
 
 ## 18. Legacy registered shortcut formats
 
-For every Claude shortcut file `lr-*-agent.md` in `<workspace>/.claude/commands/` whose content contains `boot as agent`, check the current active-boot-skill form. It must name the installed `/lr:boot` skill, include the `from <agent-dir>` suffix, and contain no plugin-cache or absolute `agent-boot.md` path.
+For every Claude shortcut file `lr-*-agent.md` in `<workspace>/.claude/commands/` whose content contains `boot as agent`, check the current active-boot-skill form. It must name the installed `/lr:boot` skill, include the `from <agent-dir-rel>` suffix, and contain no absolute path of any kind — no plugin-cache path, no absolute `agent-boot.md` path, and since v44 no absolute agent directory either (`conventions.md` § Committed Artifacts Carry Relative Paths).
 
 ```
-Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and boot as agent `<agent-name>` from `<agent-dir>`.
+Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and boot as agent `<agent-name>` from `<agent-dir-rel>` (relative to the workspace root).
 ```
 
-Flag any Claude file that lacks the active `/lr:boot` skill reference or `from <agent-dir>` suffix,
+Flag any Claude file that lacks the active `/lr:boot` skill reference or `from <agent-dir-rel>` suffix,
 or contains `plugins/cache/`, an absolute `agent-boot.md` path, `lore-framework/docs/agent-boot.md`,
 or `<framework-root>/docs/agent-boot.md`.
+
+**Also flag any workspace-local shortcut whose `from` target is an absolute path** (begins with `/`
+or `~`) — that is, one under `<workspace>/.claude/commands/`, `<workspace>/.codex/skills/`, or
+`<workspace>/.cursor/skills/`. Shortcuts in the user-global `~/.codex/skills/` are exempt: they are
+uncommitted and *require* an absolute target — see the Codex paragraph below. These
+are v43-and-earlier artifacts: they still boot on the machine that wrote them, which is why they
+survive unnoticed, and they break for everyone who clones the workspace. Migration 44 rewrites them.
 
 **Also flag any shortcut whose bootstrap spans more than one line** (ignoring a trailing newline,
 and, on Cursor and Codex, the frontmatter block). The content can be entirely correct and still be
@@ -184,15 +205,24 @@ customized generated content. Otherwise, re-register it using the equivalent eng
 registration skill. Do not run migration 6: its
 historical template writes the cache-vulnerable absolute boot path this check rejects.
 
-For every Codex shortcut skill `lr-*-agent/SKILL.md` in `<workspace>/.codex/skills/` **and** in
-`~/.codex/skills/` whose content contains `boot as agent`, flag it if it lacks the installed
-`lr:boot` skill reference or `from <agent-dir>` suffix, or contains `plugins/cache/` or an absolute
-`agent-boot.md` path. On framework v33 or later, migration 33 refreshes owned shortcuts during the
-normal engine-specific boot or update entry; otherwise re-register with the equivalent native
-registration skill.
+For every Codex shortcut skill `lr-*-agent/SKILL.md` in `<workspace>/.codex/skills/` whose content
+contains `boot as agent`, flag it if it lacks the installed `lr:boot` skill reference or
+`from <agent-dir-rel>` suffix, or contains `plugins/cache/`, an absolute `agent-boot.md` path, or an
+absolute `from` target.
+
+Apply the same check to `~/.codex/skills/` **except the two `from`-target conditions** — that
+location is user-global and uncommitted, so an absolute `from` target is the *correct* form there and
+a relative one cannot be resolved at all (`migrations/44.md` § Scope, `register-repo.md`
+§ Unregister Agent). Flag a home shortcut only for a missing `lr:boot` reference, a `plugins/cache/`
+path, or an absolute `agent-boot.md` path. Flagging it for its agent-directory target would report a
+correct file as broken and, followed literally, would rewrite it into a form that cannot work.
+
+On framework v33 or later, migration 33 refreshes owned shortcuts during the normal engine-specific
+boot or update entry; otherwise re-register with the equivalent native registration skill.
 
 Additionally flag, as **informational**, any `~/.codex/skills/lr-*-agent/SKILL.md` whose
-`from <agent-dir>` names an agent inside this workspace: that is the pre-v37 location, unreachable by
+`from` target is an absolute path naming an agent inside this workspace (a relative target in the
+user-global location cannot be attributed to any workspace, so it is not flagged here): that is the pre-v37 location, unreachable by
 `/lr:workspace-push`. Migration 37 relocates it. Do not flag one naming a path outside this
 workspace — `~/.codex/skills` is user-global and that shortcut belongs to someone else's workspace.
 
@@ -202,7 +232,7 @@ content contains `boot as agent`, flag it if any of the following is missing:
 - frontmatter `name: lr-<agent-name>-agent`
 - `disable-model-invocation: true`
 - a `paths:` block scoping the shortcut to the matching repo
-- the `from <agent-dir>` suffix on the boot line
+- the `from <agent-dir-rel>` suffix on the boot line, relative and not absolute
 - an installed `/lr-boot` skill reference
 
 Flag a Cursor shortcut if it contains a plugin-cache or absolute `agent-boot.md` path.

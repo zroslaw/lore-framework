@@ -2,9 +2,11 @@
 
 Manage direct per-agent boot shortcuts for the current engine.
 
-These shortcuts are **optional** — agents can always be loaded via `/lr:boot <agent-name>` (or
-the engine-native equivalent). Registration adds a faster direct entry point with an absolute agent
-path and, on skill-based engines, richer routing metadata.
+An agent can always be loaded via `/lr:boot <agent-name>` (or the engine-native equivalent), so a
+missing shortcut never makes an agent unusable. Registration adds a faster direct entry point
+pinning the agent directory **relative to the workspace root** and, on skill-based engines, richer
+routing metadata — and it is what records the agent in the workspace memory file's `## Agents`
+list, which is why `/lr:create-agent` runs it rather than leaving it to the user.
 
 The four user-facing operations share one procedure doc:
 
@@ -15,6 +17,40 @@ The four user-facing operations share one procedure doc:
 
 Use the current engine profile (`<framework-root>/docs/engines/<engine>.md`, selected at boot) to
 decide which native artifact to generate.
+
+## Step 0 — Announce
+
+**Skip this announcement when another procedure reached this doc** rather than the user
+invoking the skill directly — that caller has already announced, and `conventions.md`
+§ Skill Purpose Announcement allows one announcement per user invocation.
+
+Print the announcement for the operation you were invoked as, before doing anything else, filling in
+any `<placeholder>`:
+
+**Register Agent**
+
+> Creating a shortcut for **`<agent-name>`**, so you can start it directly instead of typing
+> `/lr:boot <agent-name>`. It's generated in whatever form your engine understands and points at
+> that agent's exact folder. **It also records the agent in this workspace's shared agent list** —
+> that list is how anyone else here discovers the agent exists.
+
+**Register Repo**
+
+> Creating shortcuts for every agent in the lore agent repo **`<repo>`**, each a direct command in
+> the form your engine understands. **These live inside the workspace rather than your home folder,
+> so git carries them to your teammates** — everyone gets the same entry points.
+
+**Unregister Agent**
+
+> Removing the shortcut for **`<agent-name>`**. **The agent itself, its role, and all its knowledge
+> stay exactly where they are** — only the direct command goes away, and it's still startable with
+> `/lr:boot <agent-name>`.
+
+**Unregister Repo**
+
+> Removing the shortcuts for every agent in the lore agent repo **`<repo>`**. **No agent and no
+> knowledge is touched** — only the direct commands go, and every one of them stays reachable
+> through `/lr:boot <agent-name>`.
 
 ## Engine-native shortcut locations
 
@@ -33,8 +69,10 @@ bulk). Codex resolves the workspace-local root from the git root of the session'
 see `docs/engines/codex.md` § Where per-agent shortcuts live.
 
 All generated shortcuts must remain thin delegations to the active framework boot entry point.
-They pin only the agent identity and absolute agent directory; they must never bake a plugin-cache
-path, scan for a framework checkout, select an installed version, or inline boot logic.
+They pin only the agent identity and the agent directory — workspace-relative in the three
+workspace-local locations, absolute only in the user-global `~/.codex/skills/`, which has no
+workspace root to be relative to. They must never bake a plugin-cache path, scan for a framework
+checkout, select an installed version, or inline boot logic.
 
 ## Shared helper steps
 
@@ -62,6 +100,10 @@ For every target agent:
 1. Verify `<lore-agent-repo>/agents/<agent-name>/role.md` exists.
 2. Resolve:
    - **`<agent-dir>`** — absolute path to `<lore-agent-repo>/agents/<agent-name>/`
+   - **`<agent-dir-rel>`** — the same directory expressed **relative to the workspace root**
+     (e.g. `lore-agents/agents/tax-advisor/`). This is the form that goes into the generated
+     shortcut: shortcuts are committed, and an absolute path is true only on the machine that
+     wrote it (§ Committed Artifacts Carry Relative Paths in `docs/conventions.md`).
    - **`<repo-name>`** — basename of `<lore-agent-repo>`
 3. Read the `description` field from `role.md` YAML frontmatter. Use it as
    **`<agent-purpose>`**. It should state what the agent owns or knows and when to boot or attach it.
@@ -70,10 +112,23 @@ For every target agent:
 
 ### Resolve the shortcut bootstrap
 
-Read the current engine profile's **Registered shortcut bootstrap** section. Copy its exact
-engine-specific bootstrap sentence into every generated shortcut, substituting `<agent-name>` and
-`<agent-dir>`. The active boot skill self-locates the framework root, so the emitted shortcut must
-not contain an `<agent-boot-path>` or any other plugin-install path.
+Read the **Registered shortcut bootstrap** section of the engine profile belonging to the location
+you are writing to — the target decides the template, not the engine you happen to be running on, so
+a `.cursor/skills/` file takes Cursor's sentence even from a Claude Code session. Copy that exact
+sentence into the generated shortcut, substituting `<agent-name>` and the agent directory.
+
+Which form of the directory depends on the location, and only on the location:
+
+- **Workspace-local** (`.claude/commands/`, `<workspace>/.codex/skills/`, `<workspace>/.cursor/skills/`)
+  → `<agent-dir-rel>`, **the relative form, never `<agent-dir>`**. These files are committed, and a
+  relative target is the whole point (`conventions.md` § Committed Artifacts Carry Relative Paths).
+- **User-global** (`~/.codex/skills/`, the pre-v37 location that migrations 33 and 37 still write and
+  relocate) → the absolute `<agent-dir>`. There is no workspace root for a relative path to resolve
+  against there, so the relative form would produce a dead shortcut that migration 37 could no longer
+  recognise as its own.
+
+Either way the active boot skill self-locates the framework root, so the emitted shortcut must never
+contain an `<agent-boot-path>` or any other plugin-install path.
 
 **Emit the bootstrap as one unwrapped line, on every engine**, however the profile's fenced block
 happens to be wrapped for reading. Two things depend on it: `migrations/33.md` classifies an
@@ -146,8 +201,13 @@ For every register/unregister operation, after the artifact is written or delete
    ``` or `~~~` fence** — a fenced example in the user's own prose is not a heading. Keep the
    provenance comment as the first line of the body.
 
-   Each shortcut supplies *membership* and, in its boot line, the agent's absolute `<agent-dir>`.
-   Take the **role description from `<agent-dir>/role.md`'s frontmatter `description`** and the repo
+   Each shortcut supplies *membership* and, in its boot line, the agent's directory — but not in one
+   form: a workspace-local shortcut carries `<agent-dir-rel>`, which you resolve against the
+   workspace root, while a legacy `~/.codex/skills/` shortcut carries an absolute `<agent-dir>` and
+   is used as given. Resolving an absolute target against the workspace root produces a path with no
+   `role.md`, which would render a fully-described agent as
+   `(routing description missing — run workspace-init)`. Then take the **role description from
+   `<agent-dir>/role.md`'s frontmatter `description`** and the repo
    dirname from that path — not from the shortcut, which on Claude Code is a single bootstrap line
    carrying neither. Use `(routing description missing — run workspace-init)` when `role.md` has no
    description, matching § Resolve agent metadata. One line per agent:
@@ -190,7 +250,9 @@ These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
 1. Resolve `<lore-agent-repo>` and the agent metadata using the shared helper steps above.
 2. Compute the engine-native target path for that agent.
 3. If the target artifact already exists:
-   - If it already points at the same `<agent-dir>`, overwrite it with the current template
+   - If it already points at the same agent directory — comparing after resolving any relative
+     target against the workspace root, so a v43 absolute path and its v44 relative replacement
+     compare equal — overwrite it with the current template
      (refresh behavior).
    - If it points at a different repo/agent path, warn about the collision and stop without
      overwriting.
@@ -228,7 +290,9 @@ These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
    - **Cursor / Codex:** delete the `lr-<agent-name>-agent/` directory.
 
    On Codex, also check `~/.codex/skills/lr-<agent-name>-agent/SKILL.md`. Delete it too **when its
-   boot line names an `<agent-dir>` under this workspace** — leaving it behind means the agent the
+   boot line names an agent directory under this workspace** — a home shortcut is user-global, so
+   only an absolute target identifies it; a relative one cannot be attributed to this workspace
+   and is left alone. Leaving a matching one behind means the agent the
    user just unregistered still appears in every Codex session. When it names a different path, it
    belongs to another workspace: report it and leave it alone.
 5. Maintain the workspace Agents section and the `CLAUDE.md` import stub (shared helper step above) —
@@ -252,7 +316,8 @@ These writes leave the workspace dirty. `/lr:workspace-push` publishes them.
 Shortcuts are keyed by agent name, so collisions are possible if two repos both define
 `agents/researcher/`.
 
-- If a shortcut already exists and points at a different `<agent-dir>`, do **not** overwrite it.
+- If a shortcut already exists and points at a different agent directory (resolved as above), do
+  **not** overwrite it.
 - Tell the user which existing path owns the shortcut today and which repo they attempted to
   register.
 - The user resolves the naming collision by renaming an agent or unregistering the old shortcut

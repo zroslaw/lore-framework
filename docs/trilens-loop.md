@@ -4,6 +4,16 @@
 perspectives — three by default because differing perspectives are the whole idea, and never
 subagents that inherit this conversation, since independence from the author is the entire point.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Reviewing this session's changes from three independent angles. **Each reviewer is a subagent that
+> starts cold, knowing nothing about this conversation** — that's the whole point, because a reviewer
+> who watched me make a decision tends to agree with it. I pick three genuinely different
+> perspectives, fix what's worth fixing, and repeat until a round comes back clean. I'll tell you
+> what I applied and what I declined.
+
 ## The loop
 
 1. **Scope.** Resolve it yourself: the files you changed, union with `git status`/`diff` in every

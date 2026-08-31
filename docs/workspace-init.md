@@ -30,6 +30,16 @@ workspace-status  diagnose  — read-only report of the same findings this skill
 > directly. An empty directory with no framework loaded cannot run it; bootstrap by cloning the
 > framework, launching an engine with it loaded, then running this skill from the workspace root.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Setting up this workspace — or bringing it back in line if it has drifted. A workspace is the
+> folder holding your repositories — lore agent repos, plus the ordinary source repos your agents
+> work on — with a shared description of what lives here so any agent can find its way around. I'll
+> look at what's on disk, then either ask a few questions (if this is new) or show you just what's
+> out of date. **I won't change any file until you confirm.**
+
 ## Invocation
 
 No flags in the common path. `--dry-run` prints the plan and writes nothing (a debugging aid).
@@ -45,7 +55,7 @@ workspace-init now converges — the flag is no longer needed.
 
 **No file is written before the Step 3 confirmation gate.**
 
-### Step 0 — Context
+### Context
 
 Resolve `<workspace>` (the current working directory — run `pwd` if unsure; this is *not*
 `<framework-root>`) and `<framework-root>`. Note the engine from your boot-time profile: it affects
@@ -534,8 +544,10 @@ Notes:
   repo's comes from `lore-workspace.md` `repo-context`. If the canonical source is missing, render
   `(routing description missing — run workspace-init)` rather than inventing a description.
 - **Agents lists *registered* agents** — the "what can I boot here" answer. The shortcuts on disk
-  across all three engines supply *membership* and, in their boot line, each agent's absolute
-  `<agent-dir>`; the **role description comes from `<agent-dir>/role.md`'s frontmatter
+  across all three engines supply *membership* and, in their boot line, each agent's
+  `<agent-dir-rel>` — relative to the workspace root since v44, so resolve it against `<workspace>`
+  before opening anything (a `~/.codex/skills/` shortcut carries an absolute target instead and is
+  used as given); the **role description comes from `<agent-dir>/role.md`'s frontmatter
   `description`**, and the repo dirname from that path. Do not try to read the description out of the
   shortcut — the Claude Code artifact is a single bootstrap line and carries none. When `role.md`
   has no description, render `(routing description missing — run workspace-init)`; the explicit gap

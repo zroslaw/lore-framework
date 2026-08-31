@@ -11,7 +11,7 @@ fills the same five bindings; only the values differ.
 
 | Binding | Value on Claude Code |
 |---|---|
-| **framework-root** | Self-locate (Step 0). `${CLAUDE_PLUGIN_ROOT}` also expands to it and may be used as a literal-path fallback. |
+| **framework-root** | Self-locate (`agent-boot.md` § Framework root). `${CLAUDE_PLUGIN_ROOT}` also expands to it and may be used as a literal-path fallback. |
 | **invocation-syntax** | Skills are user-invoked as slash commands `/lr:<skill>`; the engine expands them. Canonical skill folders live under `skills/<skill>/`. Per-agent boot shortcuts `/lr-<agent>-agent`. |
 | **subagent-spawn** | The `Agent` tool. Fan-out = **N parallel `Agent` calls in a single message**. Sub-agent types: `general-purpose` (write), `Explore` (read-only, but excerpt-based — it locates material rather than reviewing it in depth), and `fork` (**inherits the caller's full conversation context**). Each subagent boots as its target agent and reads the procedure doc itself. Two traps: (1) `fork` is unsuitable wherever a subagent must be *independent* of the caller's reasoning — it carries the caller's context by design; (2) passing a **`name`** makes the call an Agent-Teams teammate, and **a teammate does not auto-return its final report to the caller** — only an unnamed call does. Spawn unnamed when you need the result back, or instruct a named teammate to `SendMessage` its report before going idle. |
 | **memory-file** | `CLAUDE.md`. |
@@ -43,11 +43,12 @@ exact body after substituting the agent values — **as a single unwrapped line*
 `register-repo.md` § Resolve the shortcut bootstrap for why):
 
 ```markdown
-Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and boot as agent `<agent-name>` from `<agent-dir>`.
+Read the `SKILL.md` for the installed `/lr:boot` skill available in this session. Follow its self-location instruction to resolve `<framework-root>`, then read its `docs/agent-boot.md` and boot as agent `<agent-name>` from `<agent-dir-rel>` (relative to the workspace root).
 ```
 
 Do not substitute `${CLAUDE_PLUGIN_ROOT}`, an absolute plugin path, or a workspace checkout into
-the shortcut. If the active boot skill is unavailable, follow this profile's normal fallback at the
+the shortcut, and do not substitute an absolute `<agent-dir>` — the shortcut is committed, so every
+path in it is workspace-relative (`conventions.md` § Committed Artifacts Carry Relative Paths). If the active boot skill is unavailable, follow this profile's normal fallback at the
 point of use; generated shortcuts do not implement a second resolver.
 
 ## Notes

@@ -4,6 +4,18 @@ Reconcile user-side state with the currently-installed framework version.
 
 **Scope:** this command does NOT update the plugin itself. Use your engine's own plugin mechanism for that. `/lr:update` only migrates local artifacts — per-agent shortcuts, repo files, and agent files — to match whatever framework version is currently installed.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Bringing your local files in line with the framework version you have installed. **This does not
+> update the plugin itself** — your engine does that; this migrates your lore agent repos and
+> shortcuts to match. Each repo records the version it was last brought up to, so I walk the versions
+> in between and apply each one's changes in order, then commit and push just those changes — or, on
+> `--dry-run`, report what they would change and write nothing. **Files that live in the workspace
+> rather than in a lore agent repo — registered shortcuts among them — are left uncommitted for
+> `/lr:workspace-push`**, and I'll say so if any were touched.
+
 ## Input
 
 Optional argument: `--dry-run` — print what would change without writing any files. No frontmatter updates, no regenerations, no deletions. Use this to preview before applying.

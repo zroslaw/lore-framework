@@ -17,6 +17,15 @@ workspace-push    publish  — commit and push the framework-managed workspace f
 workspace-status  diagnose — report what is off, and what would fix it
 ```
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Checking the health of this workspace. **Nothing gets changed — I only look and report.** I'll
+> check whether your repositories are up to date with their remotes, whether the workspace
+> description still matches what's on disk, and whether your agents are registered so every engine
+> can find them. Each problem comes with the command that fixes it.
+
 ## Procedure
 
 ### Step 1 — Scan
