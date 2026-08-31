@@ -22,6 +22,15 @@ narrow exception because it owns the cross-repo description writes it just propo
 transaction, Lore agent repos publish via `/lr:finalize` phase 4 and other repos via their own git
 flows. This skill touches exactly one repo: the workspace root.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Publishing this workspace's shared setup. These are the files describing the workspace itself —
+> which repositories belong here, the notes every agent reads on startup, the ignore rules, the
+> shortcuts. Pushing them is how a teammate cloning this workspace gets the same layout you have.
+> **Only workspace-level files go; your own files and the repos inside are left alone.**
+
 ## Framework-managed paths
 
 The paths the framework writes at the workspace root — the only paths this skill will ever stage.

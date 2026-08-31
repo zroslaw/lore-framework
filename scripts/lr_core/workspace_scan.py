@@ -825,32 +825,58 @@ def shortcut_targets(workspace):
     """Canonical agent-directory targets named by installed shortcuts.
 
     Names are not identities: two Lore repos may both contain an agent named
-    `architect`. Registration therefore follows the absolute `from <dir>`
-    target embedded by register-agent, across every shortcut location.
+    `architect`. Registration therefore follows the `from <dir>` target embedded
+    by register-agent, across every shortcut location.
+
+    Step 1: collect candidate shortcut files, tagged by whether they live inside
+    this workspace. Workspace-local shortcuts are committed artifacts; the home
+    `~/.codex/skills/` location is user-global and pre-v37 (S15 reports it).
+
+    Step 2: resolve each embedded target. Since v44 the emitted target is
+    workspace-relative, so a committed shortcut survives being cloned to another
+    machine; absolute targets from v43-and-earlier shortcuts still resolve, so a
+    workspace mid-migration reports correctly either way.
+
+    A relative target is only meaningful against the workspace that contains the
+    shortcut, so it is resolved for workspace-local files and **skipped** for the
+    home location — joining a user-global shortcut's relative path onto this
+    workspace would claim registration for an agent it may never have named.
     """
     files = []
     claude_dir = os.path.join(workspace, ".claude", "commands")
     try:
-        files.extend(os.path.join(claude_dir, name)
+        files.extend((os.path.join(claude_dir, name), True)
                      for name in os.listdir(claude_dir)
                      if name.startswith("lr-") and name.endswith("-agent.md"))
     except (IOError, OSError):
         pass
-    for root in (os.path.join(workspace, ".codex", "skills"),
-                 os.path.join(workspace, ".cursor", "skills"),
-                 os.path.expanduser("~/.codex/skills")):
+    for root, workspace_local in (
+            (os.path.join(workspace, ".codex", "skills"), True),
+            (os.path.join(workspace, ".cursor", "skills"), True),
+            (os.path.expanduser("~/.codex/skills"), False)):
         try:
-            files.extend(os.path.join(root, name, "SKILL.md")
+            files.extend((os.path.join(root, name, "SKILL.md"), workspace_local)
                          for name in os.listdir(root)
                          if name.startswith("lr-") and name.endswith("-agent"))
         except (IOError, OSError):
             pass
     targets = set()
     pattern = re.compile(r"boot as agent `[^`]+` from `([^`]+)`")
-    for path in files:
+    for path, workspace_local in files:
         match = pattern.search(read_text(path) or "")
-        if match:
-            targets.add(os.path.realpath(match.group(1).rstrip("/")))
+        if not match:
+            continue
+        # expanduser before the isabs test: `docs/check.md` counts a target
+        # beginning with `~` as absolute, but os.path.isabs does not, so a
+        # `~`-prefixed target would otherwise be joined onto <workspace> and
+        # match no agent — reporting a registered agent as unregistered (S11),
+        # the exact false negative relative targets exist to end.
+        target = os.path.expanduser(match.group(1).rstrip("/"))
+        if not os.path.isabs(target):
+            if not workspace_local:
+                continue
+            target = os.path.join(workspace, target)
+        targets.add(os.path.realpath(target))
     return targets
 
 

@@ -4,11 +4,26 @@
 
 You are being loaded as a **Lore Agent** — part of a persistent knowledge system called **Lore**, where knowledge, experience, and operational wisdom accumulate across sessions.
 
-The caller will tell you the **agent name** you are booting as, and may also provide the **absolute path** to the agent directory to skip discovery. Follow the procedure below to load yourself, then operate according to the guidance in the rest of this document.
+The caller will tell you the **agent name** you are booting as, and may also provide the **path** to the agent directory to skip discovery — a registered shortcut gives it relative to the workspace root. Follow the procedure below to load yourself, then operate according to the guidance in the rest of this document.
 
-## Step 0 — Framework root
+## Step 0 — Announce
 
-Do this first, before the numbered steps. It is prose because it must run before any script can be located.
+**Skip this announcement when you were booted by another procedure** — a `/lr:consult`
+subagent, a merge subagent, a spawned teammate — rather than by the user invoking a boot
+command. Those callers have already announced, and a per-agent boot that announces repeats
+the line once per agent (`conventions.md` § Skill Purpose Announcement).
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Booting the agent **`<agent-name>`**. **First I pull its lore agent repo, so I start from the
+> newest knowledge your team has shared.** Then I read its **role** — who this agent is and what it
+> does — and its **lore context**, a short summary of what it has learned. Lore is the agent's
+> accumulated knowledge, kept as many small topics; I load a map of them now and read individual
+> topics later, when they become relevant.
+
+## Framework root
+
+Do this next, before the numbered steps. It is prose because it must run before any script can be located.
 
 **Resolve `<framework-root>`.** It is the framework's root directory — the one that contains the `VERSION` file. You already resolved it to read *this* file (a `SKILL.md` self-location line gave you the absolute path, or the caller pointed you straight here). Use that same absolute path everywhere `<framework-root>` appears below. Do **not** rely on `${CLAUDE_PLUGIN_ROOT}` or any engine-specific variable — on some engines it is empty.
 
@@ -25,9 +40,10 @@ python3 "<framework-root>/scripts/lr-core" preflight --agent "<agent-name>" --wo
 ```
 
 - Invoke it through `python3` as shown — that works whether or not the plugin cache preserved the executable bit.
-- **Quote every substituted value, and give the call at least 300 seconds** — this call pulls over the network, and the default bound on some engines leaves no margin. Worst case is the agent-repo pull leg (~105s) plus the workspace-level auto-refresh leg it runs afterward (up to ~90s bounding `workspace-pull`, plus scan time), which lands near 200s; 300s keeps margin above that so the *outer* tool-call bound does not kill preflight before its own internal timeouts return gracefully — which would provoke exactly the manual-boot fallback this margin exists to avoid. This is the one call you bound *before* knowing your profile's runtime-bounding binding, since this call is what selects the profile. Resolve it from your **tools**, not your identity: if the tool you are about to run this command with accepts a timeout, set it to 300 seconds or more; if it does not, let the call run unbounded rather than shortening it. That is a fact about the tool in front of you, which is why it is safe to act on here while Step 0 still forbids reasoning from which engine you believe you are. Every later call uses the binding from Step 2. Both rules and why they exist: `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
+- **Quote every substituted value, and give the call at least 300 seconds** — this call pulls over the network, and the default bound on some engines leaves no margin. Worst case is the agent-repo pull leg (~105s) plus the workspace-level auto-refresh leg it runs afterward (up to ~90s bounding `workspace-pull`, plus scan time), which lands near 200s; 300s keeps margin above that so the *outer* tool-call bound does not kill preflight before its own internal timeouts return gracefully — which would provoke exactly the manual-boot fallback this margin exists to avoid. This is the one call you bound *before* knowing your profile's runtime-bounding binding, since this call is what selects the profile. Resolve it from your **tools**, not your identity: if the tool you are about to run this command with accepts a timeout, set it to 300 seconds or more; if it does not, let the call run unbounded rather than shortening it. That is a fact about the tool in front of you, which is why it is safe to act on here while the framework-root step still forbids reasoning from which engine you believe you are. Every later call uses the binding from Step 2. Both rules and why they exist: `<framework-root>/docs/conventions.md` § Script Fallback Contract, *Invoking one*.
 - `<cwd>` is the directory this session was invoked from (run `pwd` if unsure). This is *not* the plugin/framework directory you just read this file from. Omit `--workspace` to default to the current directory.
-- If the caller gave you an **absolute path** to the agent directory, use `--agent-dir <path>` instead of `--agent` to skip discovery entirely.
+- If the caller gave you a **path** to the agent directory, use `--agent-dir <path>` instead of `--agent` to skip discovery entirely. **Pass it through exactly as you received it** — do not convert it, and do not join it onto anything. A registered shortcut names the directory relative to the workspace root; preflight resolves a relative value by searching upward from `--workspace` for the agent's `role.md`, so it works from a subdirectory or a worktree, and takes an absolute one as-is. Rewriting it yourself is how a correct target becomes a wrong one.
+- Falling back to `--agent <name>` when you *were* given a path is not a safe default: two repos in one workspace can hold the same agent name, and name discovery then warns and picks the first arbitrarily. The path is what disambiguates them.
 - Normally pass no engine flag and let the script determine the engine. **Codex bootstrap
   exception:** if the active tool interface directly exposes Codex's native `spawn_agent` model
   tool, append `--engine codex`. This is observed runtime capability, not model identity, and it

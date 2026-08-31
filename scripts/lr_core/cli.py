@@ -25,7 +25,7 @@ def build_parser():
     p_pre = sub.add_parser("preflight", help="Boot/attach preflight for one agent.")
     p_pre.add_argument("--agent", default=None, help="Agent name to resolve.")
     p_pre.add_argument("--agent-dir", default=None,
-                       help="Explicit agent directory (skips discovery).")
+                       help="Explicit agent directory (skips discovery). Absolute, or a shortcut's workspace-relative path, which is located by searching upward from --workspace for the agent's role.md. Other subcommands accept only an absolute path.")
     p_pre.add_argument("--workspace", default=".", help="Workspace root (default: cwd).")
     p_pre.add_argument("--ttl", type=int, default=DEFAULT_PULL_TTL_SEC,
                        help="Skip the pull if one succeeded within N seconds "

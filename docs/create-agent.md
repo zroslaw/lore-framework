@@ -2,9 +2,35 @@
 
 Add a new agent to an existing agent repo.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`. Skip it entirely
+when another procedure reached this doc rather than the user invoking `/lr:create-agent` — that
+caller has already announced (`conventions.md` § Skill Purpose Announcement). Since registration is
+suppressed only by such a caller (step 8), a direct invocation always attempts it. Registration can
+still stop without writing — a shortcut collision, or a workspace with no `AGENTS.md` to list the
+agent in — so step 9 reports what actually happened; the announcement states the intent:
+
+> Creating a new agent inside one of your lore agent repos. An agent is four things: a role (who it
+> is and what it owns), a lore context (its working knowledge in short), a `lore/` folder where
+> knowledge accumulates topic by topic, and a `workdir/` for files it makes. I'll ask what this
+> agent owns before writing anything — that description is also how other agents decide when to call
+> on it. **Then I'll register the agent, which writes its boot shortcut and adds it to this
+> workspace's shared agent list** — the list is what tells anyone else here that the agent exists.
+> Those two files land in your workspace uncommitted; `/lr:workspace-push` is what carries them to
+> your teammates.
+
 ## Steps
 
-1. **Determine the target repo.** If the user specified one, use it. If there's only one lore agent repo in the workspace (identified by `lore-repo.md` at the root), use that. Otherwise, ask.
+1. **Determine the target repo.** If the user specified one, use it. If there's only one lore agent
+   repo in the workspace (identified by `lore-repo.md` at the root), use that. If there are several,
+   ask which one.
+
+   **If there are none, stop and offer to create one.** An agent exists only inside an agent repo:
+   with no `lore-repo.md` above it, discovery cannot find it and `/lr:boot` cannot load it, so an
+   agent scaffolded anywhere else is invisible from the moment it is written. Say the workspace has
+   no agent repo yet, and on the user's go-ahead run `<framework-root>/docs/create-repo.md`, then
+   continue here with the repo it creates. Never scaffold the agent directory outside a repo.
 
 2. **Get the agent name.** Kebab-case, descriptive (e.g., `code-reviewer`, `data-analyst`).
 
@@ -65,17 +91,28 @@ Add a new agent to an existing agent repo.
    `<lore-agent-repo>/agents/<agent-name>/workdir/` exist. If any are missing, create
    the missing item before continuing. Do not print "done" for a no-op.
 
-8. **Report** what was created. The agent is now loadable via `/lr:boot <agent-name>`.
+8. **Register the agent.** Run the **Register Agent** procedure in
+   `<framework-root>/docs/register-repo.md` with `<lore-agent-repo>` and `<agent-name>`. That
+   procedure writes the engine-native shortcut *and* adds the agent to the workspace memory file's
+   `## Agents` section — the "what can I boot here" list a teammate reads on arrival. Creating an
+   agent and leaving it out of that list is the gap this step closes: it is bootable via
+   `/lr:boot <agent-name>` but invisible to everyone who does not already know its name, and
+   `/lr:workspace-status` reports it as finding S11.
 
-   Shortcut options:
-   - Register just this agent: `/lr:register-agent <lore-agent-repo> <agent-name>`
-   - Register every agent in the repo: `/lr:register-repo <lore-agent-repo>`
+   Skip this step only when the procedure that called this one says to — `docs/being.md` § Create
+   agent and being does. Do not skip it on your own judgement, and do not ask the user whether to
+   register: registration is how a created agent becomes visible, not an extra feature.
 
-   Registering is also what adds the agent to the workspace memory file's `## Agents` section — the
-   "what can I boot here" list a teammate reads on arrival. An unregistered agent is bootable but
-   invisible there (`/lr:workspace-status` finding S11).
+   Registration is the publishing step, not part of building the agent. If it stops without writing
+   (a shortcut collision — see that doc's § Collision rule), the agent is still created: report it
+   as created with its shortcut unwritten, never as a failed creation.
 
-   Engine-native shortcut forms:
-   - **Claude Code:** `/lr-<agent-name>-agent`
-   - **Cursor:** `/lr-<agent-name>-agent`
-   - **Codex:** `$lr-<agent-name>-agent`
+9. **Report** what was created, naming the shortcut from the Register Agent procedure's own report
+   step, and note that the agent is also loadable via `/lr:boot <agent-name>`. If registration was
+   skipped or stopped, say so plainly and name `/lr:register-agent <lore-agent-repo> <agent-name>`
+   as the way to finish it.
+
+   Registration leaves the shortcut and the memory-file edit uncommitted in the **workspace** repo,
+   which is a different repo from the one holding the agent. Name `/lr:workspace-push` in the report
+   whenever a shortcut was written, or the agent stays visible only on this machine — the failure
+   this step exists to prevent.

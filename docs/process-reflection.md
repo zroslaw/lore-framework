@@ -2,6 +2,20 @@
 
 This process is triggered by the user at the end of a session. You reflect on the current session and extract knowledge worth preserving.
 
+## Step 0 — Announce
+
+**Skip this announcement when another procedure reached this doc** rather than the user
+invoking the skill directly — that caller has already announced, and `conventions.md`
+§ Skill Purpose Announcement allows one announcement per user invocation.
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Looking back over this session and pulling out what's worth keeping. Not everything qualifies —
+> the aim is durable knowledge (decisions and why, things discovered, ways of working that proved
+> out), not a log of what happened. Each note is judged against the agent's own role, so it keeps
+> only what's its business. **This writes drafts into a staging folder, not into lore** — `/lr:merge`
+> does that part.
+
 ## Single-agent and multi-agent sessions
 
 If the session has only a host (no guests attached via `/lr:attach`), run this process once for the host. That is the default case.

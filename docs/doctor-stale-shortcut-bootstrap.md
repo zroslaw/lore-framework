@@ -17,7 +17,7 @@ Inspect the engine-native shortcut artifact:
   both, so inspect both — a stale home copy keeps failing while a fresh workspace copy exists)
 
 The current format names the session's installed boot skill and keeps only the agent name and
-absolute agent directory. A versioned cache path or absolute `agent-boot.md` path identifies this
+agent directory — **relative to the workspace root** since v44, absolute only in the user-global `~/.codex/skills/`. A versioned cache path, an absolute `agent-boot.md` path, or an absolute agent directory in a workspace-local shortcut identifies this
 ailment.
 
 ## Remedy

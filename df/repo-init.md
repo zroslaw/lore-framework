@@ -2,6 +2,15 @@
 
 > **Audience note.** This document is the logic of the `/lr:df-repo-init` skill. Claude runs these steps; the user does not run them manually.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Setting up a **backbone repository** for this codebase. Dark Factory is an experimental module
+> that analyses your source code, and **everything it generates goes into a separate `<repo>-df`
+> repository next door, so your actual codebase never fills up with generated artifacts.** I'll work
+> out the path and show you before creating anything.
+
 ## Goal
 
 Ensure a source repository has its **DF backbone repo** `<repo>-df` (DF = Dark Factory) — the per-repo home for all context, knowledge, and generated artifacts the factory produces that don't belong in the source repo. Creating it is **gated on explicit user confirmation**.

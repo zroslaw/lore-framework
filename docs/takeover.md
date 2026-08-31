@@ -8,6 +8,16 @@ The mechanical work lives in `<framework-root>/scripts/session-takeover` (python
 
 > **If the script fails to run**, apply the **Script Fallback Contract** (`<framework-root>/docs/conventions.md`): this is an *implementation* script, so report the failure with the command and error rather than improvising a manual substitute, and never report the operation as done.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Picking up a session that ended somewhere else. A session that died mid-task — a crash, a rate
+> limit, or you simply switched tools — still left a log behind; I read it and rebuild it into a
+> digest this session continues from. **It works across Claude Code, Codex, and Cursor, so the tool
+> you started in doesn't have to be the one you finish in.** I'll show you the candidates and let
+> you pick.
+
 ## Engine support
 
 | Engine | Discover | Convert |

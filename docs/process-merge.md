@@ -2,6 +2,23 @@
 
 Integrate reflection topics into the agent's existing lore.
 
+## Step 0 — Announce
+
+**Only when the user invoked merge directly** (`/lr:merge`). Skip it entirely when merge runs as a
+phase of `/lr:finalize` — that orchestrator has already announced, and `conventions.md` § Skill
+Purpose Announcement allows one announcement per user invocation. Skip it in a merge subagent too:
+the per-agent steps begin at the Execution model below, and a subagent that announces would repeat
+the line once per active agent.
+
+So this is printed by the host, once, and only when merge is what the user asked for. Print it
+before doing anything else, filling in any `<placeholder>`:
+
+> Folding this session's draft notes into the agent's lasting knowledge. Merge decides where each
+> note belongs — a new topic, an edit to an existing one, or something already known and safe to
+> drop. It runs in a subagent that boots as the agent itself, so the decisions are made with that
+> agent's knowledge in view rather than this conversation's noise. **Merge rewrites lore but never
+> commits it.**
+
 ## Execution model
 
 Merge always runs in a subagent, one per active agent, with all subagents launched in parallel. This is uniform for single- and multi-agent sessions — a single-agent session just spawns one subagent. Running merge in a subagent keeps session noise out of merge decisions and gives a clean, focused context.
@@ -37,7 +54,7 @@ creating or migrating any Lore file.
 
 The steps below are what **each subagent** runs once booted as its target agent. The host does not run these steps inline — it orchestrates subagents per the Execution model above and aggregates their summaries.
 
-### Step 0: Refresh the Repo
+### Refresh the Repo
 
 The boot procedure already auto-pulls, so this step is defense-in-depth: the freshness contract belongs at the merge site explicitly — the moment when stale lore is most damaging — and it covers any boot-pull skip (no remote, network blip) that left the repo behind.
 

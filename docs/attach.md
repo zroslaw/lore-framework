@@ -2,6 +2,24 @@
 
 `/lr:attach` loads another lore agent into the currently booted host session so the host can work with the union of both agents' knowledge over many turns. This is the heavyweight option in the cross-agent-collaboration trio (recall / consult / attach); use it when the task genuinely spans two (or more) domains (different agent repos) and you'll be thinking in both across many turns.
 
+## Step 0 — Announce
+
+Print the announcement for the form you were invoked as, before doing anything else, filling in any
+`<placeholder>`:
+
+**With an agent name** — `/lr:attach <agent-name>`:
+
+> Attaching **`<agent-name>`** to this session. **From here it works as a team of agents rather
+> than one** — their roles, expertise, and accumulated knowledge all in play together, and searching
+> lore or saving what we learn covers every agent attached. Attach as many as the work spans; each
+> contributes its own domain to the same conversation.
+
+**With no argument** — `/lr:attach`:
+
+> Listing the agents attached to this session alongside the host. **Nothing is attached or changed
+> here** — attaching takes an agent name. An attached guest adds its role and accumulated knowledge
+> to this conversation, so lore searches and finalization cover it too.
+
 ## Usage
 
 - `/lr:attach <agent-name>` — attach a guest agent

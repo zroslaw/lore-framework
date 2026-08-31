@@ -26,6 +26,9 @@ direction; they manage the context they need to learn and grow.
    /lr:create-agent project-expert
    ```
 
+   Agents live in an *agent repo*. If you don't have one yet, [Get started](#get-started) sets one
+   up first.
+
 2. **Summon the right expert**
 
    Whenever you work with that project, use its registered shortcut to bring the agent's accumulated
@@ -303,8 +306,13 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 
 ## Direct boot shortcuts
 
-You can always boot an agent with `/lr:boot <agent-name>`. For agents you use often, create a direct
-shortcut with `/lr:register-agent`, or register every agent in a repo with `/lr:register-repo`.
+`/lr:create-agent` registers each agent as it creates it, so a new agent arrives with its shortcut
+already written and listed in the workspace's shared agent list. You can always boot an agent by name
+with `/lr:boot <agent-name>` as well.
+
+Use `/lr:register-agent` to restore or refresh a single shortcut, or `/lr:register-repo` for every
+agent in a repo at once — needed for agents that predate this, or after cloning a repo whose
+shortcuts were never pushed.
 
 A workspace may also carry `.claude/settings.json` and `.cursor/settings.json`, written by
 `workspace-init`, which make the `lr` plugin available to anyone who clones it without a per-person

@@ -10,6 +10,15 @@ This is the lightweight option in the cross-agent-collaboration trio:
 
 Use consult when a focused question will get you what you need. If you realize you need sustained engagement with the consultant's knowledge across many turns, escalate with `/lr:attach <same-agent>`.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Asking **`<agent-name>`** one focused question without loading it into this session. A subagent
+> boots that agent, searches its lore, answers, and exits. You'll get a short answer plus the names
+> of files worth opening yourself. **The consulted agent learns nothing from this** — it's a one-way
+> question. If you need it for a longer stretch, `/lr:attach` is the heavier option.
+
 ## Usage
 
 - `/lr:consult <agent-name>` — contextual consult; the host builds the brief from the current session

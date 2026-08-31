@@ -604,14 +604,62 @@ def cmd_discover(args, res):
     return res
 
 
+def _agent_dir_from_relative(start, rel):
+    """Resolve a workspace-relative agent dir by searching upward from `start`.
+
+    Manual fallback: join `rel` onto `start` and test `<joined>/role.md`; if it
+    is absent, retry the same join at each parent, up to the filesystem root.
+    A registered shortcut's `<agent-dir-rel>` is relative to the workspace
+    root, but the session may have been invoked from anywhere below it (a repo
+    subdirectory, `.worktrees/<repo>/<slug>/`), and --workspace carries that
+    cwd rather than the root.
+
+    Two acceptance grades, because role.md alone is a weak test — an unrelated
+    tree above the workspace (an old layout under $HOME, a second workspace, a
+    vendored fixture copy) can hold the same relative path and would otherwise
+    be booted, pulled, and merged into:
+
+    - `<candidate>/role.md` exists **and** `_repo_root_for(candidate)` finds a
+      lore-repo.md two levels up -> accept immediately.
+    - only role.md exists -> remember as a fallback and keep climbing, so a
+      properly-repo'd match at any higher ancestor wins over it.
+
+    The fallback is still returned when the climb finds nothing better, which
+    preserves the repo-less agent dir that the caller merely warns about.
+    Returns an absolute path, or None when no ancestor yields one.
+    """
+    here = os.path.abspath(start)
+    fallback = None
+    while True:
+        candidate = os.path.abspath(os.path.join(here, rel))
+        if os.path.isfile(os.path.join(candidate, "role.md")):
+            if _repo_root_for(candidate):
+                return candidate
+            if fallback is None:
+                fallback = candidate
+        parent = os.path.dirname(here)
+        if parent == here:
+            return fallback
+        here = parent
+
+
 def _resolve_agent(args, res, workspace):
     """Manual fallback: locate the target agent by hand.
 
-    Step 1: if --agent-dir was given, use it directly. Require a role.md
-    inside it (else fail: "not an agent directory"). Derive the repo root by
-    walking up two directories and checking for lore-repo.md there; if that
-    check fails, warn (don't fail) that repo-scoped steps (pull, version) will
-    be skipped for this agent. Read role.md's frontmatter for description.
+    Step 1: if --agent-dir was given, use it. Resolve it first: an absolute
+    value (after expanduser) is used as-is. A relative one is a shortcut's
+    <agent-dir-rel> (conventions.md § Committed Artifacts Carry Relative
+    Paths), which is relative to the *workspace root* — but --workspace carries
+    the session cwd, which may sit anywhere below that root, so a plain join
+    onto it is wrong. Resolve it with _agent_dir_from_relative above: join at
+    <workspace>, then at each ancestor, taking the first candidate whose
+    role.md exists and whose repo has a lore-repo.md, and falling back to a
+    role.md-only match. Failing that, fail with "no agent directory ... below
+    ... or any parent". Then require a role.md inside the resolved directory
+    (else fail: "not an agent directory"). Derive the repo root by walking up two directories and
+    checking for lore-repo.md there; if that check fails, warn (don't fail)
+    that repo-scoped steps (pull, version) will be skipped for this agent.
+    Read role.md's frontmatter for description.
 
     Step 2: otherwise, discover every repo under <workspace> (see
     discover_workspace above) and filter its agents to the one(s) named
@@ -623,10 +671,33 @@ def _resolve_agent(args, res, workspace):
     Returns an agent dict, or None with res populated.
     """
     if args.agent_dir:
-        if args.agent and os.path.basename(os.path.abspath(args.agent_dir)) != args.agent:
+        # A registered shortcut names the agent directory relative to the
+        # *workspace root*, but `workspace` is only what the caller passed for
+        # --workspace, which agent-boot.md tells the executor to fill with the
+        # session cwd (and which defaults to cwd when omitted). Joining straight
+        # onto it is therefore a cwd join, and any session started below the
+        # root resolves to nothing. resolve_workspace_root fixes only the
+        # .worktrees/ shape; a plain subdirectory it returns unchanged.
+        #
+        # So search upward instead, and let the target verify the guess. role.md
+        # alone is a weak test, so _agent_dir_from_relative accepts a candidate
+        # outright only when its repo has a lore-repo.md two levels up, keeps
+        # climbing past a role.md-only hit, and falls back to that hit only if
+        # nothing better turns up. An absolute value is honoured as-is, which
+        # keeps pre-v44 shortcuts and runtime callers working.
+        raw = os.path.expanduser(args.agent_dir)
+        if os.path.isabs(raw):
+            agent_dir = os.path.abspath(raw)
+        else:
+            agent_dir = _agent_dir_from_relative(workspace, raw)
+            if agent_dir is None:
+                res.fail("no agent directory %s below %s or any parent — "
+                         "a shortcut's path is relative to the workspace root"
+                         % (args.agent_dir, os.path.abspath(workspace)))
+                return None
+        if args.agent and os.path.basename(agent_dir) != args.agent:
             res.warn("--agent-dir overrides --agent; resolving %s and ignoring "
-                     "--agent %s" % (args.agent_dir, args.agent))
-        agent_dir = os.path.abspath(args.agent_dir)
+                     "--agent %s" % (agent_dir, args.agent))
         role = os.path.join(agent_dir, "role.md")
         if not os.path.isfile(role):
             res.fail("no role.md at %s — not an agent directory" % agent_dir)
@@ -683,7 +754,9 @@ def cmd_preflight(args, res):
     repo-less agent). Otherwise, discover every repo under <workspace> and
     match --agent by name; no match is a failure (report available_agents);
     more than one match is a warning (use the first, arbitrarily). See
-    _resolve_agent below for the exact logic.
+    _resolve_agent below for the exact logic, including how a relative
+    --agent-dir (a shortcut's <agent-dir-rel>) is resolved by upward
+    search rather than a join onto <workspace>.
 
     Step 4: record the agent's role.md and lore-context.md paths as
     `read_next`. Reading and interpreting those files is the caller's job —

@@ -10,6 +10,14 @@ running agent — especially headless (`claude -p`) or in a terminal you only ch
 **pause on demand and resume on time or on an external event**. An event carries whatever text you
 want to hand the agent (instructions, data, a signal).
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Pausing until something wakes me — a timeout, or a signal you or a script send. This is mainly for
+> agents left running unattended: waiting on a deploy, a webhook, or your go-ahead. **The session
+> stays alive while I wait, and I'll tell you the exact command to wake me before I start.**
+
 ## When to use it
 
 **Only when the user has instructed you to wait** — "do X, then wait for the deploy to finish,"

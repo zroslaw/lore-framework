@@ -4,6 +4,15 @@ Run the full session finalization: reflect → merge → summarize → commit an
 
 This doc orchestrates the four phases. Phases 1–3 are defined in their own process docs — read them as each phase begins. Phase 4 (commit and push) is defined here, since it's orchestration-level logic rather than a reusable subroutine.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Wrapping up the session and saving what we learned. This is the step that makes knowledge stick —
+> without it, everything from this session disappears when the session ends. I pick out what's worth
+> keeping, fold it into each agent's lore, and write a session summary. **Then I commit and push to
+> the lore agent repos automatically, without asking**, so your team gets it too.
+
 ## Arguments
 
 - **No flag** — run the standard current-context reflection in Phase 1.

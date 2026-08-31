@@ -10,6 +10,15 @@ Use this when you suspect another contributor (or a parallel session, or your ow
 
 > **When to run.** Before a long planning conversation, after a teammate says "I just pushed updates to the agent's lore," or before invoking `/lr:reflect` on a session that touched many topics.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Pulling the newest lore for the agents loaded here, mid-session. Agent knowledge lives in git, so
+> a teammate — or you in another window — may have pushed since this session started. **Pulling
+> alone isn't enough: it updates the disk but not what I'm holding in mind, so I re-read each
+> agent's role and lore context afterwards.**
+
 ## What It Does
 
 1. **Enumerates active agents** — host (whichever agent was booted) plus any guests attached via `/lr:attach`.

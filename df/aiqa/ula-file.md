@@ -4,6 +4,15 @@
 >
 > **Runtime dependency (BETA).** Step 4 runs a **dynamic Workflow**. It requires the Claude Code dynamic-workflow runtime to be available in the session. If it is not, either run in a session that has it, or simulate the same orchestration with subagents (one splitter, then one unit-pass agent per unit) — the prompts and schemas are designed to be handed to either.
 
+## Step 0 — Announce
+
+Print this to the user before doing anything else, filling in any `<placeholder>`:
+
+> Running a unit-level analysis on **`<file>`**. I split the file into units, then run a subagent
+> per unit to look for likely bugs, write test scenarios from scratch, and compare those against
+> your existing tests to find gaps. **Every reported bug is independently re-checked before it's
+> kept**, so what you get is filtered rather than raw.
+
 ## Goal
 
 Run a **ULA single-file pass** on one source file: split it into units, and for each unit find potential bugs, generate clean-room test scenarios, gap-analyse those scenarios against the existing tests, then verify each reported bug for real-ness and real system impact (revising severities; moving non-bugs to a preserved `dismissed` list). A final aggregation-level pass then re-verifies all reported bugs once more — independently, with full cross-unit context. Persist the results as **per-file** YAML artifacts (all units aggregated, one set per file) into the `<repo>-df` backbone repo.
