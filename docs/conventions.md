@@ -247,6 +247,21 @@ directly and stays silent when another procedure reaches it.
 A skill whose only output is a confirmation may fold the announcement into that confirmation rather
 than printing both.
 
+
+## Operation Notice
+
+**When a procedure does something consequential the user did not ask for, print a line saying so as
+it happens.** Boot migrating a repo to a new framework version, or fast-forwarding every repo in the
+workspace, are the cases: someone typed a boot command and got writes to their files.
+
+Authored and worded like a Skill Purpose Announcement — framework concepts not internals, one bold
+on what a newcomer most needs to catch, `<placeholder>`s substituted at print time — with one
+difference: a notice fires **only when the operation actually runs**. Silence on a no-op is the
+point, not an oversight; a line that shows up when nothing happened trains the reader to skip it.
+
+It is not a second Step 0 and does not breach *One announcement per user invocation* above: it
+reports an action, it does not introduce a command.
+
 ## Script Fallback Contract
 
 A shipped script operation is one of two things, and which one decides what happens when it

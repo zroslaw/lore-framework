@@ -95,7 +95,7 @@ Subagent prompt shape:
 >
 > Read `<framework-root>/docs/version-check.md` and execute its procedure, scoped to this repo. The repo's current version is `R=<R>` and the framework version is `F=<F>`.
 >
-> **Deviation from version-check.md:** do not print release notes to the user directly — instead, collect the full text of each release notes file you would have displayed, and return it in your response so the host can surface it to the user.
+> **Deviation from version-check.md:** its Step 0 notice and its release notes both go to the host, not straight to the user — your output stays in your own context, so anything printed here is lost. Print the Step 0 notice into your returned report instead, so the host can surface it before the user wonders why the guest's repo changed. Likewise, do not print release notes to the user directly — instead, collect the full text of each release notes file you would have displayed, and return it in your response so the host can surface it to the user.
 >
 > Return a compact report containing:
 > - Start version, end version, final stamped version (or "not stamped" if the upgrade deferred or failed)

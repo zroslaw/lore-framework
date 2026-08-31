@@ -41,6 +41,18 @@ that either skips a needed migration or tells the user to reinstall a perfectly 
 
 ## Upgrade Procedure
 
+### Step 0: Notify
+
+Reached only on `R < F`, when an upgrade is really about to run. **Print this before Step 1's first
+command**, substituting every `<placeholder>`:
+
+> A newer Lore Framework is installed than this agent's repo was last updated for — the framework
+> here is at v`<F>`, and `<lore-agent-repo>` is stamped v`<R>`. I'm bringing the repo up to v`<F>`
+> now, which is what keeps its agents working with the version you're running. **This writes to
+> files in `<lore-agent-repo>`, commits them, and pushes to the repo's remote** — only the files the
+> upgrade owns, never your own work, and I stop without changing anything if they collide with edits
+> of yours. I'll tell you how it went, then carry on booting.
+
 ### Step 1: Pre-flight collision check
 
 A blanket "any uncommitted change blocks the upgrade" rule was the historical gate, but it overfired in normal use: lore agent repos routinely carry uncommitted runtime state (other agents' `workdir/*` files — pulse logs, watch markers, scratch artifacts) that cannot collide with what the upgrade writes. The gate is now scoped to **actual collisions** — files git would refuse to overwrite cleanly when the upgrade applies its writes — and to **structural inconsistencies** (conflict markers).
