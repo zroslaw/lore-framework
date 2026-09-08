@@ -97,7 +97,7 @@ context, which makes them independence-class like `trilens-loop`, not an optimiz
 correctly.
 
 Use: an expected plugin skill (e.g. `/lr-boot`) **not available** in the session skill list. If
-skills are listed but show stale content after an upgrade, see `doctor-stale-plugin-cache.md`
+skills are listed but show stale content after an upgrade, see `fix-stale-plugin-cache.md`
 (Claude cache) or the refresh contract below (Cursor).
 
 ## Registered shortcut bootstrap

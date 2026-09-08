@@ -97,7 +97,7 @@ agent in — so step 9 reports what actually happened; the announcement states t
    `## Agents` section — the "what can I boot here" list a teammate reads on arrival. Creating an
    agent and leaving it out of that list is the gap this step closes: it is bootable via
    `/lr:boot <agent-name>` but invisible to everyone who does not already know its name, and
-   `/lr:workspace-status` reports it as finding S11.
+   `/lr:check --workspace` reports it as finding S11.
 
    Skip this step only when the procedure that called this one says to — `docs/being.md` § Create
    agent and being does. Do not skip it on your own judgement, and do not ask the user whether to

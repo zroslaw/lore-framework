@@ -8,6 +8,7 @@ from .lore_map import cmd_lore_map
 from .lore_workset import cmd_lore_workset
 from .workspace_scan import cmd_workspace_scan
 from .plugin_config import cmd_workspace_plugin_config
+from .check import cmd_check
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -54,6 +55,13 @@ def build_parser():
                         help="Flag topics older than N days (default: %d)."
                              % DEFAULT_STALE_DAYS)
     p_scan.set_defaults(func=cmd_scan)
+
+    p_check = sub.add_parser("check", help="Plugin, repo, and workspace health (read-only).")
+    p_check.add_argument("--workspace", default=".", help="Session directory to inspect.")
+    p_check.add_argument("--engine", choices=sorted(set(ENGINE_PROGRAMS.values())))
+    p_check.add_argument("--no-network", action="store_true", help="Skip upstream release probe.")
+    p_check.add_argument("--scope", choices=("all", "plugin", "repos", "workspace"), default="all")
+    p_check.set_defaults(func=cmd_check)
 
     p_wscan = sub.add_parser("workspace-scan",
                              help="Workspace git/descriptor/memory state and findings.")

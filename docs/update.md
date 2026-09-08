@@ -281,4 +281,4 @@ If a migration step throws an error (file not found, permission denied, malforme
 - Does not auto-resolve manual edits without user confirmation.
 - Does not overwrite a dirty migration target; resolve it and rerun the update.
 - Does not skip versions.
-- Does not diagnose runtime/environmental issues — if a skill expected from a freshly-applied version isn't appearing, an old skill lingers, or behavior reflects the prior version after a successful update, see `/lr:doctor`. Plugin-cache staleness is the most common cause and is a known ailment.
+- Does not diagnose runtime/environmental issues — if a skill expected from a freshly-applied version isn't appearing, an old skill lingers, or behavior reflects the prior version after a successful update, see `/lr:check`. Plugin-cache staleness is the most common cause and is a known ailment.

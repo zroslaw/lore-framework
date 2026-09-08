@@ -13,11 +13,11 @@ and aligned as one workspace-wide set so adjacent entries have clear boundaries.
 workspace-init    initialize / converge  (this doc)
 workspace-pull    consume   — pull the workspace repo, clone declared repos, pull every top-level repo
 workspace-push    publish   — commit and push the framework-managed workspace files
-workspace-status  diagnose  — read-only report of the same findings this skill resolves
+check --workspace diagnose  — read-only report of the same findings this skill resolves
 ```
 
 > **Converge = drive the scanner's findings to zero, as far as this skill owns them.** This skill and
-> `/lr:workspace-status` read the same scan (`docs/workspace-status.md` § Findings catalog). Status
+> `/lr:check --workspace` read the same scan (`docs/findings-catalog.md` § Findings catalog). Check
 > names what is off; init offers to fix what init can fix. That is the whole relationship, and it is
 > why this doc carries no second checklist of "things to check" that could drift from the S-list.
 > Several findings' fixes belong to other commands — `workspace-pull` for what is behind or missing,
@@ -75,7 +75,7 @@ repository/agent routing inventory with canonical description sources, the frame
 set with dirty classification, and the finding list.
 
 **Perform no independent discovery.** A second, hand-rolled scan is how the interview comes to
-disagree with what `workspace-status` will say five minutes later.
+disagree with what `check --workspace` will say five minutes later.
 
 The scanner is a **literate accelerator**: on failure (exit 2, no output, unparseable output) apply
 the Script Fallback Contract (`docs/conventions.md`) — say in one line that it failed and that you
@@ -427,7 +427,7 @@ disclosed in the plan.
 ### Step 9 — Summary
 
 Report what was written, committed, pushed, and what remains. Phrase scanner-owned remaining items
-as their `workspace-status` findings. When the user declines Step 8 or publication is partial, name
+as their `check --workspace` findings. When the user declines Step 8 or publication is partial, name
 the exact recovery command or repo rather than claiming the workspace is published.
 
 **Name the plugin-settings outcome in one line, including Codex.** Say which of the two files were
@@ -466,7 +466,7 @@ survives being restated as prose for a model to execute:
 
 A file is rewritten only when a key was actually added — an existing file keeps its own formatting.
 
-Both paths are in `MANAGED_PATHS`, so `workspace-push` publishes them and `workspace-status`
+Both paths are in `MANAGED_PATHS`, so `workspace-push` publishes them and `check --workspace`
 reports drift as **finding S18**. Neither engine hot-reloads: a teammate picks the plugin up on
 their next fresh session, not mid-session.
 
@@ -504,7 +504,7 @@ Invoke skills as `/lr:<skill>` on Claude Code, `/lr-<skill>` on Cursor and Codex
 | Skill | What it does |
 |---|---|
 | `boot <agent>` | Load a lore agent (see Agents below) |
-| `workspace-status` | Diagnose this workspace; every finding names its fix |
+| `check` | Check plugin, agent repos, workspace health, and repo freshness |
 | `workspace-pull` | Pull the workspace repo, clone declared repos, pull every top-level repo |
 | `workspace-push` | Commit and push the framework-managed workspace files |
 | `workspace-init` | Initialize this workspace, or converge it after anything changed |
@@ -568,7 +568,7 @@ Notes:
 - **Heading match.** Exact, case-sensitive, level-2: `## Lore Framework`, `## Repositories`,
   `## Agents`. First occurrence wins; a later duplicate is left alone and reported (S10).
 - **A user-renamed or deleted framework heading:** recreate the canonical section at its canonical
-  position and leave the orphaned section in place. `workspace-status` flags the duplication.
+  position and leave the orphaned section in place. `check --workspace` flags the duplication.
 - **User edits inside a framework section** are overwritten at the next regeneration. Three things
   make that fair rather than surprising: the provenance comment marks the region at the point of use,
   Step 3 shows a scoped diff before replacing, and the boundary is ordinary markdown structure the
@@ -609,7 +609,7 @@ A converging run that finds a `<!-- lr:workspace-init:start/end -->` pair — or
 4. If the marker block was in `CLAUDE.md`, replace it with the import stub and write the payload to
    `AGENTS.md`.
 
-Offered, never forced. Declining keeps the old format working for this release; `/lr:check` #23 warns
+Offered, never forced. Declining keeps the old format working for this release; `/lr:check` S10 warns
 until it is migrated.
 
 ## Idempotency and re-runs
@@ -638,11 +638,11 @@ workspace does not repeatedly pay the investigation cost.
 
 ## See Also
 
-- `docs/workspace-status.md` — the read-only counterpart; the findings catalog this skill converges.
+- `docs/findings-catalog.md` — the shared wording and repair catalog for workspace findings.
 - `docs/workspace-pull.md` — the consumer companion; Step 5 runs it.
 - `docs/workspace-push.md` — the standalone workspace-root publisher; Step 8 uses the same narrow
   staging discipline while additionally covering routing descriptions in child repos.
 - `docs/worktrees.md` — the convention distributed into the memory file.
 - `docs/conventions.md` — `lore-workspace.md` schema (including `sharing: local` and
   `repo-context`), the dual meaning of `repos:`, and the Script Fallback Contract.
-- `docs/check.md` — #22 (ignore coverage), #23 (legacy memory-file format), #24 (publication state).
+- `docs/check.md` — the unified health report, including workspace findings.

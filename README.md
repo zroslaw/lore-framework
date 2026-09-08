@@ -234,7 +234,7 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 | `/lr:pull-lore` | Refresh only the repos of active agents, then reload their roles and contexts |
 | `/lr:workspace-init` | Initialize/converge a workspace and maintain its AI routing map of repos and agents |
 | `/lr:workspace-push` | Commit and push the framework-managed workspace files |
-| `/lr:workspace-status` | Diagnose workspace health; every finding includes the command that fixes it |
+| `/lr:check --workspace` | Diagnose workspace health; every finding includes the command that fixes it |
 | `/lr:list-agents` | Show available agents, their scope, and shortcut status |
 | `/lr:list-repos` | Show available agent repos, their scope, and shortcut status |
 
@@ -294,8 +294,7 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 |---|---|
 | `/lr:update [--dry-run]` | Update domain artifacts to match the installed framework version |
 | `/lr:groom [scope] [--dry-run] [--all]` | Improve Lore structure, retrieval efficiency, and prose quality |
-| `/lr:check` | Check consistency across the domain and all its agents |
-| `/lr:doctor` | Diagnose and repair known framework runtime issues |
+| `/lr:check [--full]` | Check plugin, agent repos, workspace, and repo freshness; offer repairs for approval |
 
 ### Development tools
 

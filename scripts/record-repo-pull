@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""Internal workspace-pull hook: called only after Git reported success."""
+import sys
+from lr_core.freshness import write_stamp
+
+if len(sys.argv) != 2:
+    sys.exit("usage: record-repo-pull REPO")
+error = write_stamp(sys.argv[1])
+if error:
+    print("Could not record freshness for %s: %s" % (sys.argv[1], error), file=sys.stderr)
+    sys.exit(1)

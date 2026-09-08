@@ -29,6 +29,12 @@
 
 set -uo pipefail
 
+# Record each success, never a whole-workspace attempt. Retain old evidence on failure.
+PULL_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+record_repo_pull() {
+  python3 "$PULL_SCRIPT_DIR/record-repo-pull" "$1" || true
+}
+
 # Disable interactive credential prompts. Parallel git invocations sharing a
 # single TTY would otherwise garble each other's prompts. Failures surface
 # cleanly in the per-repo report.
@@ -256,7 +262,7 @@ if [[ -d "$WORKSPACE/.git" || -f "$WORKSPACE/.git" ]] \
     # Say HOW STALE the local files are, not just that we skipped. A silent
     # skip is indistinguishable from a successful pull in the summary, so a
     # workspace that is 12 commits behind reads as current — which is exactly
-    # the state /lr:workspace-status reports as S14. Fetch first (refs only, no
+    # the state /lr:check --workspace reports as S14. Fetch first (refs only, no
     # working-tree change, safe on a dirty tree), then count.
     if git -C "$WORKSPACE" fetch --quiet origin >/dev/null 2>&1 \
        && upstream="$(git -C "$WORKSPACE" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" \
@@ -275,6 +281,7 @@ if [[ -d "$WORKSPACE/.git" || -f "$WORKSPACE/.git" ]] \
   else
     if git -C "$WORKSPACE" pull --ff-only >/dev/null 2>&1; then
       phase0_state="pulled"
+      record_repo_pull "$WORKSPACE"
     else
       echo "${C_WARN}Phase 0: workspace root 'git pull --ff-only' failed (network, auth, or diverged history) — proceeding with local files.${RESET}" >&2
       phase0_state="warned"
@@ -507,6 +514,7 @@ run_clone_batch() {
       # arriving here must not send the handler after a target that is now complete.
       rm -f "$tmpdir/inflight-$key"
       echo $ec >"$tmpdir/clone-$key.exit"
+      if [[ $ec -eq 0 ]]; then record_repo_pull "$target"; fi
       # Clean up partial clones so the next run doesn't see them as conflicts.
       if [[ $ec -ne 0 && -d "$target" ]]; then
         rm -rf "$target"
@@ -700,7 +708,11 @@ if [[ ${#top_level_repos[@]} -gt 0 ]]; then
     repo="$WORKSPACE/$name"
     key="$(safe_key "$name" "$i")"
     (
-      { LC_ALL=C git -C "$repo" pull --ff-only 2>&1; echo $? >"$tmpdir/pull-$key.exit"; } \
+      { LC_ALL=C git -C "$repo" pull --ff-only 2>&1
+        pull_ec=$?
+        echo "$pull_ec" >"$tmpdir/pull-$key.exit"
+        if [[ $pull_ec -eq 0 ]]; then record_repo_pull "$repo"; fi
+      } \
         | tee "$tmpdir/pull-$key.out" \
         | while IFS= read -r line; do
             printf "%s[%-30s]%s %s\n" "$C_NAME" "$name" "$RESET" "$line"

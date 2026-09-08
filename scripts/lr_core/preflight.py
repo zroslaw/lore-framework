@@ -112,37 +112,23 @@ def git_toplevel(repo):
     return None
 
 
+# Preserve the private names used by boot's TTL callers and tests.
 def _stamp_path(repo):
-    gd = absolute_git_dir(repo)
-    if not gd:
-        return None
-    # Inside the git dir: never committed, no .gitignore change needed, and it
-    # follows the checkout when the worktree convention moves it.
-    return os.path.join(gd, "lr-last-pull")
+    from .freshness import stamp_path
+    return stamp_path(repo)
 
 
 def _read_stamp(repo):
-    path = _stamp_path(repo)
-    if not path:
-        return None
-    text = read_text(path)
-    if not text:
-        return None
-    try:
-        return float(text.strip())
-    except ValueError:
-        return None
+    from .freshness import read_stamp
+    stamp = read_stamp(repo)
+    return stamp if stamp is None or stamp <= time.time() else None
 
 
 def _write_stamp(repo):
-    path = _stamp_path(repo)
-    if not path:
-        return
-    try:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write("%d\n" % int(time.time()))
-    except (IOError, OSError):
-        pass  # A stamp we cannot write only costs us the TTL optimization.
+    from .freshness import write_stamp
+    error = write_stamp(repo)
+    if error:
+        print("Could not record repo freshness: %s" % error, file=sys.stderr)
 
 
 def pull_repo(repo, ttl=DEFAULT_PULL_TTL_SEC, fresh=False, do_pull=True):
@@ -254,10 +240,7 @@ def pull_repo(repo, ttl=DEFAULT_PULL_TTL_SEC, fresh=False, do_pull=True):
     # Per-transport fast-fail niceties over the subprocess-timeout backstop.
     # GNU `timeout` is deliberately not used — it is absent on macOS/BSD
     # (docs/conventions.md § Tooling: Portable Shell).
-    env = {
-        "GIT_TERMINAL_PROMPT": "0",
-        "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=10",
-    }
+    env = network_env()
     rc, out, err = git(repo, ["pull", "--ff-only"], env_extra=env)
     if not git_answered(rc):
         return _git_unrunnable(err, rc)

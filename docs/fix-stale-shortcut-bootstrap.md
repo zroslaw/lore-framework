@@ -52,5 +52,5 @@ owned shortcuts and preserves only collisions or unrecognised artifacts.
 
 - `docs/register-repo.md` — canonical registration templates.
 - `docs/check.md` — static shortcut-format check.
-- `docs/doctor-stale-plugin-cache.md` — different issue: stale plugin content rather than a stale
+- `docs/fix-stale-plugin-cache.md` — different issue: stale plugin content rather than a stale
   shortcut path.

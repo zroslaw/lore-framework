@@ -209,8 +209,8 @@ step was skipped.
 - `docs/workspace-pull.md` — the consumer counterpart; phase 0 is how teammates receive what this
   skill publishes.
 - `docs/workspace-init.md` — the skill that creates and converges the files this skill publishes.
-- `docs/workspace-status.md` — the read-only diagnosis; findings S1 (dirty managed files) and S2
+- `docs/findings-catalog.md` — the read-only diagnosis; findings S1 (dirty managed files) and S2
   (unpushed commits) are what send a user here.
-- `docs/check.md` — check #24 warns when framework-managed workspace files are dirty or unpushed.
+- `docs/check.md` — check S1/S2 warns when framework-managed workspace files are dirty or unpushed.
 - `docs/finalize.md` — phase 4, the publish path for *agent repo* changes (this skill's sibling at
   the domain layer).

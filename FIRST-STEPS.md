@@ -142,7 +142,7 @@ This preserves what the session produced, in four phases:
 
 Phase 4 covers the **agent repos**, not the workspace directory around them. If the session also
 changed the workspace — `workspace-init`, a registered shortcut, a new repo declaration — publish
-that separately with `/lr:workspace-push`; `/lr:workspace-status` tells you whether anything is
+that separately with `/lr:workspace-push`; `/lr:check --workspace` tells you whether anything is
 waiting.
 
 Only finalize when you mean to — it's the moment the agent's learning becomes durable and shared.
@@ -162,3 +162,13 @@ Only finalize when you mean to — it's the moment the agent's learning becomes 
 
 You now have the whole loop: **boot → work → finalize**, repeated, with knowledge compounding in a
 shared repo every time. That's the framework.
+
+## Check your Lore installation
+
+Run the installed `lr:check` skill (Cursor: `/lr-check`; Claude: `/lr:check`; Codex:
+`$lr:check`). It reports the loaded plugin version, agent repos, workspace setup, and repos
+whose last verified check is older than 24 hours. Details are available with `--full`.
+
+If no Lore commands appear, follow this guide's installation steps first. If `check` appears
+but its report has no plugin layer, see `docs/fix-stale-plugin-cache.md` and refresh the
+engine's installed plugin. A stale diagnostic cannot detect its own missing newer checks.

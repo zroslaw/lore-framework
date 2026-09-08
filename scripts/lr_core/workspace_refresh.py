@@ -324,8 +324,7 @@ def _run_workspace_pull(script_path, workspace_root, timeout=WORKSPACE_PULL_TIME
     `subprocess.run` so the group kill is reachable from this function at all.
     """
     env = os.environ.copy()
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o ConnectTimeout=10"
+    env.update(network_env())
     try:
         proc = subprocess.Popen(
             [script_path, workspace_root],

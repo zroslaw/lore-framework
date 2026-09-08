@@ -1,6 +1,6 @@
 # Stale Plugin Cache
 
-> **Bootstrap note.** This ailment can mask its own diagnostic tool: if a plugin upgrade adds or renames `/lr:doctor` itself, `/lr:doctor` may be missing from your available-skills list right when you'd want to use it. The Remedy below still applies — clear the cache directly, restart Claude Code, then re-attempt `/lr:doctor` to verify.
+> **Bootstrap note.** This ailment can mask its own diagnostic tool: if a plugin upgrade adds or renames `/lr:check` itself, `/lr:check` may be missing from your available-skills list right when you'd want to use it. The Remedy below still applies — clear the cache directly, restart Claude Code, then re-attempt `/lr:check` to verify.
 
 ## Symptoms
 
@@ -97,8 +97,8 @@ Whenever a framework migration or release note **adds, removes, or renames** a s
 
 ## See Also
 
-- `docs/doctor.md` — orchestrator and ailment catalog.
-- `docs/doctor-cursor-session-without-plugin.md` — Cursor session with no plugin loaded (missing skills entirely, not stale content).
+- `docs/findings-catalog.md` — orchestrator and ailment catalog.
+- `docs/fix-cursor-session-without-plugin.md` — Cursor session with no plugin loaded (missing skills entirely, not stale content).
 - `docs/conventions.md` — the cache-clear footer convention authors must apply when shipping cache-affecting versions.
 - `docs/update.md` — `/lr:update` flow; cache-clear is a follow-up step after a version bump that changes skills.
 - `release-notes/12.md` — first release note that codifies the cache-clear convention.

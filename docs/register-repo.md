@@ -64,7 +64,7 @@ any `<placeholder>`:
 All three are workspace-local, so all three are published by `/lr:workspace-push` and arrive for a
 teammate by git. Codex also loads personal skills from `~/.codex/skills/`, which is where the
 framework wrote its shortcuts before v37; never write there now — that copy reaches nobody else, and
-`workspace-status` finding S15 asks for any leftover to be relocated (`migrations/37.md` does it in
+`check --workspace` finding S15 asks for any leftover to be relocated (`migrations/37.md` does it in
 bulk). Codex resolves the workspace-local root from the git root of the session's working directory:
 see `docs/engines/codex.md` § Where per-agent shortcuts live.
 

@@ -43,15 +43,15 @@ that either skips a needed migration or tells the user to reinstall a perfectly 
 
 ### Step 0: Notify
 
-Reached only on `R < F`, when an upgrade is really about to run. **Print this before Step 1's first
+Reached only on `R < F`, before checking whether the upgrade can proceed. **Print this before Step 1's first
 command**, substituting every `<placeholder>`:
 
 > A newer Lore Framework is installed than this agent's repo was last updated for — the framework
-> here is at v`<F>`, and `<lore-agent-repo>` is stamped v`<R>`. I'm bringing the repo up to v`<F>`
-> now, which is what keeps its agents working with the version you're running. **This writes to
-> files in `<lore-agent-repo>`, commits them, and pushes to the repo's remote** — only the files the
-> upgrade owns, never your own work, and I stop without changing anything if they collide with edits
-> of yours. I'll tell you how it went, then carry on booting.
+> here is at v`<F>`, and `<lore-agent-repo>` is stamped v`<R>`. I'll check whether it can be
+> upgraded safely, then apply the required changes. **An upgrade writes its owned files and
+> attempts to commit and push them under the publication rules.** Colliding edits defer the
+> upgrade; unrelated work is excluded from the update commit. I'll report any deferred changes
+> or publication problems, then carry on loading the agent.
 
 ### Step 1: Pre-flight collision check
 
@@ -241,4 +241,4 @@ Explicit invocation is not blanket permission to overwrite uncommitted work.
 
 When writing a new `migrations/<N>.md`, **declare its write-set** under a `## Write Paths` section (see `conventions.md` § Migration Write Paths). Without it, the boot-time gate falls back to the conservative blanket-dirty rule for the version range that includes your migration — meaning users with any unrelated dirty file will be blocked from auto-upgrading through your version. The declaration is mechanical (it's the same paths your migration's "Steps" section already touches) and the cost of omitting it is real friction.
 
-When changes touch plugin-cached state (skills, slash commands, scripts, SKILL.md-referenced docs), include the **Clear Plugin Cache** footer per `docs/conventions.md` § Migration / Release-Note Authoring. The cache-stale failure mode is invisible to the user until they invoke a missing skill — the footer makes the fix discoverable from the doc the user is already reading. See also `docs/doctor-stale-plugin-cache.md` for the underlying ailment.
+When changes touch plugin-cached state (skills, slash commands, scripts, SKILL.md-referenced docs), include the **Clear Plugin Cache** footer per `docs/conventions.md` § Migration / Release-Note Authoring. The cache-stale failure mode is invisible to the user until they invoke a missing skill — the footer makes the fix discoverable from the doc the user is already reading. See also `docs/fix-stale-plugin-cache.md` for the underlying ailment.

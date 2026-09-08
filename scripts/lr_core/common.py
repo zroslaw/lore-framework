@@ -146,6 +146,12 @@ def read_text(path):
         return None
 
 
+def network_env():
+    """Non-interactive transport shared by all remote Git callers."""
+    return {"GIT_TERMINAL_PROMPT": "0",
+            "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=10"}
+
+
 def run(argv, timeout, env_extra=None, cwd=None):
     """Run a command. Returns (rc, stdout, stderr); rc is None if it never ran.
 
@@ -239,6 +245,8 @@ def git(repo, args, timeout=GIT_TIMEOUT_SEC, env_extra=None):
     enabled git in a non-English locale.
     """
     env = {"LC_ALL": "C", "LANGUAGE": "C"}
+    if args and args[0] == "status":
+        env["GIT_OPTIONAL_LOCKS"] = "0"  # A diagnostic must not refresh/write the index.
     if env_extra:
         env.update(env_extra)
     return run(["git", "-C", repo] + args, timeout, env_extra=env)

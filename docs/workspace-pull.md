@@ -198,12 +198,12 @@ so divergent local branches surface as failures rather than silent merge commits
   descriptors and clones/pulls. On an already-initialized workspace, init **converges**: no flag.
 - **`/lr:workspace-push`** is the publisher — it commits and pushes the framework-managed workspace
   files that init and the register skills write. Phase 0 here is what receives them on the other end.
-- **`/lr:workspace-status`** is the read-only diagnosis: the same facts this script acts on, rendered
+- **`/lr:check --workspace`** is the read-only diagnosis: the same facts this script acts on, rendered
   as findings with fixes (S6 missing declared repos, S7 ignore coverage, S13 conflicts, S14 behind).
 - **`/lr:pull-lore`** is the narrower peer: refreshes only the lore agent repos of currently loaded
   agents (host + attached guests), no clone, no top-level non-lore pulls. Use it mid-session when a
   teammate pushed lore changes; use `workspace-pull` for bootstrap or a full-workspace refresh.
-- **`/lr:check`** runs consistency checks across the workspace (including #22, which warns when a
+- **`/lr:check`** runs consistency checks across the workspace (including S7, which warns when a
   standard ignore line or a child git repo on disk isn't covered in a git workspace). It does not
   pull or clone.
 - **`/lr:create-repo`** scaffolds a new agent repo. Its `lore-repo.md` starts without a `repos:`
@@ -230,3 +230,15 @@ so divergent local branches surface as failures rather than silent merge commits
   `--ff-only` pulls remain safe).
 - `docs/conventions.md` — `lore-workspace.md` and `lore-repo.md` schema reference; the dual meaning
   of `repos:`.
+
+## Successful-pull freshness
+
+After each successful clone or pull, the script records `lr-last-pull` in that repo's resolved
+Git directory. This includes an already-up-to-date pull and the workspace root. The existing
+boot pull uses the same marker. Failed or skipped pulls retain the old timestamp; a partial
+workspace run updates successful repos only. Marker-write failures are reported separately.
+
+`check` reads these per-repo markers to recommend a pull after more than 24 hours. A missing
+marker means unknown freshness. Manual Git operations may not update this framework marker;
+it is not the age of the latest commit. The workspace-wide auto-refresh timestamp cannot
+establish any individual child's freshness.

@@ -57,7 +57,7 @@ Then start a fresh session. A refresh done mid-session affects future sessions, 
 running.
 
 If skills still reflect the old version after that — a new skill is missing, or a renamed skill
-still shows its old name — the running session is loading a **stale plugin cache**. Run `/lr:doctor`
+still shows its old name — the running session is loading a **stale plugin cache**. Run `/lr:check`
 (it diagnoses and heals this), or clear the cache directly:
 
 ```bash
@@ -67,7 +67,7 @@ rm -rf ~/.claude/plugins/cache/lore-framework/
 This is destructive — confirm with the user first — and only removes the locally cached copy, which
 Claude Code repopulates from the marketplace on the next session. Then **exit and start a fresh
 session**; the old skill list is held in memory until you do. See
-`docs/doctor-stale-plugin-cache.md` for the full diagnosis and remedy.
+`docs/fix-stale-plugin-cache.md` for the full diagnosis and remedy.
 
 ## Optional Claude Code configuration
 
@@ -94,10 +94,20 @@ If boot says your agent repo is stamped at a version newer than the installed fr
 cause is that the repo moved forward but the installed Claude Code plugin did not — or the running
 session holds a stale cache. Refresh the plugin using the commands above, clear the cache if needed,
 start a fresh session, then boot again. See `docs/version-check.md` and
-`docs/doctor-stale-plugin-cache.md`.
+`docs/fix-stale-plugin-cache.md`.
 
 ## After install
 
 Plugin installed? Continue with [FIRST-STEPS.md](FIRST-STEPS.md) to create your first agent — or,
 if you're joining a team that already uses Lore Agents, pick up at
 [QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path) (path A).
+
+## Check your Lore installation
+
+Run the installed `lr:check` skill (Cursor: `/lr-check`; Claude: `/lr:check`; Codex:
+`$lr:check`). It reports the loaded plugin version, agent repos, workspace setup, and repos
+whose last verified check is older than 24 hours. Details are available with `--full`.
+
+If no Lore commands appear, follow this guide's installation steps first. If `check` appears
+but its report has no plugin layer, see `docs/fix-stale-plugin-cache.md` and refresh the
+engine's installed plugin. A stale diagnostic cannot detect its own missing newer checks.

@@ -2,7 +2,7 @@
 
 ## Symptoms
 
-- `/lr-boot`, `/lr-doctor`, `/lr-check`, and other Lore slash commands are **not** in the
+- `/lr-boot`, `/lr-check`, `/lr-check`, and other Lore slash commands are **not** in the
   session's available-skills list.
 - The user expected Lore commands after opening an IDE chat or starting `cursor-agent` **without**
   `--plugin-dir` (and without a verified local-plugin load path).
@@ -49,7 +49,7 @@ correctly. Missing skills in the picker is the right signal.
 
 | Symptom | Route to |
 |---------|----------|
-| Skills listed but wrong/old content after upgrade | `doctor-stale-plugin-cache` (Claude-specific cache remedy); on Cursor → `scripts/cursor-refresh-plugin` + fresh session |
+| Skills listed but wrong/old content after upgrade | `fix-stale-plugin-cache` (Claude-specific cache remedy); on Cursor → `scripts/cursor-refresh-plugin` + fresh session |
 | `R > F` version stamp mismatch at boot | `docs/version-check.md` / `INSTALL-CURSOR.md` refresh |
 | Invalid or missing checkout path | `INSTALL-CURSOR.md` § Step 1 (clone) |
 | Mid-session need with checkout path available | `docs/engines/cursor.md` § Mid-session fallback |
@@ -69,7 +69,7 @@ Replace `/path/to/lore-framework` with your checkout (or set `LORE_FRAMEWORK_DIR
 fallback — file-driven execution via `.cursor-skills/lr-<skill>/SKILL.md` when the user provides
 the checkout path.
 
-**Note:** `/lr-doctor` itself is unavailable in this state. Read this topic directly (or use the
+**Note:** `/lr-check` itself is unavailable in this state. Read this topic directly (or use the
 mid-session fallback to boot an agent that can guide you).
 
 ## Why It Happens
@@ -81,7 +81,7 @@ a fresh session (or the file-driven fallback) is required.
 
 ## See Also
 
-- `docs/doctor.md` — orchestrator and ailment catalog.
+- `docs/findings-catalog.md` — orchestrator and ailment catalog.
 - `docs/engines/cursor.md` — load surfaces, refresh contract, mid-session fallback.
 - `INSTALL-CURSOR.md` — canonical install and refresh guide.
-- `doctor-stale-plugin-cache.md` — stale content after upgrade (different root cause).
+- `fix-stale-plugin-cache.md` — stale content after upgrade (different root cause).

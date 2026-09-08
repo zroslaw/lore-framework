@@ -66,7 +66,7 @@ itself when it is not inside a git repo. Two consequences follow, and neither an
   awkwardness.
 - A shortcut in `~/.codex/skills/` is visible from **every** directory, which is what made the old
   location feel like it worked better. It is also why the same agent name registered in an unrelated
-  workspace can shadow this one — see the `workspace-status` S15 caveat.
+  workspace can shadow this one — see the `check --workspace` S15 caveat.
 
 Empirical basis, `codex-cli 0.142.5`, 2026-08-10, via `codex debug prompt-input` (no model call): a
 `SKILL.md` under `<git-root>/.codex/skills/` is listed to the model with its absolute path, from the

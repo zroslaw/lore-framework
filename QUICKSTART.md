@@ -91,12 +91,12 @@ still required; it has no project-scope plugin mechanism.
 3. **Pull the workspace** — clones any other repos it declares and pulls everything:
    `/lr:workspace-pull`
 4. **Initialize the workspace** so future sessions auto-load the conventions: `/lr:workspace-init`
-   (re-run it any time to converge; `/lr:workspace-status` says whether anything needs it)
+   (re-run it any time to converge; `/lr:check --workspace` says whether anything needs it)
 5. **Boot an agent and work:** `/lr:boot <agent-name>` (run `/lr:list-agents` first if you don't
    know what's available).
 6. **Finalize at session end** to preserve what was learned: `/lr:finalize` — this commits your agent
    repos. If the session also changed the workspace itself (init, a registered shortcut, a new repo
-   declaration), `/lr:workspace-push` publishes that; `/lr:workspace-status` says whether it did.
+   declaration), `/lr:workspace-push` publishes that; `/lr:check --workspace` says whether it did.
 
 ### B. Starting fresh — your own agent
 

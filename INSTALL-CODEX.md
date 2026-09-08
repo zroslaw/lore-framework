@@ -127,3 +127,13 @@ the plugin using the commands above, restart Codex, then boot again.
 Plugin installed? Continue with [FIRST-STEPS.md](FIRST-STEPS.md) to create your first agent — or,
 if you're joining a team that already uses Lore Agents, pick up at
 [QUICKSTART.md § After install](QUICKSTART.md#after-install-pick-your-path) (path A).
+
+## Check your Lore installation
+
+Run the installed `lr:check` skill (Cursor: `/lr-check`; Claude: `/lr:check`; Codex:
+`$lr:check`). It reports the loaded plugin version, agent repos, workspace setup, and repos
+whose last verified check is older than 24 hours. Details are available with `--full`.
+
+If no Lore commands appear, follow this guide's installation steps first. If `check` appears
+but its report has no plugin layer, see `docs/fix-stale-plugin-cache.md` and refresh the
+engine's installed plugin. A stale diagnostic cannot detect its own missing newer checks.

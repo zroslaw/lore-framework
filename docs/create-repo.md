@@ -74,4 +74,4 @@ Print this to the user before doing anything else, filling in any `<placeholder>
    path for agents that arrived some other way, or to refresh existing shortcuts.
 10. If this workspace declares its repos in `lore-workspace.md`, note that the new repo is not in it
     yet — `/lr:workspace-init` offers to declare it, and until then a teammate's `/lr:workspace-pull`
-    will not clone it (`/lr:workspace-status` finding S5).
+    will not clone it (`/lr:check --workspace` finding S5).

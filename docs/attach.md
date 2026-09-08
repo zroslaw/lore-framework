@@ -87,6 +87,9 @@ Pass `--no-teammate-check` if you like; the host already established spawn conte
 Step 2 already produced the comparison in `data.version` (or you did it by hand under the fallback contract).
 
 - If the verdict is `match`, skip to Step 4.
+- For `repo-behind`, the host prints the Step 0 notice from `docs/version-check.md`, with the
+  guest repo and versions substituted, **before dispatching** reconciliation. This also applies
+  when the engine runs reconciliation inline; print the notice once.
 - Otherwise, dispatch a general-purpose subagent to reconcile. The subagent works in the filesystem — its output stays in its own context; the host only sees the subagent's summary return.
 
 Subagent prompt shape:
@@ -95,7 +98,9 @@ Subagent prompt shape:
 >
 > Read `<framework-root>/docs/version-check.md` and execute its procedure, scoped to this repo. The repo's current version is `R=<R>` and the framework version is `F=<F>`.
 >
-> **Deviation from version-check.md:** its Step 0 notice and its release notes both go to the host, not straight to the user — your output stays in your own context, so anything printed here is lost. Print the Step 0 notice into your returned report instead, so the host can surface it before the user wonders why the guest's repo changed. Likewise, do not print release notes to the user directly — instead, collect the full text of each release notes file you would have displayed, and return it in your response so the host can surface it to the user.
+> **Deviation from version-check.md:** the host has already printed Step 0 for an upgrade; do
+> not repeat it. Collect the full text of each release notes file you would have displayed and
+> return it to the host, which will relay it to the user.
 >
 > Return a compact report containing:
 > - Start version, end version, final stamped version (or "not stamped" if the upgrade deferred or failed)

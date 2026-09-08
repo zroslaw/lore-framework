@@ -5,23 +5,22 @@ Contract): the docstrings below ARE the normative procedure. If `workspace-scan`
 cannot run, read them in order and execute the described commands by hand — the
 flow must reach the same end state.
 
-Four skills consume this one scan, so the rules live here once instead of being
-restated in four docs:
+Three skills and boot consume this one scan, so the rules live here once instead of being
+restated in their docs:
 
-  /lr:workspace-status  renders every finding
-  /lr:check   #22-#24   renders the subset it owns
+  /lr:check             composes workspace findings with plugin/repo/freshness checks
   /lr:workspace-init    interviews from the finding list (converge = drive it to zero)
   /lr:workspace-push    takes its framework-managed path set from `managed_paths.set`
 
 **The script emits data; the doc owns the words.** A finding carries an `id`, a
 `severity`, and structured `data` — never a finished user-facing sentence.
-`docs/workspace-status.md` holds the message and the fix for each ID. A script
+`docs/findings-catalog.md` holds the message and the fix for each ID. A script
 string that reads like a finished message gets printed as one, and printing it
 *looks* like handling the situation, so the executor never reaches the doc that
 owns the remedy.
 
-**No network.** Every git query below reads local refs only, so this is safe to
-run on every `/lr:check`. The cost is that `behind` reflects the last fetch;
+**No network in this scanner.** Every git query below reads local refs only.
+The separate `check` plugin layer may query published release tags. The cost is that `behind` reflects the last fetch;
 S14 is `info` for exactly that reason. `workspace-init` Step 6 fetches on its
 own, because it is about to make a publication decision.
 """
@@ -471,7 +470,7 @@ def repo_context_entries(workspace):
             description: Owns ... Inspect when ...
 
     Return `(entries, issues)`. Issues are structured data for the caller to
-    route through workspace-status/workspace-init; malformed input must never
+    route through check/workspace-init; malformed input must never
     be silently accepted as a usable routing description.
     """
     text = read_text(os.path.join(workspace, "lore-workspace.md")) or ""
@@ -887,7 +886,7 @@ def shortcut_targets(workspace):
 def build_findings(data):
     """Derive S1-S18 from the collected facts. Pure — no I/O, no git.
 
-    Manual fallback: the table in `docs/workspace-status.md` § Findings catalog
+    Manual fallback: the table in `docs/findings-catalog.md` § Findings catalog
     lists every ID with its trigger, its severity, and its fix. This function is
     the trigger column, expressed once; that doc is the message and fix columns.
     Emit `data` payloads only. A finding is a result, never an exit code — the
