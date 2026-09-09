@@ -13,7 +13,7 @@ from pathlib import Path
 from .common import resolve_framework_root
 from .freshness import repo_freshness
 from .plugin_scan import finding, scan_plugin, version_at
-from .repo_scan import scan_repos
+from .repo_scan import check_shortcuts, scan_repos
 from .workspace_scan import run_workspace_scan
 
 COLLAPSE_UNINITIALIZED = {"S4", "S5", "S10", "S17", "S18"}
@@ -76,6 +76,9 @@ def run_check(workspace, framework_root, engine=None, no_network=False, scope="a
                                        version_at(framework_root))
         findings.extend(items)
         warnings.extend(notes)
+    elif scope in ("all", "repos"):
+        # Local shortcuts can outlive the last repo (and workspace descriptor).
+        check_shortcuts(workspace, framework_root, findings, warnings)
     freshness = []
     if scope in ("all", "workspace"):
         for row in state_data["findings"]:

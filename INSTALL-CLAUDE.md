@@ -58,7 +58,10 @@ running.
 
 If skills still reflect the old version after that — a new skill is missing, or a renamed skill
 still shows its old name — the running session is loading a **stale plugin cache**. Run `/lr:check`
-(it diagnoses and heals this), or clear the cache directly:
+to confirm it — it reports the loaded tree against any newer copy on disk, but it never clears a
+cache or restarts an engine, so the repair below is yours to run. **A session already on a stale
+cache is running a stale `check`**, which cannot report findings it does not contain; if its report
+has no plugin layer, skip straight to clearing the cache directly:
 
 ```bash
 rm -rf ~/.claude/plugins/cache/lore-framework/

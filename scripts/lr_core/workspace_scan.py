@@ -695,7 +695,7 @@ def scan_children(workspace, declared, ignore_lines):
 # Memory files
 # --------------------------------------------------------------------------
 
-def memory_state(workspace):
+def memory_state(workspace, framework_root=None):
     """The state of `AGENTS.md` (canonical payload) and `CLAUDE.md` (import stub).
 
     Manual fallback:
@@ -720,6 +720,17 @@ def memory_state(workspace):
     `payload_in_claude_md` records the pre-v3 layout — a Claude-founded
     workspace whose payload sits in `CLAUDE.md`. That is a migration input, not
     a user error.
+
+    `unknown_skills` names skills the payload's command table advertises that
+    this framework no longer ships. The payload is the AI routing map every
+    session loads, so a skill removed by an upgrade keeps being offered until
+    someone re-runs `workspace-init` — and no heading is wrong, which is why the
+    section counts above cannot see it. Read the rows of the table under
+    `## Lore Framework`, take the first token of each backticked first cell
+    (`boot <agent>` -> `boot`), and keep the ones with no
+    `<framework-root>/skills/<name>/SKILL.md`. Without a readable `skills/`
+    directory the answer is **`None` (not checked)**, never an empty list: a
+    missing framework tree is absent evidence, not a clean routing map.
     """
     agents_path = os.path.join(workspace, "AGENTS.md")
     claude_path = os.path.join(workspace, "CLAUDE.md")
@@ -746,12 +757,35 @@ def memory_state(workspace):
                 "present" if count == 1 else "duplicated")
         return out
 
+    def _table_skills(text):
+        names, inside = [], False
+        for line in (outside_fences(text) if text else []):
+            stripped = line.rstrip()
+            if stripped.startswith("## "):
+                inside = stripped == MEMORY_SECTIONS[0][1]
+                continue
+            if not inside or not stripped.startswith("|"):
+                continue
+            cell = re.match(r"\|\s*`([^`]+)`", stripped)
+            token = cell.group(1).split() if cell else []
+            if token:
+                names.append(token[0])
+        return names
+
+    def _unknown_skills(text):
+        skills = os.path.join(framework_root, "skills") if framework_root else None
+        if not skills or not os.path.isdir(skills):
+            return None  # Absent evidence is not a clean routing map.
+        return sorted({name for name in _table_skills(text)
+                       if not os.path.isfile(os.path.join(skills, name, "SKILL.md"))})
+
     claude_format = _format(claude_text)
     return {
         "agents_md": {
             "present": agents_text is not None,
             "format": _format(agents_text),
             "sections": _sections(agents_text),
+            "unknown_skills": _unknown_skills(agents_text) if agents_text else None,
         },
         "claude_md": {
             "present": claude_text is not None,
@@ -1002,8 +1036,18 @@ def build_findings(data):
             state = memory["agents_md"]["sections"][key]
             if state != "present":
                 violations.append("section_%s_%s" % (key, state))
+        # A removed skill leaves every heading correct, so the counts above are
+        # blind to it: the map still routes sessions at a command that is gone.
+        # Absent on a caller-built envelope, and `None` when the framework's
+        # `skills/` could not be read — both mean not checked, never clean.
+        unknown = memory["agents_md"].get("unknown_skills")
+        if unknown:
+            violations.append("stale_command_list")
     if violations:
-        add("S10", "warn", {"violations": violations})
+        payload = {"violations": violations}
+        if "stale_command_list" in violations:
+            payload["unknown_skills"] = memory["agents_md"]["unknown_skills"]
+        add("S10", "warn", payload)
 
     routing_agents = (data.get("routing") or {}).get("agents")
     if routing_agents is not None:
@@ -1268,7 +1312,7 @@ def run_workspace_scan(workspace, framework_root=None, engine_override=None):
         "gitignore_lines": ignore_lines,
     }
     data["children"] = children
-    data["memory"] = memory_state(workspace)
+    data["memory"] = memory_state(workspace, root)
     data["shortcuts"] = shortcuts
     data["agents"] = [a["name"] for a in agents]
     # Agent names grouped by their repo's directory name. No finding consumes

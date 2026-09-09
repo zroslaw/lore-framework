@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 from .common import git, parse_frontmatter, read_text
-from .lore_graph import build_lore_graph, lore_coverage
+from .lore_graph import build_lore_graph, discover_lore_files, lore_coverage
 from .plugin_scan import finding
 from .preflight import describe_repo, git_toplevel, compare_versions
 from .workspace_scan import frontmatter_unterminated, shortcut_targets
@@ -208,6 +208,10 @@ def scan_repos(workspace, framework_root, children, version):
                     findings.append(finding("R4", "error", "repos", "metadata", **base, field="description"))
                 if "version" in fm:
                     findings.append(finding("R4", "info", "repos", "metadata", **base, field="legacy_version"))
+            elif (agent / "role.md").is_file():
+                findings.append(finding("R4", "error", "repos", "metadata", **base,
+                                        field="role.md", reason="unreadable_role"))
+                warnings.append("Role metadata validation incomplete: cannot read %s" % (agent / "role.md"))
             if str(agent.resolve()) not in registered:
                 findings.append(finding("R10", "info", "repos", "shortcuts", **base))
             reflections = agent / "reflections"
@@ -218,6 +222,14 @@ def scan_repos(workspace, framework_root, children, version):
             if changed:
                 findings.append(finding("R8", "warn", "repos", "uncommitted", **base, paths=changed))
             try:
+                # A new agent may have neither topics nor the optional context.
+                # The graph builder requires content; health checks do not.
+                if not discover_lore_files(str(agent)):
+                    coverage = lore_coverage({"nodes": {}, "mapped": []})
+                    coverage.update(status="empty", complete=True,
+                                    guidance="No Lore Markdown files yet.")
+                    info.setdefault("coverage", {})[agent.name] = coverage
+                    continue
                 graph = build_lore_graph(str(agent))
                 if graph["git_error"]:
                     warnings.append("Lore history unavailable for %s: %s" % (agent, graph["git_error"]))
