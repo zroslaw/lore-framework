@@ -10,3 +10,6 @@ __pycache__/
 
 # Obsidian vault config (any depth)
 .obsidian/
+
+# Local scratch (workspace convention)
+.tmp/
