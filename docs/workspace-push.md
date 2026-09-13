@@ -206,6 +206,8 @@ step was skipped.
 
 ## See Also
 
+- `<framework-root>/docs/workspace-sync.md` — reconcile every repo: commit stranded Lore, merge, publish, prune dead worktrees.
+
 - `docs/workspace-pull.md` — the consumer counterpart; phase 0 is how teammates receive what this
   skill publishes.
 - `docs/workspace-init.md` — the skill that creates and converges the files this skill publishes.

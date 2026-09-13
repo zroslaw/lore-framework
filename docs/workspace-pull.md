@@ -223,6 +223,8 @@ so divergent local branches surface as failures rather than silent merge commits
 
 ## See Also
 
+- `<framework-root>/docs/workspace-sync.md` — reconcile every repo: commit stranded Lore, merge, publish, prune dead worktrees.
+
 - `docs/workspace-init.md` — the producer companion (setup wizard + memory-file refresh).
 - `docs/pull-lore.md` — narrower per-agent refresh for active sessions.
 - `docs/auto-pull.md` — the per-repo refresh procedure that boot/attach/merge invoke automatically.

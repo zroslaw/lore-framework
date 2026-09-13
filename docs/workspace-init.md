@@ -639,6 +639,8 @@ workspace does not repeatedly pay the investigation cost.
 
 ## See Also
 
+- `<framework-root>/docs/workspace-sync.md` — reconcile every repo: commit stranded Lore, merge, publish, prune dead worktrees.
+
 - `docs/findings-catalog.md` — the shared wording and repair catalog for workspace findings.
 - `docs/workspace-pull.md` — the consumer companion; Step 5 runs it.
 - `docs/workspace-push.md` — the standalone workspace-root publisher; Step 8 uses the same narrow

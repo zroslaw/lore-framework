@@ -1,4 +1,4 @@
-# Workspace Sync
+# /lr:workspace-sync
 
 `/lr:workspace-sync` drives every repository in the workspace to one state: **everything
 local is committed, integrated with its remote, and published** — or reported, precisely, as
@@ -19,9 +19,10 @@ Print this before doing anything else, substituting `<workspace>`:
 > your agents keep their knowledge in — **I commit whatever is sitting there uncommitted, merge
 > in what your teammates have pushed, and publish the result to the remote**, so no one's
 > findings stay stranded on one machine. Repos holding ordinary source code are only brought up
-> to date, never committed or pushed. Nothing is ever discarded to make a sync succeed: where
-> two versions of a file genuinely conflict, I stop and merge them by hand rather than pick a
-> winner.
+> to date, never committed or pushed, and in the workspace directory itself I touch only the
+> files the framework manages, never whatever else you keep there. Nothing is ever discarded to
+> make a sync succeed: where two versions of a file genuinely conflict, I stop and merge them by
+> hand rather than pick a winner.
 
 Run `/lr:workspace-sync --dry-run` first if the user wants to see the plan before anything is
 written; it performs no writes at all.
@@ -60,10 +61,16 @@ A notice fires **only for what actually happened**, and a run that changed nothi
 these — silence on a no-op is the point. Print the line for each outcome that occurred, taking the
 repo names from `data.repos[]`:
 
-- Any repo with `status: "published"` **and** `push: "pushed"`:
+- Any repo with `push: "pushed"` whose `committed[]` is **non-empty**:
 
   > Published `<names>`. **This committed and pushed files that were sitting uncommitted in your
   > workspace**, so they are now visible to everyone who shares those repos.
+
+- Any repo with `push: "pushed"` whose `committed[]` is **empty** — work committed by an earlier
+  run, only now reaching the remote:
+
+  > Published `<names>`. **Commits that were already sitting on this machine have now reached the
+  > remote**; nothing new was committed in this run.
 
 - Any repo with `status: "published"` or `"local-only"` whose `committed[]` is non-empty but which
   was **not** pushed:
@@ -80,6 +87,9 @@ repo names from `data.repos[]`:
 
   > Cleaned up `<n>` stale worktree registration(s) in `<names>`. **No files with uncommitted work
   > were removed** — anything unclean was kept and is listed in the report.
+
+  `<n>` is the total number of entries across `worktrees.pruned` and `worktrees.removed` in every
+  repo you are naming, counted together.
 
 ### Step 3 — Report what happened
 
@@ -141,6 +151,15 @@ person. Each is reported with its remedy.
 
 - **Never commits or pushes a source repository.** Repos without `lore-repo.md` are brought up to
   date and otherwise left exactly as they are.
+- **Never stages anything outside the framework-managed set in the workspace repo itself.** That
+  directory holds whatever a person keeps beside their repos; `/lr:workspace-push` makes the same
+  promise, and this command uses the same predicate so the two cannot drift.
+- **Never touches a repository whose working tree is configured elsewhere** (`core.worktree`).
+  Every command here runs as `git -C <repo>`, which would obey that setting and act on the other
+  directory — publishing files nobody meant to share and recording the repo's own as deleted.
+- **Never publishes a nested git repository or a symlink.** A nested repo (tracked submodule or
+  untracked clone) would record a pointer to a commit that may exist only on this machine; a
+  symlink would publish its target path rather than any content.
 - **Never resumes an operation it did not start.** A merge you opened by hand, a stopped
   cherry-pick, revert, rebase or bisect all block the repo rather than getting driven forward.
 - **Never creates a branch on a remote.** A local branch with no upstream is committed locally
@@ -149,6 +168,11 @@ person. Each is reported with its remedy.
   editor debris.** These are held back and named in the report, never deleted.
 - **Never forces anything.** No `--force`, no `reset --hard`, no `stash`, no `clean`, no
   `rebase`, and no file is ever deleted to make a sync succeed.
+
+Your git hooks still run. A `pre-commit` hook can rewrite what is about to be committed, and this
+command does not bypass hooks — disabling them would also disable the secret-scanning hooks that
+protect exactly this kind of unattended publishing. If a hook hangs, the run reports that repo as
+blocked rather than waiting forever.
 
 It also holds no lock of its own. Two syncs — or a sync and another git tool — running against one
 repository at the same time are arbitrated by git's own index lock, which prevents corruption but
@@ -169,6 +193,14 @@ default branch is actually known — an unknown one keeps everything rather than
 - `/lr:workspace-push` — publishes the workspace repo's own framework-managed files only.
 - `/lr:check` — reports health across plugin, repos and workspace, and repairs nothing.
 - `/lr:workspace-sync` — the repair. It is the only one of the four that commits on your behalf.
+
+## See Also
+
+- `<framework-root>/docs/workspace-pull.md` — set a workspace up and fast-forward it.
+- `<framework-root>/docs/workspace-push.md` — publish the workspace repo's managed files.
+- `<framework-root>/docs/check.md` and `docs/findings-catalog.md` — findings S1, S2 and S9 are
+  what send a user here.
+- `<framework-root>/docs/resolve-conflicts.md` — the agent-lore merge rules Step 4 borrows.
 
 ## If the script cannot run
 

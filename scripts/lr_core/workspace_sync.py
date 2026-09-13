@@ -39,6 +39,7 @@ nobody can see is indistinguishable from a bug.
 
 from .common import *
 from .preflight import find_repos
+from .workspace_scan import is_managed
 
 # One commit message for every repo this command publishes. Deliberately generic: the
 # script cannot know what the changes mean, and a message that guessed would be worse
@@ -81,7 +82,11 @@ OTHER_OPERATION_MARKERS = (
 MERGE_MARKER = "lr-workspace-sync-merge"
 CONFLICT_MARKER_RE = re.compile(r"^(<{7}|={7}|>{7})(\s|$)", re.M)
 # Terminal states. Every repo gets exactly one, initialized to `not-attempted`, so a
-# run that dies mid-way cannot read as success.
+# run that dies mid-way cannot read as success. No path in a complete run should emit
+# it — every exit goes through `_finish`, and `cmd_workspace_sync` converts even an
+# unexpected exception into a blocked entry. It is kept as a fail-safe, not as an
+# expected outcome: if a future edit adds a return that skips `_finish`, the report
+# says so instead of quietly counting that repo as fine.
 STATUS_NOT_ATTEMPTED = "not-attempted"
 
 
@@ -102,13 +107,24 @@ def classify_repos(workspace):
 
     Step 2: every non-hidden top-level directory holding a `.git` entry. A *file*
     counts — that is what a linked worktree and a submodule have. Hidden directories
-    are skipped, which also excludes the `.worktrees/` convention.
+    are skipped, which also excludes the `.worktrees/` convention. Each one must then
+    pass the same `rev-parse --show-toplevel` identity check as the workspace root:
+    **every command here runs as `git -C <repo>`, which obeys that repo's
+    `core.worktree`**, so a repo configured to keep its working tree somewhere else
+    (the dotfiles-in-$HOME pattern is the common benign case) would have *that*
+    directory's files committed and pushed to the Lore remote, and its own tracked
+    files recorded as deletions. A repo whose toplevel is not itself is skipped.
 
     Step 3: classify. `lore-repo.md` in the directory means a Lore agent repo; those
     and the workspace root are **publish** repos. Everything else is a **source**
     repo, integrated but never committed and never pushed: committing somebody's
     in-progress source work and pushing it is a destructive act dressed as
     helpfulness, whereas an uncommitted Lore file is a finding nobody else can see.
+
+    The workspace root publishes on narrower terms than a Lore repo — see
+    `stageable_paths`. Its dirty files are whatever a person happens to keep beside
+    their repos, and `/lr:workspace-push` already promises, in writing and in its
+    tests, to leave everything outside the framework-managed set alone.
     """
     repos = []
     ws = os.path.abspath(workspace)
@@ -129,6 +145,13 @@ def classify_repos(workspace):
         path = os.path.join(ws, name)
         if not os.path.isdir(path) or not os.path.exists(os.path.join(path, ".git")):
             continue
+        rc, out, _ = git(path, ["rev-parse", "--show-toplevel"], timeout=15)
+        if not git_answered(rc) or rc != 0 or not out.strip():
+            continue
+        if os.path.realpath(out.strip()) != os.path.realpath(path):
+            repos.append({"name": name, "path": path, "kind": "redirected",
+                          "toplevel": os.path.realpath(out.strip())})
+            continue
         kind = "lore" if os.path.realpath(path) in lore_dirs else "source"
         repos.append({"name": name, "path": path, "kind": kind})
     return repos
@@ -137,6 +160,37 @@ def classify_repos(workspace):
 def is_publish_repo(kind):
     """Publish repos get phases 0, 2 and 4 (resume, commit, push); source repos do not."""
     return kind in ("workspace", "lore")
+
+
+def stageable_paths(kind, entries, repo):
+    """Split dirty paths into what this repo kind may stage and what it holds.
+
+    A Lore agent repo stages everything not held: the repo exists to be shared, so an
+    uncommitted file there is a finding until proven otherwise.
+
+    **The workspace root stages only framework-managed paths.** It is not a knowledge
+    repo — it is the directory a person keeps their repos in, alongside whatever else
+    they keep there — and `/lr:workspace-push` already guarantees, in its doc and its
+    tests, that no framework command stages anything outside that set
+    (`docs/findings-catalog.md` S12 tells users so). Publishing a stray draft from
+    somebody's workspace root would break a promise the framework has already made,
+    to buy something nobody asked for. `is_managed` is the same predicate
+    `workspace-push` uses, so the two cannot drift apart.
+    """
+    eligible, held = [], {}
+    for code, path in entries:
+        reason = hold_reason(repo, code, path)
+        if not reason and kind == "workspace" and not is_managed(path):
+            reason = ("outside the framework-managed set — publish it yourself, or "
+                      "let /lr:workspace-push handle the managed files")
+        if reason:
+            # One entry per path, not per status record: `git rm --cached` on a file
+            # still on disk yields both `D` and `??` for the same path, and a report
+            # told to read this list verbatim would name the same problem twice.
+            held.setdefault(path, reason)
+        else:
+            eligible.append(path)
+    return sorted(set(eligible)), held
 
 
 # --------------------------------------------------------------------------
@@ -173,11 +227,16 @@ def hold_reason(repo, code, path):
     Four holds, each for a distinct irreversible failure:
 
     - **junk** — publishing editor debris pollutes a shared repo.
-    - **nested repository** — an untracked entry git reports with a trailing `/` is a
-      directory it would not walk into, which in practice means a repo inside the
-      repo. Staging it records a *gitlink* to a commit that exists only on this
-      machine: teammates clone an empty directory, and the report would claim the
-      content was published.
+    - **nested repository** — two shapes, and catching only the first published broken
+      references. An *untracked* one arrives with a trailing `/`, the directory git
+      refused to walk into. A *tracked* one — an ordinary submodule whose pointer
+      moved — arrives as a plain modification of a path that is a directory on disk.
+      Either way, staging it records a *gitlink* to a commit that may exist only on
+      this machine: teammates clone an empty directory or get
+      `upload-pack: not our ref` forever, while the report claims it was published.
+    - **symlink** — git stores a symlink as its target *path*, so committing one
+      publishes where a file lives on this machine (usernames, directory layout, the
+      name of whatever it points at) rather than anything the author chose to share.
     - **credential-shaped name** — see `looks_secret`.
     - **oversized** — see `MAX_COMMIT_BYTES`.
 
@@ -192,8 +251,12 @@ def hold_reason(repo, code, path):
         return None
     if is_junk(path):
         return "editor or build debris"
-    if code == "??" and path.endswith("/"):
-        return "nested git repository — publish it from its own checkout"
+    full_path = os.path.join(repo, path.rstrip("/"))
+    if path.endswith("/") or os.path.isdir(full_path):
+        if os.path.exists(os.path.join(full_path, ".git")) or path.endswith("/"):
+            return "nested git repository — publish it from its own checkout"
+    if os.path.islink(full_path):
+        return "symlink — it would publish its target path, not its content"
     if looks_secret(path):
         return "credential-shaped name — publish it deliberately if it belongs here"
     full = os.path.join(repo, path)
@@ -239,9 +302,17 @@ def status_entries(repo):
         code, path = record[:2], record[3:]
         entries.append((code, path))
         if code[0] in ("R", "C"):
-            if index < len(fields) and fields[index]:
-                entries.append((code, fields[index]))
+            origin = fields[index] if index < len(fields) else ""
             index += 1
+            # A rename's origin is a deletion, and is emitted with a deletion code so
+            # that the "never hold a deletion" rule reaches it. Without this,
+            # `git mv credentials.json config.json` publishes the new name while
+            # holding the removal of the old one — leaving the repo permanently dirty
+            # and the credential still tracked, which is the exact inversion the hold
+            # exists to prevent. A *copy*'s source is unchanged on disk and needs no
+            # staging at all, so it is dropped rather than mislabelled.
+            if origin and code[0] == "R":
+                entries.append(("D ", origin))
     return entries
 
 
@@ -470,7 +541,7 @@ def _pathspec_file(repo, paths):
     return path
 
 
-def commit_local(repo, entries):
+def commit_local(repo, entries, kind="lore"):
     """Stage every eligible dirty path and commit exactly those. Returns a result dict.
 
     Manual fallback: partition `status_entries` with `hold_reason`, then
@@ -481,8 +552,14 @@ def commit_local(repo, entries):
 
     Three details carry weight:
 
-    - **`add` with an explicit pathspec, never `add -A`.** The holds exist precisely to
-      keep some dirty paths out; a wholesale add re-adds them.
+    - **`add -A` with an explicit pathspec, never a bare `add -A`**, and only for paths
+      that actually have something unstaged. The pathspec is what keeps held paths out;
+      a wholesale add re-adds every one of them. The unstaged filter matters because
+      `git mv` already stages both sides of a rename, leaving the origin in neither the
+      worktree nor the index as a separate path — `git add` on it fails with
+      `did not match any files`, which would strand the rename and leave the
+      repository permanently dirty. `git commit` with the same pathspec records it
+      correctly without any `add` at all.
     - **`commit` with the same pathspec, never a bare `commit`.** A bare commit
       publishes whatever is in the index, including files a concurrent session staged
       between the scan and here — this workspace runs concurrent sessions, and
@@ -495,32 +572,42 @@ def commit_local(repo, entries):
     """
     result = {"committed": [], "held": [], "left_dirty": [], "commit": None,
               "error": None}
-    eligible, held = [], {}
-    for code, path in entries:
-        reason = hold_reason(repo, code, path)
-        if reason:
-            # One entry per path, not per status record: `git rm --cached` on a file
-            # still on disk yields both `D` and `??` for the same path, and a report
-            # told to read this list verbatim would name the same problem twice.
-            held.setdefault(path, reason)
-        else:
-            eligible.append(path)
+    eligible, held = stageable_paths(kind, entries, repo)
     result["held"] = [{"path": p, "reason": held[p]} for p in sorted(held)]
     result["left_dirty"] = sorted(held)
-    eligible = sorted(set(eligible))
     if not eligible:
         return result
 
+    chosen = set(eligible)
+    # `XY`: X is the index column, Y the worktree column. A path whose worktree column
+    # is blank is already staged exactly as it stands — `git mv` produces this — and
+    # asking `git add` to match it fails, since it is no longer a path in either the
+    # worktree or the index under that name.
+    unstaged = sorted({path for code, path in entries
+                       if path in chosen and (code == "??" or code[1] != " ")})
+
     spec = _pathspec_file(repo, eligible)
     try:
-        rc, _, err = git(repo, ["add", "--pathspec-from-file=" + spec,
-                                "--pathspec-file-nul"], timeout=120)
-        if not git_answered(rc) or rc != 0:
-            result["error"] = explain_git_failure(err, "git add failed")
-            return result
+        if unstaged:
+            add_spec = _pathspec_file(repo, unstaged) if unstaged != eligible else spec
+            # A non-interactive transport for local operations too: a credential or
+            # signing prompt in a headless run has nothing to answer it and would burn
+            # the whole timeout before failing.
+            rc, _, err = git(repo, ["add", "-A", "--pathspec-from-file=" + add_spec,
+                                    "--pathspec-file-nul"], timeout=120,
+                             env_extra=network_env())
+            if add_spec != spec:
+                try:
+                    os.remove(add_spec)
+                except OSError:
+                    pass
+            if not git_answered(rc) or rc != 0:
+                result["error"] = explain_git_failure(err, "git add failed")
+                return result
         rc, _, err = git(repo, ["commit", "-m", COMMIT_MESSAGE,
                                 "--pathspec-from-file=" + spec,
-                                "--pathspec-file-nul"], timeout=120)
+                                "--pathspec-file-nul"], timeout=120,
+                         env_extra=network_env())
         if not git_answered(rc) or rc != 0:
             result["error"] = explain_git_failure(err, "git commit failed")
             return result
@@ -627,6 +714,10 @@ def explain_git_failure(err, default):
     session is mid-write — and the doc instructs the caller to relay a blocked reason
     verbatim, so that advice would reach a user who cannot tell the two apart.
     """
+    if "timed out after" in (err or ""):
+        return ("git did not finish in time (a hook, or a commit-signing prompt with "
+                "nothing to answer it, is the usual cause) and was killed, which can "
+                "leave index.lock behind — check for a hung hook before re-running")
     line = _git_error_line(err, default)
     if "index.lock" in (err or "") or "Another git process" in (err or ""):
         return ("another git process is using this repository — most likely a "
@@ -665,7 +756,7 @@ def push(repo, remote, remote_branch, target, attempts=MAX_PUSH_ATTEMPTS):
         low = (err or "").lower()
         if not any(marker in low for marker in REJECTION_MARKERS):
             result["status"] = "local-only"
-            result["detail"] = _git_error_line(err, "git push failed")
+            result["detail"] = explain_git_failure(err, "git push failed")
             return result
         again = integrate(repo, remote, target)
         if again["status"] in ("conflict", "failed", "refused"):
@@ -839,11 +930,8 @@ def _unsafe_to_remove(repo, entry, default_branch, here):
     real = os.path.realpath(path)
     if here == real or here.startswith(real + os.sep):
         return "this command is running inside it"
-    if not os.path.exists(os.path.join(path, ".git")):
-        # `git worktree remove` empties the directory before updating the admin data,
-        # so a kill part-way leaves a directory that is neither present nor gone. Say
-        # so: every other retention reason describes a worktree somebody is using.
-        return "no .git entry — looks like wreckage from an interrupted removal"
+    # A worktree missing its `.git` entry is reported `prunable` by git, so it never
+    # reaches here — `_unsafe_to_prune` is where that wreckage is named.
     entries = status_entries(path)
     if entries is None:
         return "could not read its status"
@@ -896,6 +984,12 @@ def sync_repo(repo_info, dry_run=False, no_push=False, prune_worktrees=False):
     """
     path, kind = repo_info["path"], repo_info["kind"]
     entry = _entry(repo_info)
+    if kind == "redirected":
+        return _finish(entry, "blocked",
+                       "its working tree is configured elsewhere (%s) — every git "
+                       "command here would act on that directory instead, so this "
+                       "repository is left untouched"
+                       % repo_info.get("toplevel", "unknown"))
     publish = is_publish_repo(kind)
 
     # Phase 0 — an operation already in progress.
@@ -957,15 +1051,13 @@ def sync_repo(repo_info, dry_run=False, no_push=False, prune_worktrees=False):
     # Phase 2 — commit.
     if publish and entries:
         if dry_run:
-            eligible = [p for c, p in entries if not hold_reason(path, c, p)]
-            held = [{"path": p, "reason": hold_reason(path, c, p)}
-                    for c, p in entries if hold_reason(path, c, p)]
-            entry["held"] = sorted(held, key=lambda h: h["path"])
-            entry["left_dirty"] = sorted({h["path"] for h in entry["held"]})
+            eligible, held = stageable_paths(kind, entries, path)
+            entry["held"] = [{"path": p, "reason": held[p]} for p in sorted(held)]
+            entry["left_dirty"] = sorted(held)
             if eligible:
-                entry["actions"].append("would commit %d path(s)" % len(set(eligible)))
+                entry["actions"].append("would commit %d path(s)" % len(eligible))
         else:
-            done = commit_local(path, entries)
+            done = commit_local(path, entries, kind)
             entry["held"], entry["left_dirty"] = done["held"], done["left_dirty"]
             if done["error"]:
                 return _finish(entry, "blocked", done["error"])
