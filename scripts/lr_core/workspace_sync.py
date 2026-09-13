@@ -525,7 +525,7 @@ def _divergence(repo, target):
 # Phase 2 — commit
 # --------------------------------------------------------------------------
 
-def _pathspec_file(repo, paths):
+def _pathspec_file(repo, paths, name):
     """A NUL-separated pathspec file, so a large change set cannot overflow argv.
 
     Written inside the repository's own git directory rather than the OS temp dir:
@@ -533,9 +533,15 @@ def _pathspec_file(repo, paths):
     refuse writes outside the project tree), it lands on the same filesystem, and an
     orphan left by a killed process sits where its owner is obvious instead of
     accumulating anonymously in `/tmp`.
+
+    **`name` is required, and two live pathspecs must never share one.** `commit_local`
+    holds two at once — everything to commit, and the subset needing staging — and a
+    shared filename means the second write silently replaces the contents the first
+    handle still points at, so the commit runs against the narrower list and drops
+    every already-staged path while reporting it as committed.
     """
     gd = _git_dir(repo) or repo
-    path = os.path.join(gd, "lr-workspace-sync-paths")
+    path = os.path.join(gd, "lr-workspace-sync-%s" % name)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\0".join(paths))
     return path
@@ -586,10 +592,11 @@ def commit_local(repo, entries, kind="lore"):
     unstaged = sorted({path for code, path in entries
                        if path in chosen and (code == "??" or code[1] != " ")})
 
-    spec = _pathspec_file(repo, eligible)
+    spec = _pathspec_file(repo, eligible, "commit-paths")
     try:
         if unstaged:
-            add_spec = _pathspec_file(repo, unstaged) if unstaged != eligible else spec
+            add_spec = (_pathspec_file(repo, unstaged, "add-paths")
+                        if unstaged != eligible else spec)
             # A non-interactive transport for local operations too: a credential or
             # signing prompt in a headless run has nothing to answer it and would burn
             # the whole timeout before failing.
@@ -617,7 +624,15 @@ def commit_local(repo, entries, kind="lore"):
         except OSError:
             pass
 
-    result["committed"] = eligible
+    # Read the commit back rather than reporting the intent: a hook may add or drop
+    # paths, and a report that names what was *meant* to be committed is exactly the
+    # kind of claim the repository can contradict.
+    rc, out, _ = git(repo, ["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+                     timeout=30)
+    if git_answered(rc) and rc == 0 and out.strip():
+        result["committed"] = sorted(p for p in out.split("\n") if p.strip())
+    else:
+        result["committed"] = eligible
     rc, out, _ = git(repo, ["rev-parse", "--short", "HEAD"], timeout=15)
     if git_answered(rc) and rc == 0:
         result["commit"] = out.strip()
