@@ -7,6 +7,7 @@ from .lore_graph import emit_yaml_fatal, yaml_dump
 from .lore_map import cmd_lore_map
 from .lore_workset import cmd_lore_workset
 from .workspace_scan import cmd_workspace_scan
+from .workspace_sync import cmd_workspace_sync
 from .plugin_config import cmd_workspace_plugin_config
 from .check import cmd_check
 
@@ -70,6 +71,19 @@ def build_parser():
                          choices=sorted(set(ENGINE_PROGRAMS.values())),
                          help="Force the engine profile instead of detecting it.")
     p_wscan.set_defaults(func=cmd_workspace_scan)
+
+    p_wsync = sub.add_parser(
+        "workspace-sync",
+        help="Commit, integrate and publish every repo in the workspace (writes).")
+    p_wsync.add_argument("--workspace", default=".", help="Workspace root (default: cwd).")
+    p_wsync.add_argument("--dry-run", action="store_true",
+                         help="Report the planned action per repo without writing anything.")
+    p_wsync.add_argument("--no-push", action="store_true",
+                         help="Commit and integrate, but do not publish to origin.")
+    p_wsync.add_argument("--prune-worktrees", action="store_true",
+                         help="Also remove worktree directories that are clean and "
+                              "fully merged into the default branch.")
+    p_wsync.set_defaults(func=cmd_workspace_sync)
 
     p_wpc = sub.add_parser(
         "workspace-plugin-config",

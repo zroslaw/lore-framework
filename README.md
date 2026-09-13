@@ -234,6 +234,7 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 | `/lr:pull-lore` | Refresh only the repos of active agents, then reload their roles and contexts |
 | `/lr:workspace-init` | Initialize/converge a workspace and maintain its AI routing map of repos and agents |
 | `/lr:workspace-push` | Commit and push the framework-managed workspace files |
+| `/lr:workspace-sync` | Reconcile every repo: commit stranded Lore, merge in teammates' pushes, publish to the remote, prune dead worktrees |
 | `/lr:check --workspace` | Diagnose workspace health; every finding includes the command that fixes it |
 | `/lr:list-agents` | Show available agents, their scope, and shortcut status |
 | `/lr:list-repos` | Show available agent repos, their scope, and shortcut status |
