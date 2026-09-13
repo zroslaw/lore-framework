@@ -507,6 +507,7 @@ Invoke skills as `/lr:<skill>` on Claude Code, `/lr-<skill>` on Cursor and Codex
 | `check` | Check plugin, agent repos, workspace health, and repo freshness |
 | `workspace-pull` | Pull the workspace repo, clone declared repos, pull every top-level repo |
 | `workspace-push` | Commit and push the framework-managed workspace files |
+| `workspace-sync` | Commit, integrate and publish every repo; clean up stale worktrees |
 | `workspace-init` | Initialize this workspace, or converge it after anything changed |
 
 Conventions: top-level repos stay on their default branch (production state); non-default-branch

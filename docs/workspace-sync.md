@@ -30,8 +30,11 @@ written; it performs no writes at all.
 
 ### Step 1 — Run the command
 
+Resolve `<workspace>` — the directory this session was invoked from; run `pwd` if unsure.
+It is the same value you substituted in Step 0.
+
 ```
-python3 "<framework-root>/scripts/lr-core" workspace-sync --workspace "<cwd>"
+python3 "<framework-root>/scripts/lr-core" workspace-sync --workspace "<workspace>"
 ```
 
 Give it at least 300 seconds: it fetches and pushes over the network once per repository.
@@ -53,11 +56,30 @@ The command prints one JSON object: `{"ok", "data", "warnings", "errors"}`. Ever
 
 ### Step 2 — Operation Notice
 
-**If anything was committed, pushed, merged, or pruned, print this as it happens** (substitute the
-counts and repo names; it is silent on a run that changed nothing, by design):
+A notice fires **only for what actually happened**, and a run that changed nothing prints none of
+these — silence on a no-op is the point. Print the line for each outcome that occurred, taking the
+repo names from `data.repos[]`:
 
-> Published `<n>` repo(s) — `<names>`. **This committed and pushed files that were sitting
-> uncommitted in your workspace**, so they are now visible to everyone who shares those repos.
+- Any repo with `status: "published"` **and** `push: "pushed"`:
+
+  > Published `<names>`. **This committed and pushed files that were sitting uncommitted in your
+  > workspace**, so they are now visible to everyone who shares those repos.
+
+- Any repo with `status: "published"` or `"local-only"` whose `committed[]` is non-empty but which
+  was **not** pushed:
+
+  > Committed local changes in `<names>`. **These are saved in git history but not yet published**,
+  > so nobody else can see them until they are pushed.
+
+- Any repo whose `integrate` is `"merged"` or `"fast-forward"` and which committed nothing:
+
+  > Brought `<names>` up to date with changes your teammates had already pushed. **Files in your
+  > working copy changed** as a result.
+
+- Any repo whose `worktrees.pruned` or `worktrees.removed` is non-empty:
+
+  > Cleaned up `<n>` stale worktree registration(s) in `<names>`. **No files with uncommitted work
+  > were removed** — anything unclean was kept and is listed in the report.
 
 ### Step 3 — Report what happened
 
@@ -68,7 +90,11 @@ One line per repository, in plain language, leading with the ones that need the 
 - `held` paths — say what was deliberately **not** committed and why. This is the entry a user
   most needs to see: a credential-shaped name, a nested git repository, an oversized file, or
   editor debris. None of it was deleted; it is all still on disk.
+- `skipped` — one short line saying why nothing was done (usually: no remote configured).
+  Never drop a skipped repo from the report; silence about a repo reads as success.
 - `published` / `up-to-date` — one short line, or a single summary line for all of them together.
+- `not-attempted` — say plainly that the run **did not reach this repository**, so its state is
+  unknown, and that re-running is safe. Never fold it in with the repos that succeeded.
 
 Do not print the JSON. Do not describe a `local-only` repo as synchronized.
 
@@ -76,19 +102,37 @@ Do not print the JSON. Do not describe a `local-only` repo as synchronized.
 
 A repo blocked on `merge conflict` has the merge left in progress on purpose: both sides are
 already committed, so nothing can be lost, and the conflict markers sit on content that is safe
-in history. Resolve the paths in that repo's `conflicts[]` following
-`<framework-root>/docs/resolve-conflicts.md` § Step 2 — **preserve both sides' distinct
-information, prefer the more specific version, never invent content, and never delete one side
-to make the file parse**. For a Lore topic that means a merged topic carrying both additions;
-for `lore-context.md`, a combined version keeping all entries.
+in history. Resolve every path in that repo's `conflicts[]` under these rules, which apply
+whatever kind of repository it is:
+
+- **Preserve both sides' distinct information.** Where each side added something different, the
+  resolution carries both.
+- **Prefer the more specific or more correct version** where the two sides changed the same thing.
+- **Never invent content.** A resolution reconciles the two inputs; it does not introduce a third.
+- **Never delete one side to make the file parse.** Removing a conflicting block is data loss
+  wearing the appearance of a fix.
+
+Two cases need more than the general rules:
+
+- **A Lore topic, `lore-context.md`, or `role.md` in an agent repo** — merge as the agent would,
+  per `<framework-root>/docs/resolve-conflicts.md` § Step 2, and check afterwards that
+  cross-topic references still name files that exist (§ Step 3). That document is written for
+  `/lr:finalize`, so read those two sections for their merge rules and ignore its scope and
+  retry framing.
+- **Anything else** — the workspace repo's own files, or a source repository's code. These are
+  outside any automatic procedure in this framework. Resolve only what you can read and judge
+  confidently; where you cannot, leave the conflict in place and tell the user which repo and
+  which paths need them. Never guess at code you have not read.
 
 Then **run the command again**. There is no `--continue` flag: the command detects the merge it
 left behind, verifies it is its own, checks that no conflict markers remain, commits it, and
 carries on to the push. Re-running is always the continuation, and it is safe to re-run at any
 time.
 
-If the conflict cannot be resolved faithfully, leave it and tell the user. `git merge --abort`
-in that repo restores the pre-merge state, and the local commit made in phase 2 survives it.
+If the conflict cannot be resolved faithfully, **leave the merge exactly as it is** and tell the
+user which repo and paths are waiting on them. Do not run `git merge --abort` yourself — say that
+*they* can run it in that repo to restore the pre-merge state, and that the commit made earlier in
+the run survives an abort either way.
 
 ## What it refuses to do
 
@@ -106,10 +150,17 @@ person. Each is reported with its remedy.
 - **Never forces anything.** No `--force`, no `reset --hard`, no `stash`, no `clean`, no
   `rebase`, and no file is ever deleted to make a sync succeed.
 
+It also holds no lock of its own. Two syncs — or a sync and another git tool — running against one
+repository at the same time are arbitrated by git's own index lock, which prevents corruption but
+not confusion: the losing run reports that repo as blocked because another git process holds the
+repository, and re-running once the other finishes is the remedy. Do not delete a lock file to
+clear it.
+
 Worktrees follow the same rule: dead registrations are pruned only when the directory was
 genuinely deleted (not merely on an unmounted volume) and holds no commits a branch has lost
-track of. Worktree *directories* are removed only under `--prune-worktrees`, and only when clean
-and fully merged.
+track of. Worktree *directories* are removed only under `--prune-worktrees`, and only when they are clean,
+fully merged into the default branch, not the directory the command is running from, and the
+default branch is actually known — an unknown one keeps everything rather than guessing.
 
 ## Relationship to the neighbouring commands
 
@@ -124,6 +175,9 @@ and fully merged.
 `workspace-sync` is a **literate accelerator** (`conventions.md` § Script Fallback Contract).
 Say in one line that it failed and that you are proceeding manually, then read
 `<framework-root>/scripts/lr_core/workspace_sync.py` — its module header gives the phase order
-and the prohibitions, and `classify_repos`, `repo_facts`, `commit_local`, `integrate`, `push`
-and `worktree_hygiene` carry the exact commands in their docstrings. Execute them in that order,
-per repository, and reach the same end state.
+and the prohibitions, and the functions carry the exact commands in their docstrings. Read, in
+order: `classify_repos`, then `sync_repo` (the per-repo driver, whose phase 0 is the resume
+logic — `_in_progress`, `read_merge_claim`, `has_conflict_markers` and `claim_merge` between them
+decide whether an in-progress merge is this command's own to finish, which is the promise Step 4
+above rests on), then `repo_facts`, `commit_local`, `integrate`, `push` and `worktree_hygiene`.
+Execute them in that order, per repository, and reach the same end state.

@@ -18,8 +18,10 @@ What the command does, per repository, in this order:
 two commits rather than between a commit and a dirty working tree: nothing the user
 has is unsaved when remote content arrives, `git merge --abort` restores an exact
 prior state, and conflict markers only ever land on content already in the object
-database. It is also why `--ff-only`'s file-granular failure modes stop applying to
-publish repos — by merge time their tree is clean.
+database. It is also why `--ff-only`'s file-granular failure modes mostly stop
+applying to publish repos. *Mostly*: the paths this command deliberately holds back
+(below) stay untracked, so an incoming commit that adds one of them still makes git
+decline the merge. That outcome is `refused` — reported, never pushed past.
 
 **Operations this module must never perform**, because each one destroys work to make
 a sync succeed: `reset --hard`, `checkout --force`, `push --force` (or
@@ -34,7 +36,6 @@ binary asset. Each of those refusals is reported with the remedy, because a refu
 nobody can see is indistinguishable from a bug.
 """
 
-import tempfile
 
 from .common import *
 from .preflight import find_repos
@@ -180,22 +181,27 @@ def hold_reason(repo, code, path):
     - **credential-shaped name** — see `looks_secret`.
     - **oversized** — see `MAX_COMMIT_BYTES`.
 
-    A deletion is never held for size or nesting: there is no file left to weigh, and
-    recording the removal is what preserves the user's intent.
+    **A deletion is never held, for any reason.** Every hold above exists to keep
+    something *out* of the shared history; a deletion is the opposite operation, and
+    holding one keeps the very thing the hold objects to alive on the remote. Refusing
+    to record `git rm --cached .env` would leave the leaked credential tracked forever
+    while reporting "publish it deliberately if it belongs here", which is nonsense
+    addressed to somebody who has already decided.
     """
+    if code[0] == "D" or code[1] == "D":
+        return None
     if is_junk(path):
         return "editor or build debris"
     if code == "??" and path.endswith("/"):
         return "nested git repository — publish it from its own checkout"
     if looks_secret(path):
         return "credential-shaped name — publish it deliberately if it belongs here"
-    if code[0] != "D" and code[1] != "D":
-        full = os.path.join(repo, path)
-        try:
-            if os.path.isfile(full) and os.path.getsize(full) > MAX_COMMIT_BYTES:
-                return "larger than %d MB" % (MAX_COMMIT_BYTES // (1024 * 1024))
-        except OSError:
-            return "could not be read"
+    full = os.path.join(repo, path)
+    try:
+        if os.path.isfile(full) and os.path.getsize(full) > MAX_COMMIT_BYTES:
+            return "larger than %d MB" % (MAX_COMMIT_BYTES // (1024 * 1024))
+    except OSError:
+        return "could not be read"
     return None
 
 
@@ -299,18 +305,26 @@ def _merge_head(repo):
     return text.strip() if text else None
 
 
-def claim_merge(repo, conflicts):
-    """Record that the merge now in progress is this command's own, and what conflicted.
+def claim_merge(repo, target_sha, conflicts=None):
+    """Record that the merge about to run — or now running — is this command's own.
 
-    A marker is a *hint*, never a verdict: the resume path below re-derives everything
-    it acts on from git and uses the marker only to answer the one question git cannot
-    — "did I start this?". A stale marker whose recorded `MERGE_HEAD` no longer matches
-    is ignored and overwritten, not trusted.
+    **Written before `git merge`, never after.** Writing it afterwards leaves a window
+    between git creating `MERGE_HEAD` and this marker landing; a kill inside that
+    window (an outer timeout, an OOM, a closed terminal) leaves a real merge this
+    command started and no evidence it did, so every later run disowns it and the
+    documented "re-running is always the continuation" guarantee fails permanently for
+    the one interruption pattern it exists to survive. Claiming first inverts the
+    failure: the leftover is a marker with no merge, which `read_merge_claim` discards
+    on sight because no `MERGE_HEAD` matches it.
+
+    The marker is a *hint*, never a verdict: the resume path re-derives everything it
+    acts on from git, and uses the marker only for the one question git cannot answer
+    — "did I start this?".
     """
     gd = _git_dir(repo)
     if not gd:
         return
-    payload = {"merge_head": _merge_head(repo), "conflicts": conflicts}
+    payload = {"target": target_sha, "conflicts": conflicts or []}
     try:
         with open(os.path.join(gd, MERGE_MARKER), "w", encoding="utf-8") as fh:
             json.dump(payload, fh)
@@ -329,7 +343,9 @@ def read_merge_claim(repo):
         claim = json.loads(text)
     except ValueError:
         return None
-    return claim if claim.get("merge_head") == _merge_head(repo) else None
+    # The recorded target must be the commit git is actually merging. This is what
+    # makes a marker left over from an aborted or completed merge inert.
+    return claim if claim.get("target") == _merge_head(repo) else None
 
 
 def clear_merge_claim(repo):
@@ -438,10 +454,18 @@ def _divergence(repo, target):
 # Phase 2 — commit
 # --------------------------------------------------------------------------
 
-def _pathspec_file(paths):
-    """A NUL-separated pathspec file, so a large change set cannot overflow argv."""
-    handle, path = tempfile.mkstemp(prefix="lr-sync-paths-")
-    with os.fdopen(handle, "w", encoding="utf-8") as fh:
+def _pathspec_file(repo, paths):
+    """A NUL-separated pathspec file, so a large change set cannot overflow argv.
+
+    Written inside the repository's own git directory rather than the OS temp dir:
+    it is guaranteed writable wherever the repo itself is (a sandboxed engine may
+    refuse writes outside the project tree), it lands on the same filesystem, and an
+    orphan left by a killed process sits where its owner is obvious instead of
+    accumulating anonymously in `/tmp`.
+    """
+    gd = _git_dir(repo) or repo
+    path = os.path.join(gd, "lr-workspace-sync-paths")
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write("\0".join(paths))
     return path
 
@@ -471,31 +495,34 @@ def commit_local(repo, entries):
     """
     result = {"committed": [], "held": [], "left_dirty": [], "commit": None,
               "error": None}
-    eligible, held = [], []
+    eligible, held = [], {}
     for code, path in entries:
         reason = hold_reason(repo, code, path)
         if reason:
-            held.append({"path": path, "reason": reason})
+            # One entry per path, not per status record: `git rm --cached` on a file
+            # still on disk yields both `D` and `??` for the same path, and a report
+            # told to read this list verbatim would name the same problem twice.
+            held.setdefault(path, reason)
         else:
             eligible.append(path)
-    result["held"] = sorted(held, key=lambda h: h["path"])
-    result["left_dirty"] = sorted({h["path"] for h in held})
+    result["held"] = [{"path": p, "reason": held[p]} for p in sorted(held)]
+    result["left_dirty"] = sorted(held)
     eligible = sorted(set(eligible))
     if not eligible:
         return result
 
-    spec = _pathspec_file(eligible)
+    spec = _pathspec_file(repo, eligible)
     try:
         rc, _, err = git(repo, ["add", "--pathspec-from-file=" + spec,
                                 "--pathspec-file-nul"], timeout=120)
         if not git_answered(rc) or rc != 0:
-            result["error"] = _git_error_line(err, "git add failed")
+            result["error"] = explain_git_failure(err, "git add failed")
             return result
         rc, _, err = git(repo, ["commit", "-m", COMMIT_MESSAGE,
                                 "--pathspec-from-file=" + spec,
                                 "--pathspec-file-nul"], timeout=120)
         if not git_answered(rc) or rc != 0:
-            result["error"] = _git_error_line(err, "git commit failed")
+            result["error"] = explain_git_failure(err, "git commit failed")
             return result
     finally:
         try:
@@ -543,7 +570,7 @@ def integrate(repo, remote, target):
                      env_extra=network_env())
     if not git_answered(rc) or rc != 0:
         result["status"] = "failed"
-        result["detail"] = _git_error_line(err, "git fetch failed")
+        result["detail"] = explain_git_failure(err, "git fetch failed")
         return result
 
     behind, ahead = _divergence(repo, target)
@@ -551,8 +578,18 @@ def integrate(repo, remote, target):
         result["status"] = "up-to-date"
         return result
 
+    rc, target_sha, _ = git(repo, ["rev-parse", "--verify", target], timeout=15)
+    if not git_answered(rc) or rc != 0 or not target_sha.strip():
+        result["status"] = "failed"
+        result["detail"] = "could not resolve %s to a commit" % target
+        return result
+
+    # Claim first (see `claim_merge`), then merge. Clear the claim on every path that
+    # leaves no merge behind, so a stale marker never outlives the merge it describes.
+    claim_merge(repo, target_sha.strip())
     rc, _, err = git(repo, ["merge", "--no-edit", target], timeout=120)
     if git_answered(rc) and rc == 0:
+        clear_merge_claim(repo)
         result["status"] = "fast-forward" if ahead == 0 else "merged"
         return result
 
@@ -560,7 +597,7 @@ def integrate(repo, remote, target):
     if conflicts:
         result["status"] = "conflict"
         result["conflicts"] = conflicts
-        claim_merge(repo, conflicts)
+        claim_merge(repo, target_sha.strip(), conflicts)
         return result
 
     if _in_progress(repo) == "merge":
@@ -569,7 +606,8 @@ def integrate(repo, remote, target):
         result["status"] = "failed"
     else:
         result["status"] = "refused"
-    result["detail"] = _git_error_line(err, "git merge did not complete")
+    clear_merge_claim(repo)
+    result["detail"] = explain_git_failure(err, "git merge did not complete")
     return result
 
 
@@ -579,6 +617,22 @@ def integrate(repo, remote, target):
 
 REJECTION_MARKERS = ("non-fast-forward", "fetch first", "rejected",
                      "tip of your current branch is behind")
+
+
+def explain_git_failure(err, default):
+    """Git's own error line, except where relaying it verbatim would be dangerous.
+
+    `index.lock` is the case that matters. Git's message ends with "remove the file
+    manually to continue", which is right after a crash and wrong while a second
+    session is mid-write — and the doc instructs the caller to relay a blocked reason
+    verbatim, so that advice would reach a user who cannot tell the two apart.
+    """
+    line = _git_error_line(err, default)
+    if "index.lock" in (err or "") or "Another git process" in (err or ""):
+        return ("another git process is using this repository — most likely a "
+                "concurrent session; re-run once it finishes. Do not delete "
+                "index.lock unless you are certain no other process is running")
+    return line
 
 
 def push(repo, remote, remote_branch, target, attempts=MAX_PUSH_ATTEMPTS):
@@ -658,7 +712,13 @@ def worktree_hygiene(repo, prune_dirs=False, dry_run=False):
     Removing a worktree *directory* is opt-in (`--prune-worktrees`) and additionally
     requires: the checkout is clean, its branch has no commits missing from the default
     branch, and it is not the directory this command runs from. Anything else is
-    retained with the reason. Under `--dry-run` nothing is pruned or removed.
+    retained with the reason. The commands, when they do run, are
+    `git -C <repo> worktree prune` and `git -C <repo> worktree remove <path>`.
+
+    Under `--dry-run` nothing is pruned or removed, but every decision is still
+    computed and reported — the checks are all reads — so the preview names exactly
+    what a real run would delete. A dry run that skipped the checks would be silent
+    about the one action a user most wants previewed.
     """
     out = {"pruned": [], "removed": [], "retained": []}
     rc, listing, _ = git(repo, ["worktree", "list", "--porcelain"], timeout=30)
@@ -687,23 +747,25 @@ def worktree_hygiene(repo, prune_dirs=False, dry_run=False):
     dead = [e for e in entries if e["prunable"]]
     live = [e for e in entries if not e["prunable"]]
 
-    unsafe = [(e, _unsafe_to_prune(repo, e)) for e in dead]
-    blocked = [(e, why) for e, why in unsafe if why]
-    if dry_run:
-        for entry in dead:
-            why = dict(unsafe).get(entry["path"])
-            out["retained"].append({"path": entry["path"],
-                                    "reason": "dry run — would prune" if not blocked
-                                    else "dry run — prune withheld"})
-        for entry in live:
-            out["retained"].append({"path": entry["path"], "reason": "dry run"})
-        return out
+    # `git worktree prune` is all-or-nothing, so one unsafe candidate withholds it for
+    # the whole repo. Each entry still reports its own reason: an aggregate verdict
+    # applied as a per-entry label would tell a user a safe registration was itself
+    # the problem.
+    unsafe = [(entry, _unsafe_to_prune(repo, entry)) for entry in dead]
+    withheld = any(why for _, why in unsafe)
 
-    if dead and not blocked:
+    for entry, why in unsafe:
+        if why:
+            out["retained"].append({"path": entry["path"], "reason": why})
+        elif withheld:
+            out["retained"].append(
+                {"path": entry["path"],
+                 "reason": "prune withheld — another registration in this repo is unsafe"})
+        elif dry_run:
+            out["retained"].append({"path": entry["path"], "reason": "would be pruned"})
+    if dead and not withheld and not dry_run:
         git(repo, ["worktree", "prune"], timeout=30)
-        out["pruned"] = sorted(e["path"] for e in dead)
-    for entry, why in blocked:
-        out["retained"].append({"path": entry["path"], "reason": why})
+        out["pruned"] = sorted(entry["path"] for entry in dead)
 
     if not live:
         return out
@@ -721,18 +783,28 @@ def worktree_hygiene(repo, prune_dirs=False, dry_run=False):
         if why:
             out["retained"].append({"path": entry["path"], "reason": why})
             continue
+        if dry_run:
+            out["retained"].append({"path": entry["path"], "reason": "would be removed"})
+            continue
         rc, _, err = git(repo, ["worktree", "remove", entry["path"]], timeout=60)
         if git_answered(rc) and rc == 0:
             out["removed"].append(entry["path"])
         else:
             out["retained"].append(
                 {"path": entry["path"],
-                 "reason": _git_error_line(err, "git worktree remove failed")})
+                 "reason": explain_git_failure(err, "git worktree remove failed")})
     return out
 
 
 def _unsafe_to_prune(repo, entry):
     """The reason this dead registration must be kept, or None."""
+    if os.path.isdir(entry["path"]):
+        # Registration dead, directory alive: `git worktree remove` empties the
+        # directory before updating the admin data, so a kill part-way through leaves
+        # exactly this. Pruning here would strip git's last record of a directory that
+        # still holds files, so name it instead and let a person look.
+        return ("its directory still exists — looks like wreckage from an interrupted "
+                "removal; inspect it before pruning")
     parent = os.path.dirname(entry["path"].rstrip(os.sep))
     if parent and not os.path.isdir(parent):
         return ("its parent directory is absent — not pruning, in case the volume "
@@ -767,6 +839,11 @@ def _unsafe_to_remove(repo, entry, default_branch, here):
     real = os.path.realpath(path)
     if here == real or here.startswith(real + os.sep):
         return "this command is running inside it"
+    if not os.path.exists(os.path.join(path, ".git")):
+        # `git worktree remove` empties the directory before updating the admin data,
+        # so a kill part-way leaves a directory that is neither present nor gone. Say
+        # so: every other retention reason describes a worktree somebody is using.
+        return "no .git entry — looks like wreckage from an interrupted removal"
     entries = status_entries(path)
     if entries is None:
         return "could not read its status"
@@ -836,7 +913,9 @@ def sync_repo(repo_info, dry_run=False, no_push=False, prune_worktrees=False):
             entry["conflicts"] = conflicts
             return _finish(entry, "blocked",
                            "a merge this command did not start is in progress — "
-                           "finish or abort it, then re-run")
+                           "finish it with `git -C %s commit` (after resolving any "
+                           "conflicts) or discard it with `git -C %s merge --abort`, "
+                           "then re-run" % (path, path))
         if conflicts:
             entry["conflicts"] = conflicts
             entry["integrate"] = "conflict"
@@ -853,7 +932,7 @@ def sync_repo(repo_info, dry_run=False, no_push=False, prune_worktrees=False):
         rc, _, err = git(path, ["commit", "--no-edit"], timeout=120)
         if not git_answered(rc) or rc != 0:
             return _finish(entry, "blocked",
-                           _git_error_line(err, "could not commit the resolved merge"))
+                           explain_git_failure(err, "could not commit the resolved merge"))
         clear_merge_claim(path)
         entry["actions"].append("committed the resolved merge")
 
@@ -975,11 +1054,22 @@ def cmd_workspace_sync(args, res):
     if not repos:
         res.warn("no git repositories found in %s" % workspace)
 
-    reports = [sync_repo(info,
-                         dry_run=args.dry_run,
-                         no_push=args.no_push,
-                         prune_worktrees=args.prune_worktrees)
-               for info in repos]
+    # Each repo is isolated: an unexpected failure in one becomes that repo's blocked
+    # entry, never the loss of the whole report. Repos earlier in the list may already
+    # have pushed to a shared remote by then, and a run that did real work must not
+    # come back saying nothing happened.
+    reports = []
+    for info in repos:
+        try:
+            reports.append(sync_repo(info,
+                                     dry_run=args.dry_run,
+                                     no_push=args.no_push,
+                                     prune_worktrees=args.prune_worktrees))
+        except Exception as exc:  # noqa: BLE001 - deliberate per-repo boundary
+            entry = _entry(info)
+            reports.append(_finish(entry, "blocked",
+                                   "unexpected failure: %s: %s"
+                                   % (type(exc).__name__, exc)))
 
     res.data["workspace"] = workspace
     res.data["dry_run"] = bool(args.dry_run)
