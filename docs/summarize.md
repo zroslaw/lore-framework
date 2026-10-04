@@ -92,7 +92,7 @@ Field notes:
 - **`uuid`** — UUIDv4 generated this session. Required.
 - **`framework_version`** — the framework `VERSION` used to write the summary.
 - **`start`** / **`end`** — ISO 8601 UTC. `end` is the time summarize runs. `start` is best-effort from the agent's memory of when the session began — acceptable to round to nearest 5 minutes. See framework improvements backlog for planned reliable capture.
-- **`host_agent`** / **`host_repo`** — the agent that hosted this session (the originally booted agent).
+- **`host_agent`** / **`host_repo`** — the agent that hosted this session (the finalization host).
 - **`participants`** — host + guests. `role` is `host` or `guest`. `repo` may differ across participants when guests come from a different lore agent repo.
 - **`username`** / **`full_name`** — identity of the user running the session. Optional; omit fields that can't be determined.
 - **`topics`** — free-form kebab-case tags for later analysis. Reuse tags already seen in prior summaries rather than inventing synonyms.
@@ -292,8 +292,8 @@ without `usage:` is incomplete; if it did not, the warning line above is owed in
 
 ### Step 3: Resolve host, participants, and timestamps
 
-- **Host agent and repo** — from the booted agent context. If running inside finalize after attach, the host is the originally-booted agent, not a guest.
-- **Participants** — host + any agents currently attached via `/lr:attach`. For each, record `agent`, `repo`, `role`.
+- **Host agent and repo** — inside `/lr:finalize`, the finalization host (`finalize.md` § Before Phase 1 — Revise the participants); run standalone, the booted agent.
+- **Participants** — the host, plus every other active agent as `guest` — a booted agent that finalize re-designated included; later steps treat every guest as an attached guest. For each, record `agent`, `repo`, `role`.
 - **`end`** — now, ISO 8601 UTC: `date -u +%Y-%m-%dT%H:%M:%SZ`.
 - **`start`** — if Step 2 succeeded, prefer the native log's earliest message timestamp from the stats JSON — it's the true session start, strictly more accurate and free (already computed). Otherwise, best-effort from session memory, rounded to nearest 5 minutes; if memory is unclear, estimate from observable artifacts (e.g., the earliest timestamp on a file you created this session).
 

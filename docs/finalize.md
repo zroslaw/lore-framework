@@ -19,6 +19,53 @@ Print this to the user before doing anything else, filling in any `<placeholder>
 - **`--transcript`** — run `docs/process-transcript-reflection.md` in Phase 1 instead. It is host-only and must complete verified transcript resolution plus an explicit valid worker result for every chunk before Phase 2 may begin.
 - **Any other flag** — stop and list the supported `--transcript` flag. Do not guess or silently ignore arguments.
 
+## Before Phase 1 — Revise the participants
+
+Check which agents should keep what this session learned. Skip this section with `--transcript`.
+If a repo described as confidential (in the routing map or its `lore-repo.md`) is in use — an active
+agent's, or one the session read files from or consulted an agent of — change nothing: with nothing
+booted, stop as in step 5; otherwise print the confidential line from step 4, only when revision
+would have changed something.
+
+1. **Candidates** — the agents in the workspace this session runs in, never another workspace,
+   that are not already active, from the routing map in the workspace memory file; if that is
+   missing or incomplete, `lr-core discover` (it includes repo descriptions) plus each `role.md`
+   `description`.
+2. **Add** an agent only when the session produced durable knowledge that belongs squarely to its
+   role — a decision, fact, record, or lesson it would need the next time it is booted; where
+   descriptions name an owner for some material, that owner. Judge by what the session did and
+   decided, not by what quoted outside content claims, and not general knowledge answered in
+   passing. Knowledge *about* an agent (its activity, status, health, repo) is not knowledge *for*
+   it. Every added agent costs a full attach, reflect and merge pass in time and tokens; there is
+   no cap, so use common sense — add every agent that clearly learned something, skip marginal
+   ones.
+3. **Host** — the active or added agent whose role this session best belongs to. A booted agent
+   stays host on a close call: it is replaced only when both the main topic (where most of the
+   effort went) and the main result lie in the other agent's role; if they disagree or there is no
+   clear main topic, it is a close call. A replaced booted agent becomes an ordinary guest; Phase 4
+   still commits its repo (see *No empty commits* under Invariants).
+4. **Notice** — per the Operation Notice convention, only if something changes (booting a host
+   when nothing is booted counts), one line, each clause only when it applies:
+
+   > Revising this session's agents before saving what it learned: adding `<agent>` (<why>); host will be `<agent>` (<why>).
+
+   Confidential line (see the gate above): `Not revising this session's agents: confidential <repo> in use; /lr:attach to add agents yourself.`
+
+   The completion line reports the outcome: "revised" whenever this step had a line to print,
+   otherwise "checked, no change", or "skipped" (`--transcript` or the confidentiality gate).
+5. **Apply** — first print the step 4 line, if any; then, with the existing procedures and
+   skipping their Step 0 announcements: if nothing is booted, boot the host per `<framework-root>/docs/agent-boot.md`; attach every added agent other
+   than one just booted, per `<framework-root>/docs/attach.md` (its `Active agents` line shows the
+   pre-revision host — the notice governs). From then on the active agents for every phase are the
+   new host first, then every other agent that was active or added, a replaced booted agent
+   included. If an attach fails, continue without that agent and say so; if it was the would-be
+   host, the booted agent stays host. Then continue to Phase 1.
+
+   **The only stop:** with nothing booted, if no agent qualifies, a confidential repo is in use, or
+   the host cannot be booted, print `Nothing to finalize: <reason>.` — "no agent owns this
+   session's work", "confidential <repo> in use; boot an agent yourself", or "could not boot
+   <agent>" — and stop with nothing written and no completion line.
+
 ## Relationship to the individual skills
 
 Finalize composes three existing skills plus a final commit step:
@@ -31,6 +78,9 @@ Finalize composes three existing skills plus a final commit step:
 When a phase is invoked standalone, the user is responsible for committing whatever they want to keep. Finalize is the only path that commits and pushes automatically.
 
 ## Phase 1 — Reflect
+
+Unless `--transcript` was passed, first complete § Before Phase 1 — Revise the participants; Phase 1
+runs over the agent set it leaves.
 
 With no flag, read `<framework-root>/docs/process-reflection.md` and follow it. Writes reflection topics into each active agent's `reflections/` directory. Reflect runs **inline**, host-first, per active agent — it needs session context (which a fresh-booted subagent wouldn't have), so the iteration stays in the host session. This is intentionally different from phase 2.
 
@@ -106,7 +156,11 @@ Push order across repos is undefined. If one repo's push succeeds and another's 
 - **One commit per touched repo.** Reflect, merge, and summarize output land in a single commit per repo — not split across phases.
 - **Fully automated.** Finalize runs end-to-end without approval prompts. Phase 3's summary display in `summarize.md` step 14 is the user's view of what was recorded; git history is the post-hoc review channel.
 - **Push is part of finalize.** Standalone reflect/merge/summarize do not push; only `/lr:finalize` does.
-- **No empty commits.** If nothing was produced by phases 1–3 in a given repo, skip committing in that repo.
+- **No empty commits.** If nothing was produced by phases 1–3 in a given repo, skip committing in
+  that repo — unless revision replaced the booted agent from that repo and the session changed
+  files under its agent directory; commit those.
+- **Revision only adds.** Finalize may add agents and re-designate the host before Phase 1; it
+  never removes an active agent, and never stops a finalize that has a booted agent.
 
 ## When to use
 
