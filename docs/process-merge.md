@@ -29,7 +29,9 @@ Merge always runs in a subagent, one per active agent, with all subagents launch
 
 Host responsibilities when merge is invoked:
 
-1. Collect active agents (host + any attached guests).
+1. Collect active agents. During finalize, its participant revision provides the finalization host
+   and participant list, including any retained booted guest. When merge runs standalone, retain
+   the ordinary booted host and attached guests.
 2. For each, spawn a **`general-purpose`** subagent (merge needs `Write`/`Edit`/`Bash`; `Explore` does not) with a brief such as: _"Boot as agent `<name>` (repo: `<path>`) per `<framework-root>/docs/agent-boot.md`, then run the merge procedure in `<framework-root>/docs/process-merge.md` scoped to yourself. Current-session reflection topics: `<paths from a completed Reflection outcome; None if it completed with zero topics; Failed plus any known partial paths if reflection failed; or Unavailable if no outcome was retained>`. Return the required Merge handoff from Step 6. Do not commit — finalize handles that."_
 3. In a multi-agent session, spawn all subagents in parallel (single message with multiple Agent tool calls).
 4. Collect handoffs and report per-agent success/failure to the user. **Retain every subagent's

@@ -410,7 +410,10 @@ warning line from Step 2 belongs in your output.
 
 ### Step 11: Compose guest summaries (if applicable)
 
-For each attached guest whose merge subagent reported lore updates (any topic added/modified, or `lore-context.md`/`role.md` modified), compose a short guest summary. A guest that was attached but had no lore updates gets no summary. If no guests were attached at all, skip this step.
+For each guest in Step 3's participant list (every `role: guest`) whose merge subagent reported
+lore updates (any topic added/modified, or `lore-context.md`/`role.md` modified), compose a short
+guest summary. A guest with no lore updates gets no summary. If the session had only a host, skip
+this step.
 
 Derive each guest summary from:
 

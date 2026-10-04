@@ -27,7 +27,7 @@ Print the announcement for the form you were invoked as, before doing anything e
 
 ## Concepts
 
-- **Host** — the agent originally booted via `/lr:boot` or a registered per-agent shortcut (`/lr-<name>-agent` on Claude Code, `$lr-<name>-agent` on Codex). Exactly one per session. The host is the sole executor.
+- **Host** — the agent currently designated to host the session. In ordinary sessions, it is the agent booted via `/lr:boot` or a registered per-agent shortcut (`/lr-<name>-agent` on Claude Code, `$lr-<name>-agent` on Codex). Exactly one per session. Only `/lr:finalize` may re-designate it before reflection; any displaced booted agent remains an ordinary guest. The host is the sole executor.
 - **Guest** — an agent attached into the host session. Zero or more per session. Guests are knowledge loads — they extend what the host knows and can do, without becoming separate executors.
 - **Active agents** — host + all currently attached guests. This is the set that `/lr:recall` fans out over and that `/lr:reflect` / `/lr:merge` / `/lr:finalize` iterate over.
 
@@ -37,7 +37,7 @@ The session is single-executor, multi-personality: the host stays in charge, the
 
 If `$ARGUMENTS` is empty:
 
-1. Identify active agents from the conversation. The host is whichever agent was booted via `/lr:boot` or a registered per-agent shortcut. Guests are any agents that were confirmed as attached by prior `/lr:attach` commands in this session and have not been removed (detach is not supported in v1, so they all stay).
+1. Identify active agents from the conversation. Outside a finalization sequence, the host is whichever agent was booted via `/lr:boot` or a registered per-agent shortcut. During finalization after participant revision, use its finalization host. Guests are any agents confirmed as attached by prior `/lr:attach` commands in this session, plus any displaced booted agent retained by participant revision; detach is not supported in v1, so they all stay.
 2. Print the active-agents state:
    - `Host: <host-name> — <one-line role.md description>`
    - For each guest: `Guest: <guest-name> — <one-line role.md description>`

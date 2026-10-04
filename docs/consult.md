@@ -96,7 +96,7 @@ If either of those limits is too tight for the task, **escalate**: `/lr:attach <
 
 ## No finalization for the consultant
 
-The consultant does not reflect or merge because of this consult. From the consultant's perspective, the consult is read-only — its lore is queried, nothing is written back. If the session produces knowledge the consultant should keep, `/lr:finalize` may add it as a participant (not while a confidential repo is in use).
+The consultant does not reflect or merge because of this consult. From the consultant's perspective, the consult is read-only — its lore is queried, nothing is written back. If the session produces knowledge the consultant should keep, `/lr:finalize` may add it as a participant (not while a confidential repo is in use or would be added automatically).
 
 ## See also
 

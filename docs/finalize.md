@@ -22,10 +22,6 @@ Print this to the user before doing anything else, filling in any `<placeholder>
 ## Before Phase 1 — Revise the participants
 
 Check which agents should keep what this session learned. Skip this section with `--transcript`.
-If a repo described as confidential (in the routing map or its `lore-repo.md`) is in use — an active
-agent's, or one the session read files from or consulted an agent of — change nothing: with nothing
-booted, stop as in step 5; otherwise print the confidential line from step 4, only when revision
-would have changed something.
 
 1. **Candidates** — the agents in the workspace this session runs in, never another workspace,
    that are not already active, from the routing map in the workspace memory file; if that is
@@ -44,27 +40,46 @@ would have changed something.
    effort went) and the main result lie in the other agent's role; if they disagree or there is no
    clear main topic, it is a close call. A replaced booted agent becomes an ordinary guest; Phase 4
    still commits its repo (see *No empty commits* under Invariants).
-4. **Notice** — per the Operation Notice convention, only if something changes (booting a host
-   when nothing is booted counts), one line, each clause only when it applies:
+4. **Confidentiality gate** — after selecting the proposed additions and host, but before any
+   boot or attach, check whether a repo described as confidential (in the routing map or its
+   `lore-repo.md`) is either in use — an active agent's, or one the session read files from or
+   consulted an agent of — **or belongs to a proposed automatic addition**. With nothing booted,
+   the host to be booted is a proposed automatic addition. If either condition holds, change
+   nothing and retain the original participants: with nothing booted, stop as in step 6; otherwise
+   print the confidential line from step 5, only when revision would have changed something, then
+   skip step 6 and continue to Phase 1 with outcome "skipped". If no revision was planned, keep
+   that notice quiet but still report "skipped". This gate concerns selected automatic
+   participants; it does not prohibit merely discovering a confidential candidate.
+5. **Notice** — per the Operation Notice convention, only if revision is planned and step 4 did
+   not block (booting a host when nothing is booted counts), one line, each clause only when it
+   applies:
 
    > Revising this session's agents before saving what it learned: adding `<agent>` (<why>); host will be `<agent>` (<why>).
 
-   Confidential line (see the gate above): `Not revising this session's agents: confidential <repo> in use; /lr:attach to add agents yourself.`
+   Confidential line (see the gate above): `Not revising this session's agents: confidential <repo> blocks automatic revision; /lr:attach to add agents yourself.`
 
-   The completion line reports the outcome: "revised" whenever this step had a line to print,
-   otherwise "checked, no change", or "skipped" (`--transcript` or the confidentiality gate).
-5. **Apply** — first print the step 4 line, if any; then, with the existing procedures and
-   skipping their Step 0 announcements: if nothing is booted, boot the host per `<framework-root>/docs/agent-boot.md`; attach every added agent other
-   than one just booted, per `<framework-root>/docs/attach.md` (its `Active agents` line shows the
-   pre-revision host — the notice governs). From then on the active agents for every phase are the
-   new host first, then every other agent that was active or added, a replaced booted agent
-   included. If an attach fails, continue without that agent and say so; if it was the would-be
-   host, the booted agent stays host. Then continue to Phase 1.
+   Retain the outcome for the **final completion line**: "revised" only when a participant or host
+   change was successfully applied, otherwise "checked, no change", or "skipped" (`--transcript`
+   or the confidentiality gate). The notice is a pre-action statement of intent, not evidence that
+   revision happened. In particular, if every proposed attachment fails and the original host
+   remains, the final line reports "checked, no change".
+6. **Apply** — first print the step 5 line, if any; then, with the existing procedures and
+   skipping their Step 0 announcements: if nothing is booted, boot the host per `<framework-root>/docs/agent-boot.md`; attach every added agent that is not
+   already active, other than one just booted, per `<framework-root>/docs/attach.md` (its
+   `Active agents` line shows the pre-revision host — the notice governs). Record each successful
+   boot, attachment, or in-place host promotion. Promote a proposed new host when it is already
+   active (including an attached guest — no re-attach or boot) or, if it is a proposed addition,
+   after it successfully attaches; if the proposed addition fails, the booted agent stays host. If another
+   addition succeeds while the proposed host fails, retain the booted agent as the final host but
+   retain a "revised" outcome. From then on the active agents for every phase are the final host
+   first, then every other agent that was active or was successfully added, a replaced booted agent
+   included. If an attach fails, continue without that agent and say so. Continue to Phase 1 with
+   the retained outcome.
 
-   **The only stop:** with nothing booted, if no agent qualifies, a confidential repo is in use, or
-   the host cannot be booted, print `Nothing to finalize: <reason>.` — "no agent owns this
-   session's work", "confidential <repo> in use; boot an agent yourself", or "could not boot
-   <agent>" — and stop with nothing written and no completion line.
+   **The only stop:** with nothing booted, if no agent qualifies, the confidentiality gate applies,
+   or the host cannot be booted, print `Nothing to finalize: <reason>.` — "no agent owns this
+   session's work", "confidential <repo> blocks automatic revision; boot an agent yourself", or
+   "could not boot <agent>" — and stop with nothing written and no completion line.
 
 ## Relationship to the individual skills
 
@@ -111,8 +126,9 @@ empty handoff.
 ## Phase 3 — Summarize
 
 Read `<framework-root>/docs/summarize.md` and follow it. Writes the canonical summary, including its
-Learning section, into the host agent's `sessions/YYYY/MM/` directory and — for every attached guest
-that had lore updates in phase 2 — a short guest summary into the guest's `sessions/YYYY/MM/`. All
+Learning section, into the host agent's `sessions/YYYY/MM/` directory and — for every guest (attached
+or retained by participant revision) that had lore updates in phase 2 — a short guest summary into
+the guest's `sessions/YYYY/MM/`. All
 summaries for a session share the session UUID. Summarize is additive — its failure does not roll
 back reflect or merge.
 
