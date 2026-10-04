@@ -4,7 +4,7 @@ This process is triggered at the end of a session, as the final phase of finaliz
 
 Here, `<framework-root>` means the parent directory of the `docs/` directory containing this file. If you read this file from an absolute path, use scripts and `VERSION` from that same checkout; do not substitute a different installed plugin cache path.
 
-The host agent always receives a **full summary** in its own `sessions/` directory. Each attached guest that had lore updates during merge additionally receives a **short guest summary** in its own repo, linking back to the host's canonical record. All summaries for a session share the same UUID. Consulted agents receive nothing — their involvement is recorded in the host summary only.
+The host agent always receives a **full summary** in its own `sessions/` directory. Each guest (attached via `/lr:attach`, or retained by `/lr:finalize` participant revision) that had lore updates during merge additionally receives a **short guest summary** in its own repo, linking back to the host's canonical record. All summaries for a session share the same UUID. Consulted agents receive nothing — their involvement is recorded in the host summary only.
 
 Summaries are **public artifacts** (committed to each respective agent repo). Lore remains the
 durable knowledge; summaries capture *what happened* and include a compact audit of what reflection
@@ -24,7 +24,7 @@ Print this to the user before doing anything else, filling in any `<placeholder>
 
 ## Relationship to reflect and merge
 
-- **Reflect and merge** iterate per active agent (host + each attached guest) and update each agent's lore.
+- **Reflect and merge** iterate per active agent (host plus each guest — attached or retained by participant revision) and update each agent's lore.
 - **Summarize** runs **once, session-wide**, composed by the host from its perspective. The host summary is the canonical narrative; short guest summaries link back to it.
 - The host summary's **Learning** section is composed from each active agent's retained Reflection
   outcome and Merge handoff. It records the reflection-to-merge outcome without reconstructing
@@ -39,7 +39,7 @@ Print this to the user before doing anything else, filling in any `<placeholder>
 <lore-agent-repo>/agents/<host-agent>/sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md
 ```
 
-**Guest summary (per attached guest with lore updates):**
+**Guest summary (per guest with lore updates — attached or retained by participant revision):**
 ```
 <guest-repo>/agents/<guest-agent>/sessions/<YYYY>/<MM>/<YYYY-MM-DD>-<short-uuid>.md
 ```

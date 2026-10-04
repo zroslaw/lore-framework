@@ -58,11 +58,11 @@ If the script fails to complete, apply the **Script Fallback Contract** (`<frame
 
 ## Active Agents: Fan Out When Guests Are Attached
 
-If guests are attached to the host session (via `/lr:attach`), the search runs across **all active agents' lore directories** — host + every attached guest. Execute this by dispatching **one `Explore` subagent per active agent in parallel** (all subagent calls in a single message), each scoped to one agent's `lore/` directory.
+If the session has multiple active agents (guests attached via `/lr:attach`, or retained by `/lr:finalize` participant revision), the search runs across **all active agents' lore directories** — host plus every guest. Execute this by dispatching **one `Explore` subagent per active agent in parallel** (all subagent calls in a single message), each scoped to one agent's `lore/` directory.
 
 Each subagent receives the same brief but is told which agent's lore to scan. Each returns its own compact synthesis. The host merges the results for the user, grouped by agent so it's clear whose lore each finding came from.
 
-When there are no guests, the fan-out reduces to a single subagent — behavior is identical to the single-agent case. You don't need to branch your procedure; just enumerate the active agents (host plus any attached guests) and dispatch N subagents.
+When there are no guests, the fan-out reduces to a single subagent — behavior is identical to the single-agent case. You don't need to branch your procedure; just enumerate the active agents (host plus guests per `attach.md`) and dispatch N subagents.
 
 **Why parallel, not serial:** each subagent runs independently and there are no dependencies between them. Single-message parallel dispatch is both faster and the standard pattern for independent subagent work.
 

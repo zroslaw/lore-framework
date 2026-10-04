@@ -29,7 +29,7 @@ Print the announcement for the form you were invoked as, before doing anything e
 
 - **Host** — the agent currently designated to host the session. In ordinary sessions, it is the agent booted via `/lr:boot` or a registered per-agent shortcut (`/lr-<name>-agent` on Claude Code, `$lr-<name>-agent` on Codex). Exactly one per session. Only `/lr:finalize` may re-designate it before reflection; any displaced booted agent remains an ordinary guest. The host is the sole executor.
 - **Guest** — an agent attached into the host session. Zero or more per session. Guests are knowledge loads — they extend what the host knows and can do, without becoming separate executors.
-- **Active agents** — host + all currently attached guests. This is the set that `/lr:recall` fans out over and that `/lr:reflect` / `/lr:merge` / `/lr:finalize` iterate over.
+- **Active agents** — host plus all guests (each agent attached via `/lr:attach`, plus any displaced booted agent retained by `/lr:finalize` participant revision). This is the set that `/lr:recall` fans out over and that `/lr:reflect` / `/lr:merge` / `/lr:finalize` iterate over.
 
 The session is single-executor, multi-personality: the host stays in charge, the guests contribute knowledge.
 

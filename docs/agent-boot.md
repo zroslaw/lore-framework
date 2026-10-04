@@ -267,6 +267,6 @@ At the end of a session, when the user triggers finalization, you preserve what 
 
 Both steps together: `/lr:finalize`.
 
-If guests are attached to this session (via `/lr:attach`), both reflection and merge iterate per active agent in host-first order — each agent learns what fits its role. See `<framework-root>/docs/process-reflection.md` and `process-merge.md` for the iteration mechanics.
+If the session has multiple active agents (guests attached via `/lr:attach`, or retained by `/lr:finalize` participant revision), both reflection and merge iterate per active agent in host-first order — each agent learns what fits its role. See `<framework-root>/docs/process-reflection.md` and `process-merge.md` for the iteration mechanics.
 
 Do not perform finalization unless the user explicitly triggers it.

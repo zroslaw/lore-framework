@@ -4,7 +4,7 @@ Pull the latest lore from each active agent's repo, mid-session.
 
 Use this when you suspect another contributor (or a parallel session, or your own work in another worktree) pushed lore, role, or workdir changes between your boot and now. Boot already auto-pulls; `/lr:pull-lore` is the manual force-refresh between boots.
 
-> **"Active agents" = the host you booted with `/lr:boot` plus any guests attached via `/lr:attach`.** See `attach.md` for the host/guest model.
+> **"Active agents"** — host plus guests, enumerated per `attach.md` (booted or finalization host; guests attached via `/lr:attach` or retained by `/lr:finalize` participant revision).
 
 > **Why two steps (pull, then re-read)?** A `git pull` updates files on disk, but Claude's working context still holds the *pre-pull* copies of `role.md` and `lore-context.md`. Without an explicit re-read, the freshly pulled lore is on disk but not in working memory. `/lr:pull-lore` does both — pull then re-read.
 
@@ -21,7 +21,7 @@ Print this to the user before doing anything else, filling in any `<placeholder>
 
 ## What It Does
 
-1. **Enumerates active agents** — host (whichever agent was booted) plus any guests attached via `/lr:attach`.
+1. **Enumerates active agents** — host and guests per `attach.md` (see the blockquote above).
 2. **Auto-pulls each agent's repo** — runs `lr-core preflight --fresh` per repo, which executes the procedure in `pull_repo()`'s comments in `scripts/lr_core/preflight.py` (`<framework-root>/docs/auto-pull.md` carries the reporting policy). When two active agents share a repo, that repo is pulled once.
 3. **Re-reads each active agent's `role.md` and `lore-context.md`** — so any changes pulled in actually take effect in working memory. Without this step, the pulled files are on disk but the host is still operating from the pre-pull context.
 4. **Reports a one-line summary per repo** — pulled / already up to date / failed / skipped (no origin, not a git repo, or not the root of its own git repo), so the user can see what changed.
@@ -54,8 +54,8 @@ If no lore agent is loaded in the current session, respond: `No agent loaded. Ru
 
 From the session conversation:
 
-- **Host** — whichever agent was booted via `/lr:boot` or a registered per-agent shortcut.
-- **Guests** — any agents confirmed as attached by prior `/lr:attach` commands in this session (no detach in v1; once attached, they remain active).
+- **Host** — outside finalization, whichever agent was booted via `/lr:boot` or a registered per-agent shortcut; during finalization after participant revision, the finalization host.
+- **Guests** — each agent confirmed as attached by a prior `/lr:attach` in this session, plus any displaced booted agent retained by `/lr:finalize` participant revision (detach is not supported in v1; once active, they remain).
 
 Resolve each active agent's `<lore-agent-repo>` path. Deduplicate repos: if host and a guest live in the same repo, pull that repo once.
 

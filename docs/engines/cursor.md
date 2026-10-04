@@ -162,7 +162,9 @@ validated on a given CLI build.
 
 Follow the shared merge execution model, with Claude `Agent` swapped for Cursor `Task`:
 
-1. Collect active agents (host + any attached guests), host-first.
+1. Collect active agents per `process-merge.md` (finalize: participant revision's host and list,
+   including any retained booted guest; standalone: booted host plus guests attached via
+   `/lr:attach`), host-first.
 2. For each agent, spawn a write-capable **`Task`** (`generalPurpose` or equivalent — merge needs
    Write/Edit/Bash). Brief example: _"Boot as agent `<name>` (repo: `<path>`) per
    `<framework-root>/docs/agent-boot.md`, then run the merge procedure in
