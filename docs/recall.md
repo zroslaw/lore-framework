@@ -25,10 +25,10 @@ If no lore agent is loaded in the current session, respond: `No agent loaded. Ru
 
 ### 2. Determine the active agents
 
-Recall searches the lore of every **active** agent — the host plus any guests attached via `/lr:attach`. Enumerate them from the session conversation:
+Recall searches the lore of every **active** agent — host plus all guests. Enumerate them from the session conversation:
 
-- Host: whichever agent was booted via `/lr:boot` or a registered per-agent shortcut
-- Guests: each agent confirmed as attached by a prior `/lr:attach` in this session (detach is not supported in v1; once attached, they remain active)
+- **Host** — outside a finalization sequence, whichever agent was booted via `/lr:boot` or a registered per-agent shortcut; during finalization after participant revision, the finalization host
+- **Guests** — each agent confirmed as attached by a prior `/lr:attach` in this session, plus any displaced booted agent retained by `/lr:finalize` participant revision (detach is not supported in v1; once active, they remain)
 
 If an active agent has no `lore/` directory or no topic files, skip it silently. If no active agent has any lore to search, respond: `No lore to recall from — active agents have empty lore directories.` and stop.
 

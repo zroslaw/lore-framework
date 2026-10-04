@@ -24,7 +24,8 @@ the booted host; during finalize it is the finalization host. That is the defaul
 
 If one or more guests are attached or retained by participant revision, **run this process once per
 active agent, sequentially, in host-first order** (host, then each guest in the order they became
-active). Each iteration is scoped to one agent:
+active). After a host swap, the demoted booted agent is a guest from that moment and keeps its
+place in that order (it became active when first booted). Each iteration is scoped to one agent:
 
 - Review the session through the lens of **that agent's** `role.md` + `lore-context.md` — these describe the agent's identity, responsibilities, and areas of concern, and define what "relevant to this agent" means.
 - Extract only what matches that scope. Some session noise leaking into an iteration is acceptable — the role lens is a guide, not a strict filter.

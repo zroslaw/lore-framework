@@ -152,6 +152,8 @@ Collect every repo touched by phases 1–3 — each active agent's repo (for its
 
 For each repo, print a one-line confirmation (e.g., `✓ <repo>: committed <sha>, pushed to <branch>`). No approval prompt — phase 4 runs end-to-end without user interaction.
 
+**Completion line.** After phase 4, close with the revision outcome: `revised`, `checked, no change`, or `skipped` (`--transcript` only) — the same strings defined in **Before Phase 1 — Revise the participants** above and in `skills/finalize/SKILL.md`, plus what was reflected, merged, summarized, and pushed.
+
 ### Failure handling
 
 - **Summarize failed** — commit the reflect+merge output alone. Merge output is valuable on its own; don't hold it hostage to the summary.

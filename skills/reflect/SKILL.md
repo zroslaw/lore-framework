@@ -6,7 +6,7 @@ description: "Extract session knowledge into reflection topics. Run at end of se
 
 Begin the reflection process for the current session.
 
-Read `<framework-root>/docs/process-reflection.md` for detailed instructions. The doc explains single-agent and multi-agent (attached-guests) iteration — if guests are attached via `/lr:attach`, reflection runs per active agent, host first.
+Read `<framework-root>/docs/process-reflection.md` for detailed instructions. The doc explains single-agent and multi-agent iteration — if any guests are active (attached via `/lr:attach`, or retained by `/lr:finalize` participant revision), reflection runs once per active agent, host first.
 
 Review this session and extract knowledge worth preserving into reflection topics in the appropriate `reflections/` directory for each active agent.
 
