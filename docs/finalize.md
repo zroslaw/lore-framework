@@ -152,7 +152,7 @@ Collect every repo touched by phases 1–3 — each active agent's repo (for its
 
 For each repo, print a one-line confirmation (e.g., `✓ <repo>: committed <sha>, pushed to <branch>`). No approval prompt — phase 4 runs end-to-end without user interaction.
 
-**Completion line.** After phase 4, close with the revision outcome: `revised`, `checked, no change`, or `skipped` (`--transcript` only) — the same strings defined in **Before Phase 1 — Revise the participants** above and in `skills/finalize/SKILL.md`, plus what was reflected, merged, summarized, and pushed.
+**Completion line.** After phase 4, close with the revision outcome: `revised`, `checked, no change`, or `skipped` — the same strings defined in **Before Phase 1 — Revise the participants** above and in `skills/finalize/SKILL.md`. `skipped` covers `--transcript` and the confidentiality gate (including when the gate fires with no planned revision); plus what was reflected, merged, summarized, and pushed.
 
 ### Failure handling
 
