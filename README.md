@@ -259,7 +259,6 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 
 | Skill | Purpose |
 |---|---|
-| `/lr:wait` | **Claude Code only** — Wait for an external event or sleep during background operation |
 | `/lr:being [subcommand]` | **BETA** — Manage Lore Beings and the Being Keeper |
 
 ### Session lifecycle
@@ -301,8 +300,6 @@ below use Claude Code's `/lr:<skill>` syntax; substitute your engine's prefix fr
 
 | Skill | Purpose |
 |---|---|
-| `/lr:df-repo-init [<repo>]` | **BETA** — Initialize a Dark Factory backbone repo (`<repo>-df`) for a source repo |
-| `/lr:df-ula-file <file>` | **BETA** — Analyze one file for potential bugs, test scenarios, and test gaps |
 
 ## Direct boot shortcuts
 

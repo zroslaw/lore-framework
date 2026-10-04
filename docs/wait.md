@@ -1,5 +1,7 @@
 # Wait / Sleep / Event Primitive (`lr-wait`)
 
+> **Skill temporarily hidden (v47).** `/lr:wait` is not shipped as a skill on any engine; the `lr-wait` MCP server and this procedure remain.
+
 > **Audience note.** Claude reads this when the user runs `/lr:wait`, or whenever the user
 > instructs the agent to *wait for* something. There is no manual procedure for the user — the
 > wait/sleep tools are provided by the `lr-wait` MCP server, which Claude Code auto-starts from

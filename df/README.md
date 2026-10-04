@@ -1,5 +1,7 @@
 # `df/` — Dark Factory / SDLC automation (BETA)
 
+> **Skills temporarily hidden (v47).** The `/lr:df-repo-init` and `/lr:df-ula-file` skills are not shipped for any engine; the procedure docs below remain and can be followed directly by reading them.
+
 This directory houses the **DF module** of the `lr` plugin: the **Dark Factory (DF)** — features driving toward an autonomous, AI-run SDLC. All DF skills are prefixed `lr:df-…` and their logic lives here under `df/`.
 
 > **BETA.** These features are under active design. Interfaces, artifact shapes, and skill names may change.
