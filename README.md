@@ -361,4 +361,4 @@ workspace root. Shortcuts created before v37 may still live under `~/.codex/skil
 ## Reference
 
 [Marketplace metadata](MARKETPLACE.md) · [Privacy and data handling](PRIVACY.md) ·
-[MIT License](LICENSE)
+[MIT-0 License](LICENSE)

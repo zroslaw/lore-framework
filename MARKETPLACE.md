@@ -13,7 +13,7 @@ plugin marketplaces.
 - Runtime release commit: `3909129`
 - Submission metadata: this file on `main`
 - Repository: `https://github.com/zroslaw/lore-framework`
-- License: `MIT`
+- License: `MIT-0`
 - Author / developer: `Yaroslav Panasyuk`
 - Website / homepage: `https://github.com/zroslaw/lore-framework`
 - Privacy policy: `https://github.com/zroslaw/lore-framework/blob/main/PRIVACY.md`
