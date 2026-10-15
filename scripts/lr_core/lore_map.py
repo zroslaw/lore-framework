@@ -65,11 +65,17 @@ def _with_serialized_estimate(payload, field="estimated_tokens"):
 def _boot_system_prompts_estimated_tokens(agent_dir, framework_root, engine):
     """Estimate framework instruction files always loaded during boot."""
     root = os.path.realpath(os.path.abspath(framework_root))
-    required_paths = [
-        os.path.join(root, "skills", "boot", "SKILL.md"),
-        os.path.join(root, "docs", "agent-boot.md"),
-        os.path.join(root, "docs", "engines", "%s.md" % engine),
-    ]
+    if engine == "mcp":
+        required_paths = [
+            os.path.join(root, "docs", "mcp-finalize-workflow.md"),
+            os.path.join(root, "docs", "engines", "mcp.md"),
+        ]
+    else:
+        required_paths = [
+            os.path.join(root, "skills", "boot", "SKILL.md"),
+            os.path.join(root, "docs", "agent-boot.md"),
+            os.path.join(root, "docs", "engines", "%s.md" % engine),
+        ]
     total = 0
     for path in required_paths:
         try:

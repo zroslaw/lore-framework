@@ -101,8 +101,9 @@ def build_parser():
                        help="Compact boot navigation or complete detailed map.")
     p_map.add_argument("--scope", default=None,
                        help="Agent-relative Lore path for a scoped detailed map.")
+    lore_map_engines = sorted(set(ENGINE_PROGRAMS.values()) | {"mcp"})
     p_map.add_argument("--engine", default=None,
-                       choices=sorted(set(ENGINE_PROGRAMS.values())),
+                       choices=lore_map_engines,
                        help="Engine profile included in the boot-footprint estimate.")
     p_map.set_defaults(func=cmd_lore_map, output_format="yaml")
 
