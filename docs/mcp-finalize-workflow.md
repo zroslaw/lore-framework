@@ -2,8 +2,8 @@
 
 This procedure is for **MCP chat clients** using a Lore MCP server. It mirrors
 `/lr:finalize` reflect → merge → publish, but the chat does reflect and merge
-**inline**; the server only stages reflections, serves framework docs, and
-publishes at `finalize`.
+**inline**; the server only serves framework docs and publishes at `finalize`.
+Reflection drafts stay in the chat. The server does not store them.
 
 Read `docs/engines/mcp.md` for engine bindings. Load procedures on demand with
 `read_framework_doc`.
@@ -17,42 +17,32 @@ Before the first finalization action in a session, tell the user:
 
 ## Decide active agents
 
-List who learned something this session:
+Finalize covers only the agents **this chat booted**. Order: **host first** (the
+first booted agent), then each other booted agent, one at a time.
 
-1. Call `list_agents` if needed.
-2. Include every agent whose role scope covers durable knowledge from this
-   session. Order: **host agent first** (the agent the user mainly worked with),
-   then each other agent, one at a time.
+## Per agent (repeat for each booted agent)
 
-MCP has no `/lr:attach`. You choose the set explicitly.
+### A. Context
 
-## Per agent (repeat for each active agent)
+1. Use the boot result already in the chat (role, lore context, compact map), or
+   call `boot_agent(name)` / `lore_map(name, view="detailed")` as needed.
+2. Prefer reading from the lore context and the lore map. Follow those links.
+   Use `search_lore` only when the map and links do not give the data.
+3. Read targets with `read_agent_lore` (`role`, `context`, `topic:…`).
 
-### A. Boot context
-
-1. `boot_agent(name)` — role and compact `lore_context`.
-2. `lore_map(name, view="boot")` — taxonomy map for merge navigation.
-3. Use `search_lore` and `read_agent_lore` for existing topics you may update.
-
-### B. Reflect (staging)
+### B. Reflect (in chat)
 
 1. Read `process-reflection.md` once per session if you have not already
    (`read_framework_doc`).
 2. Review the session through **this agent's** role lens.
-3. For each durable reflection topic, call `write_reflections` with kebab-case
-   slugs (for example `api-retry-behavior`, `role-update-deployment-ownership`).
-4. Confirm staging with `read_agent_lore(name, document="reflections")`.
-
-Reflections are **not** published lore until merge and finalize complete.
+3. Write reflection topics **in the chat**. Do not call a tool to stage them.
 
 ### C. Merge (in chat)
 
 1. Read `process-merge.md` (`read_framework_doc`).
-2. For each staged reflection, decide: update existing topic, create topic,
-   delete obsolete topic, or update `role` / `context` per the merge doc.
-3. Read targets with `read_agent_lore` (`role`, `context`, `topic:…`,
-   `reflection:…`).
-4. Produce **complete** markdown bodies (v1 frontmatter on new lore files per
+2. For each reflection, decide: update an existing topic, create a topic, delete
+   an obsolete topic, or update `role` / `context`.
+3. Produce **complete** markdown bodies (v1 frontmatter on new lore files per
    `lore-structure.md`).
 
 Do not call `finalize` until merge decisions are finished for this agent.
@@ -60,12 +50,13 @@ Do not call `finalize` until merge decisions are finished for this agent.
 ### D. Publish
 
 1. Call `finalize(name, updates)` once with every selected document:
-   `{"document": "context", "body": "..."}` and
-   `{"document": "topic:kebab-path", "body": "..."}`.
-2. On success, the server clears `reflections/` for that agent.
-3. Optionally `boot_agent` or `search_lore` to confirm.
+   - `{"document": "context", "body": "..."}`
+   - `{"document": "role", "body": "..."}`
+   - `{"document": "topic:kebab-path", "body": "..."}`
+   - `{"document": "delete:topic:kebab-path", "body": ""}` to remove an obsolete topic
+2. Optionally `boot_agent` or `search_lore` to confirm.
 
-Then move to the **next** active agent and repeat A–D.
+Then move to the **next** booted agent and repeat A–D.
 
 ## What MCP finalize does not do (yet)
 
@@ -78,7 +69,8 @@ Then move to the **next** active agent and repeat A–D.
 
 | Doc | Purpose |
 |---|---|
-| `process-reflection.md` | What to extract; reflection file rules |
-| `process-merge.md` | How to integrate into lore |
-| `lore-structure.md` | v1 frontmatter and taxonomy |
-| `engines/mcp.md` | MCP engine bindings |
+| `docs/engines/mcp.md` | MCP engine bindings |
+| `docs/process-reflection.md` | Reflect procedure |
+| `docs/process-merge.md` | Merge procedure |
+| `docs/lore-structure.md` | Lore v1 file shape |
+| `docs/lore-search.md` | Search semantics |
